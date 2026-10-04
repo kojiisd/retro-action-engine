@@ -1,0 +1,11 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/core" },
+    { "path": "packages/pack" },
+    { "path": "packages/input" },
+    { "path": "packages/renderer-phaser" },
+    { "path": "apps/player" },
+    { "path": "packs/sample" }
+  ]
+}

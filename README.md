@@ -16,7 +16,22 @@ TypeScript / Vite / Phaser 4 / Vitest、pnpm workspaces、Biome、Playwright、A
 
 ## 現在の状態
 
-設計フェーズです。実装コードはまだありません。[docs/roadmap.md](docs/roadmap.md) の M0（リポジトリ骨格）から着手します。
+M0（リポジトリ骨格）まで実装済みです。各パッケージは空のエントリとダミーテストだけで、ゲームのロジックはまだありません。次は [docs/roadmap.md](docs/roadmap.md) の M1-1（インフラとプレビュー配備）です。
+
+## 開発
+
+Node 22 と pnpm 12（`package.json` の `packageManager` で固定）を使います。
+
+```sh
+pnpm install
+pnpm lint        # Biome
+pnpm typecheck   # tsc -b（project references）
+pnpm test        # Vitest
+pnpm depcruise   # 依存方向の検査
+pnpm build
+```
+
+パッケージ構成と依存方向は [docs/architecture.md](docs/architecture.md) の 3 章を参照してください。
 
 ## 設計ドキュメントの読む順序
 
@@ -35,4 +50,4 @@ ADR のうち最初に読むもの: [ADR-0001 コアと描画の境界](docs/dec
 
 - リポジトリにはオリジナル素材のサンプルパックのみを置きます。既存作品の素材、キャラクター名、楽曲は含めません。
 - 私的なパックはリポジトリ外（URL またはローカルフォルダ）から読み込む設計です。
-- ライセンスはエンジン本体が MIT、サンプル素材が CC0 の予定です（LICENSE ファイルは M0 で追加します）。
+- ライセンスはエンジン本体が MIT、サンプル素材が CC0 の予定です。LICENSE ファイルは、著作権者名を確認したうえで追加します（未追加）。

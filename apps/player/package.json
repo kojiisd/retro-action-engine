@@ -1,0 +1,18 @@
+{
+  "name": "@retro-action-engine/player",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "@retro-action-engine/core": "workspace:*",
+    "@retro-action-engine/input": "workspace:*",
+    "@retro-action-engine/pack": "workspace:*",
+    "@retro-action-engine/renderer-phaser": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "^8.3.2"
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "name": "@retro-action-engine/input",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@retro-action-engine/core": "workspace:*"
+  }
+}

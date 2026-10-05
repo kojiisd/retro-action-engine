@@ -77,12 +77,32 @@ infra → aws-cdk-lib のみ（エンジンの全パッケージから独立）
 ## 作業の進め方
 
 - `docs/roadmap.md` のサブステップ単位で作業し、1 サブステップ = 1 PR。受け入れ条件のテストが通ってから PR を出す。
-- PR を出す前にローカルで `pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm depcruise` を通す（M0 でスクリプト名を確定する）。
+- PR を出す前にローカルで `pnpm lint`、`pnpm typecheck`、`pnpm test`、`pnpm depcruise`、`pnpm build` を通す（CI の `ci.yml` と同じ順序）。
 - 設計と異なる実装が必要になったら、先に ADR を追加または更新してから実装する。
 - 実装の型やフィールド名は `docs/architecture.md` と `docs/pack-spec.md` のスケッチに合わせる。変えるときは docs も同じ PR で直す。
 - コミットは Conventional Commits（`feat(core): ...`、`fix(input): ...`、`docs: ...`、`chore(infra): ...`）。
 - シークレットをコミットしない。AWS のロール ARN やバケット名は GitHub の repository variables に置く。`infra/` の `cdk deploy` はリポジトリ所有者が手元で実行し、CI からは実行しない。
 
+## コマンドとツール構成
+
+pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmrc`（22）に合わせる。
+
+| コマンド | 内容 |
+| --- | --- |
+| `pnpm install --frozen-lockfile` | 依存の導入（CI と同じ） |
+| `pnpm lint` / `pnpm format` | Biome の検査 / 整形 |
+| `pnpm typecheck` | `tsc -b`（各パッケージ。宣言のみを gitignore 済みの `dist/` に出力）に続けて、テストファイルを `tsconfig.test.json` で検査 |
+| `pnpm test` | Vitest。root の `vitest.config.ts` の `projects` で全パッケージを実行 |
+| `pnpm depcruise` | 依存方向の検査（`.dependency-cruiser.cjs`） |
+| `pnpm build` | 各パッケージの `build` スクリプト（現状は `apps/player` の `vite build` のみ） |
+| `pnpm golden:update` / `pnpm e2e` | 各パッケージの同名スクリプトを実行（M1 以降で追加。無ければ何もしない） |
+
+- ワークスペースのパッケージは `package.json` の `exports` で TypeScript のソース（`src/index.ts`）を直接公開する。パッケージ間の import にビルドは要らない。
+- テストは各パッケージの `src/**/*.test.ts`。パッケージ用の tsconfig からは除外し、`tsconfig.test.json` がまとめて検査する。
+- `tsc --noEmit -b` は参照先プロジェクトが emit を無効にできないため使えない。`tsc -b` を使う。
+- 依存方向のルールを変えるときは `docs/architecture.md` の表と `.dependency-cruiser.cjs` の `LAYERS` を同じ PR で直す。パッケージを追加するときも同様。
+
 ## 現在の状態
 
-- 設計フェーズ。`src/` 配下の実装はまだ無い。最初の実装は `docs/roadmap.md` の M0 から始める。
+- M0（リポジトリ骨格）まで実装済み。各パッケージは空の `src/index.ts` とダミーテストだけで、ロジックはまだ無い。
+- 次は `docs/roadmap.md` の M1-1（infra とプレビュー配備）。

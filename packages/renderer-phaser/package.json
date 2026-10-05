@@ -1,0 +1,14 @@
+{
+  "name": "@retro-action-engine/renderer-phaser",
+  "version": "0.0.0",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@retro-action-engine/core": "workspace:*",
+    "@retro-action-engine/pack": "workspace:*",
+    "phaser": "^4.2.1"
+  }
+}

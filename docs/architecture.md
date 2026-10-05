@@ -57,7 +57,7 @@ graph BT
 | `renderer-phaser` | `core`、`pack`（アセット記述型）、`phaser` | `input` | Phaser Scene、ループドライバ、補間描画、タイル描画、音の再生、HUD |
 | `apps/player` | 上記すべて | なし | 配線、設定 UI、PWA、`window.__engine` テストフック、サンプルパックを使う統合テスト |
 | `packs/sample` | なし（データのみ） | なし | サンプルパック。`apps/player` の `public/packs/sample` にコピーされ、`pack` と `apps/player` のテスト fixture になる |
-| `infra` | `aws-cdk-lib`、`constructs` | エンジンの全パッケージ | S3 + CloudFront、OIDC、IAM ロール 2 本 |
+| `infra` | `aws-cdk-lib`、`constructs` | エンジンの全パッケージ | 証明書スタック（us-east-1、ACM）とメインスタック（S3 + CloudFront、Route 53 の Alias、OIDC、IAM ロール 2 本）。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
 
 `core` のテストはインラインの小さな fixture のみを使う。`packs/sample` を読むテストは `pack` と `apps/player` に置く。
 
@@ -353,7 +353,7 @@ retro-action-engine/
 ├─ packages/input/           # デバイス、Action マップ、InputBuffer
 ├─ packages/renderer-phaser/ # Phaser 4 アダプタ
 ├─ packs/sample/             # サンプルパック（データのみ、CC0）
-├─ infra/                    # AWS CDK（S3 + CloudFront + OIDC + IAM）
+├─ infra/                    # AWS CDK（ACM、S3 + CloudFront、Route 53、OIDC、IAM）。手順書は infra/README.md
 ├─ schemas/                  # zod から生成した JSON Schema（M4）
 ├─ docs/                     # 本書、ADR、仕様
 ├─ .github/workflows/        # ci.yml, preview.yml, deploy.yml

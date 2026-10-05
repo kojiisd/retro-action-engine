@@ -1,0 +1,69 @@
+name: Deploy
+
+# Deploys main to https://<SITE_DOMAIN>/ with the deploy-production role (ADR-0014).
+# The role trusts only the "production" GitHub Environment, whose deployment branches are
+# limited to main. PR previews under pr-* are never touched.
+# Until the repository variables are registered (infra/README.md), the job is skipped.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.AWS_ROLE_ARN_PRODUCTION != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: production
+      url: https://${{ vars.SITE_DOMAIN }}/
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      S3_BUCKET: ${{ vars.S3_BUCKET }}
+      CF_DISTRIBUTION_ID: ${{ vars.CF_DISTRIBUTION_ID }}
+      SITE_DOMAIN: ${{ vars.SITE_DOMAIN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check required variables
+        run: .github/scripts/require-vars.sh AWS_REGION S3_BUCKET CF_DISTRIBUTION_ID SITE_DOMAIN
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        env:
+          VITE_BASE: /
+          VITE_COMMIT_SHA: ${{ github.sha }}
+        run: VITE_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" pnpm --filter @retro-action-engine/player build
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN_PRODUCTION }}
+          role-session-name: deploy-production-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Upload
+        run: .github/scripts/sync-site.sh production apps/player/dist "$S3_BUCKET"
+
+      - name: Invalidate CloudFront cache
+        # pr-* is invalidated too; previews are re-fetched from S3 unchanged.
+        run: >-
+          aws cloudfront create-invalidation --distribution-id "$CF_DISTRIBUTION_ID"
+          --paths '/*' --query 'Invalidation.Id' --output text

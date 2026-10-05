@@ -1,0 +1,17 @@
+{
+  "name": "@retro-action-engine/infra",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "synth": "AWS_EC2_METADATA_DISABLED=true cdk synth --quiet -c allowPlaceholders=true",
+    "cdk": "cdk"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.272.0",
+    "constructs": "^10.8.1"
+  },
+  "devDependencies": {
+    "aws-cdk": "^2.1144.0"
+  }
+}

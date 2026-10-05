@@ -25,16 +25,16 @@
 - パッケージ名は `@retro-action-engine/<name>`。`apps/player`, `packs/sample`, `infra` は `private: true`。
 - TypeScript 6.0.x、`strict: true`、project references（`tsconfig.base.json` を継承）。`core` の `lib` は `["ES2023"]`。
 - 型検査は `tsc -b`（各パッケージの tsconfig に `composite: true` と `emitDeclarationOnly: true`。宣言ファイルは gitignore 済みの各 `dist/` に出力）。`tsc --noEmit -b` は、参照先プロジェクトが emit を無効にできない（TS6310）ため使えない。
-- テストファイル（`*.test.ts`）は各パッケージの tsconfig から除外し、root の `tsconfig.test.json`（`noEmit`、DOM lib あり）で検査する。vitest の型が Node の型を引き込むため、分けないと `core` のソースに Node の型が混入する。`core` のソースで DOM と Node の API が使えないことは `tsc -b` が保証する（テストファイルは対象外）。
+- テストファイル（`*.test.ts`）は各パッケージの tsconfig から除外し、root の `tsconfig.test.json`（`noEmit`、DOM lib と Node の型あり）で検査する。`apps/*/vite.config.ts` もここで検査する。vitest の型が Node の型を引き込むため、分けないと `core` のソースに Node の型が混入する。`core` のソースで DOM と Node の API が使えないことは `tsc -b` が保証する（テストファイルは対象外）。
 - ワークスペースのパッケージは `package.json` の `exports` で TypeScript のソース（`src/index.ts`）を直接公開し、パッケージ間の import にビルドを要さない。
 - Biome 2 で lint と format。`biome.json` は root に 1 つ。
-- dependency-cruiser の `forbidden` ルールで、`architecture.md` 3 章の表にない方向の import を禁止する。`core` から DOM 型を参照する import（`lib.dom` を要する識別子）は `tsc` が検出する。
+- dependency-cruiser の `forbidden` ルールで、`architecture.md` 3 章の表にない方向の import を禁止する。テスト、ツールの設定ファイル（`*.config.ts`）、型宣言（`*.d.ts`）は実行時のバンドルに入らないため、devDependency と root のツールを使ってよい。`core` から DOM 型を参照する import（`lib.dom` を要する識別子）は `tsc` が検出する。
 - Vitest 5 を root に 1 つ設定し、`projects` で各パッケージを登録する。環境は node。ブラウザテストは Playwright（`apps/player/e2e`）。
 - fast-check を `core` の devDependency に入れる。
 - root スクリプト（M0 で確定）: `pnpm lint`（`biome check .`）, `pnpm format`, `pnpm typecheck`（`tsc -b` に続けて `tsc -p tsconfig.test.json`）, `pnpm test`（`vitest run`）, `pnpm depcruise`, `pnpm build`, `pnpm golden:update`, `pnpm e2e`。`build`、`golden:update`、`e2e` は各パッケージの同名スクリプトを `pnpm -r --if-present run` で実行する。
 - `.nvmrc` = 22。`engines.node >= 22.12`。
 - コミットは Conventional Commits。リリースは当面 git tag。npm 公開することになったら changesets を検討する。
-- CI の基本ジョブ（`ci.yml`）: `pnpm install --frozen-lockfile` → `lint` → `typecheck` → `test` → `depcruise` → `build`。Playwright は M1-5 から追加。
+- CI の基本ジョブ（`ci.yml`）: `pnpm install --frozen-lockfile` → `lint` → `typecheck` → `test` → `depcruise` → `build` → `cdk synth`（infra、プレースホルダー、認証情報なし。M1-1 から）。Playwright は M1-5 から追加。
 
 ## 結果
 

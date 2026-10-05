@@ -44,3 +44,7 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+      # Synthesizes both CDK stacks with the placeholder config. No AWS credentials are used.
+      - name: CDK synth
+        run: pnpm --filter @retro-action-engine/infra synth

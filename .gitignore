@@ -3,5 +3,7 @@ dist/
 coverage/
 *.tsbuildinfo
 .vite/
+infra/cdk.out/
+infra/config/deploy.json
 .DS_Store
 *.log

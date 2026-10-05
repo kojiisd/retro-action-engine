@@ -1,9 +1,54 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
     <title>retro-action-engine</title>
+    <style>
+      :root {
+        font-family: system-ui, sans-serif;
+        line-height: 1.5;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: max(16px, env(safe-area-inset-left));
+        box-sizing: border-box;
+      }
+      main {
+        max-width: 32rem;
+      }
+      h1 {
+        margin: 0 0 0.25rem;
+        font-size: 1.5rem;
+      }
+      .channel {
+        margin: 0 0 1rem;
+        font-weight: 600;
+      }
+      dl {
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 0.25rem 1rem;
+        margin: 0 0 1rem;
+      }
+      dt {
+        opacity: 0.7;
+      }
+      dd {
+        margin: 0;
+        font-family: ui-monospace, monospace;
+        overflow-wrap: anywhere;
+      }
+      .note {
+        margin: 0;
+        opacity: 0.7;
+        font-size: 0.875rem;
+      }
+    </style>
   </head>
   <body>
     <script type="module" src="/src/index.ts"></script>

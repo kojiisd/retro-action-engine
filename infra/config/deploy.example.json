@@ -1,0 +1,17 @@
+{
+  "account": "000000000000",
+  "region": "us-west-2",
+  "hostedZone": {
+    "id": "Z000000000000000PLACEHOLDER",
+    "name": "kojiisd.jp"
+  },
+  "domainName": "arcade.kojiisd.jp",
+  "certificateArn": "arn:aws:acm:us-east-1:000000000000:certificate/00000000-0000-0000-0000-000000000000",
+  "github": {
+    "owner": "kojiisd",
+    "repo": "retro-action-engine",
+    "productionEnvironment": "production",
+    "oidcProvider": "create"
+  },
+  "priceClass": "PriceClass_200"
+}

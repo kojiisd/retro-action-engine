@@ -95,14 +95,18 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 | `pnpm test` | Vitest。root の `vitest.config.ts` の `projects` で全パッケージを実行 |
 | `pnpm depcruise` | 依存方向の検査（`.dependency-cruiser.cjs`） |
 | `pnpm build` | 各パッケージの `build` スクリプト（現状は `apps/player` の `vite build` のみ） |
+| `pnpm --filter @retro-action-engine/infra synth` | CDK の 2 スタックをプレースホルダー設定で synth（認証情報不要、CI と同じ） |
 | `pnpm golden:update` / `pnpm e2e` | 各パッケージの同名スクリプトを実行（M1 以降で追加。無ければ何もしない） |
 
 - ワークスペースのパッケージは `package.json` の `exports` で TypeScript のソース（`src/index.ts`）を直接公開する。パッケージ間の import にビルドは要らない。
 - テストは各パッケージの `src/**/*.test.ts`。パッケージ用の tsconfig からは除外し、`tsconfig.test.json` がまとめて検査する。
 - `tsc --noEmit -b` は参照先プロジェクトが emit を無効にできないため使えない。`tsc -b` を使う。
+- infra の設定値（アカウント ID、ホストゾーン ID、証明書 ARN）は gitignore 済みの `infra/config/deploy.json` に置き、コミットしない。見本は `infra/config/deploy.example.json`（プレースホルダー）。`fromLookup` などの AWS ルックアップは使わない（synth とテストを認証情報なしで通すため）。
+- `infra/bin/app.ts` は Node の型除去で直接実行する。infra の相対 import には `.ts` 拡張子を付け、enum などの型除去できない構文は使わない。
 - 依存方向のルールを変えるときは `docs/architecture.md` の表と `.dependency-cruiser.cjs` の `LAYERS` を同じ PR で直す。パッケージを追加するときも同様。
 
 ## 現在の状態
 
-- M0（リポジトリ骨格）まで実装済み。各パッケージは空の `src/index.ts` とダミーテストだけで、ロジックはまだ無い。
-- 次は `docs/roadmap.md` の M1-1（infra とプレビュー配備）。
+- M1-1（infra とプレビュー配備）まで実装済み。エンジンの各パッケージは空の `src/index.ts` だけで、ゲームのロジックはまだ無い。`apps/player` はビルド情報を表示するプレースホルダーページ。
+- 実際の AWS への適用はリポジトリ所有者が `infra/README.md` の手順で行う。
+- 次は `docs/roadmap.md` の M1-2（Fx / World / タイル衝突）。

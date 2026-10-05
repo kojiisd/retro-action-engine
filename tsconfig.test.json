@@ -2,10 +2,18 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node"],
     "composite": false,
     "declaration": false,
     "emitDeclarationOnly": false,
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   },
-  "include": ["packages/*/src/**/*.test.ts", "apps/*/src/**/*.test.ts", "packs/*/src/**/*.test.ts"]
+  "include": [
+    "packages/*/src/**/*.test.ts",
+    "apps/*/src/**/*.test.ts",
+    "packs/*/src/**/*.test.ts",
+    "infra/src/**/*.test.ts",
+    "apps/*/vite.config.ts"
+  ]
 }

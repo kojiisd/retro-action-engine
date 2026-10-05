@@ -24,9 +24,9 @@
 
 | 項目 | 内容 |
 | --- | --- |
-| 内容 | `infra/`（CDK TypeScript: 非公開 S3、CloudFront + OAC + ディレクトリ index 補完の Function、GitHub OIDC プロバイダ、`deploy-production` と `deploy-preview` の 2 ロール、出力値）、`.github/workflows/preview.yml`、`deploy.yml`、`apps/player` のプレースホルダーページ（ビルド情報と PR 番号を表示） |
-| 所有者の作業 | 1. `pnpm --filter infra cdk bootstrap`（初回）→ `cdk deploy`。2. 出力値を repository variables（`AWS_ROLE_ARN_PRODUCTION`, `AWS_ROLE_ARN_PREVIEW`, `S3_BUCKET`, `CF_DISTRIBUTION_ID`, `CF_DOMAIN`）に登録。3. GitHub Environment `production` を作成。4. `main` のブランチ保護 |
-| 受け入れ条件 | PR にプレビュー URL がコメントされ、プレースホルダーが HTTPS で見える。PR を close すると `pr-<n>/` が消える（再 open で復活）。`main` へのマージで `/` に配備される。プレビュー用ロールを assume して `pr-*` 以外のキーへ `put-object` すると AccessDenied になる（手順と結果を PR 本文に記録）。fork からの PR ではワークフローがスキップされる |
+| 内容 | `infra/`（CDK TypeScript）。証明書スタック（us-east-1、ACM + DNS 検証）と、メインスタック（us-west-2）を作る。メインスタックの中身は次のとおり。<br>・非公開 S3<br>・CloudFront（OAC、`arcade.kojiisd.jp`、ディレクトリ index 補完の Function、セキュリティヘッダー、`pr-*` に `X-Robots-Tag: noindex`）<br>・既存ホストゾーンへの A / AAAA Alias<br>・GitHub OIDC プロバイダ（作成または参照）<br>・`deploy-production` と `deploy-preview` の 2 ロール<br>・出力値<br>このほか `.github/workflows/preview.yml`（拒否確認ステップを含む）、`deploy.yml`、`ci.yml` への `cdk synth` 追加、`apps/player` のプレースホルダーページ（ビルド情報と PR 番号を表示） |
+| 所有者の作業 | [infra/README.md](../infra/README.md) の手順書に従う。<br>1. `config/deploy.json` を作る。<br>2. us-east-1 と us-west-2 で `cdk bootstrap` する。<br>3. 証明書スタックを deploy し、ARN を転記する。<br>4. メインスタックを deploy する。<br>5. 出力値を repository variables（`AWS_REGION`、`AWS_ROLE_ARN_PRODUCTION`、`AWS_ROLE_ARN_PREVIEW`、`S3_BUCKET`、`CF_DISTRIBUTION_ID`、`SITE_DOMAIN`）に登録する。<br>6. Environment `production` のデプロイブランチが `main` のみであることを確認する。<br>7. `main` のブランチ保護を設定する。 |
+| 受け入れ条件 | 自動（CI）: CDK テスト（本番ロールの trust が `environment:production`、プレビューロールの trust が `pull_request`、プレビューロールの S3 書き込みが `pr-*` に限定、両ビヘイビアのセキュリティヘッダー、`pr-*` のみ noindex、証明書スタックが us-east-1 でメインスタックが設定のリージョン、メインに us-east-1 を指定すると検証エラー）と、認証情報なしの `cdk synth` が通る。<br>手動（所有者、手順書の 9）:<br>・PR にプレビュー URL がコメントされ、`https://arcade.kojiisd.jp/pr-<n>/` が HTTPS で見える。<br>・プレビューの応答に `X-Robots-Tag: noindex` とセキュリティヘッダーが付く。<br>・Preview ワークフローの拒否確認ステップが AccessDenied を確認する。<br>・PR を close すると `pr-<n>/` が消え、reopen で復活する。<br>・`main` へのマージで `/` に配備され、`pr-*` は消えない。<br>・fork からの PR ではワークフローがスキップされる。 |
 
 ### M1-2: Fx / World / タイル衝突（1 PR）
 
@@ -85,6 +85,7 @@ M1 完了時の状態: 1 画面で、2 人パーティの切替、移動、ジ�
 | M4-2 | 外部パック読み込み（`url` / `localDirectory` / `cached`）、確認ダイアログ、IndexedDB キャッシュ | Playwright で別オリジンのサンプルパックを `?pack=` から読み込める。`..` と http を拒否する Unit |
 | M4-3 | 音（SFX / BGM、iOS 解錠、ループ点）、`audio.json` | 解錠前の BGM 要求がキューされ `UNLOCKED` 後に再生される Unit（Sound のフェイク） |
 | M4-4 | PWA（vite-plugin-pwa、precache、更新プロンプト）、`base` 配下のスコープ | Playwright でプレビュー URL 配下に SW が登録され、オフラインで再読み込みできる |
+| M4-6 | Content-Security-Policy の検討と導入（Phaser の WebGL とシェーダ、Service Worker、外部パックの URL 読み込みとの兼ね合い）。CloudFront の ResponseHeadersPolicy に追加する | CSP を付けた状態でプレビューの Playwright smoke（パック読込、SW 登録、外部パック読込）が通る。CDK テストで両ビヘイビアの CSP を検証 |
 | M4-5 | 実機検証 | チェックリスト（音の解錠、サイレントスイッチ、音声フォーマット、向き、セーフエリア、フルスクリーン）を iPhone / Android / PC で実施し結果を docs に記録。音声フォーマットを確定して pack-spec を更新 |
 
 ## M5: 拡張
@@ -103,6 +104,7 @@ M1 完了時の状態: 1 画面で、2 人パーティの切替、移動、ジ�
 | 事項 | 判断時期 |
 | --- | --- |
 | 音声フォーマット、iOS サイレントスイッチ | M4-5 |
+| Content-Security-Policy | M4-6 |
 | 外部パックのコード実行 | M5-5 |
 | TypeScript 7 への移行 | 周辺ツール対応後 |
 | `desynchronized: true` | M2-3 |
@@ -116,4 +118,4 @@ M1 完了時の状態: 1 画面で、2 人パーティの切替、移動、ジ�
 | 固定小数点の値域超過 | テストで `fx.setChecks(true)` を常時有効化。Property テストで大きな値域を含める |
 | iOS 固有の挙動 | M4-5 の実機チェックリスト。プレビュー配備で早期から実機確認 |
 | 操作感調整でテストが壊れる | 閾値をプロファイルから導出。golden は 2〜3 本に限定 |
-| プレビューの権限事故 | ロール 2 本と `pr-*` 限定の権限。M1-1 で拒否を実測 |
+| プレビューの権限事故 | ロール 2 本と `pr-*` 限定の権限。CDK テストで静的に、Preview ワークフローの拒否確認で毎 PR 動的に検証 |

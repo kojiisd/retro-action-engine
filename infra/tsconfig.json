@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "rootDir": ".",
+    "outDir": "dist",
+    // Node runs bin/app.ts directly by stripping types, so relative imports keep the .ts
+    // extension and only erasable syntax is allowed (no enums, no parameter properties).
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true
+  },
+  "include": ["bin", "src"],
+  "exclude": ["src/**/*.test.ts"]
+}

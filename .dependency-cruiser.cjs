@@ -35,6 +35,9 @@ const LAYERS = {
 };
 
 const TEST_FILE = '\\.test\\.ts$';
+// Files that are never part of a runtime bundle: tests, tool configs (vite.config.ts,
+// vitest.config.ts) and type declarations. They may use devDependencies and root tooling.
+const BUILD_TIME_FILE = '(\\.test\\.ts|\\.config\\.ts|\\.d\\.ts)$';
 // Any module that belongs to this repository, in resolved or unresolved form.
 const REPO_INTERNAL = '^(packages|apps|packs|infra)/|^@retro-action-engine/';
 
@@ -115,15 +118,19 @@ module.exports = {
     {
       name: 'no-non-package-json',
       severity: 'error',
-      comment: 'Source files may import only packages declared in their own package.json.',
-      from: { pathNot: TEST_FILE },
+      comment:
+        'Source files may import only packages declared in their own package.json. ' +
+        'Tests, tool configs and type declarations may also use root tooling.',
+      from: { pathNot: BUILD_TIME_FILE },
       to: { dependencyTypes: ['npm-no-pkg', 'npm-unknown'] },
     },
     {
       name: 'not-to-dev-dep',
       severity: 'error',
-      comment: 'Source files must not import devDependencies. Test files may.',
-      from: { pathNot: TEST_FILE },
+      comment:
+        'Source files must not import devDependencies. Tests, tool configs and type ' +
+        'declarations may.',
+      from: { pathNot: BUILD_TIME_FILE },
       to: { dependencyTypes: ['npm-dev'] },
     },
     {
@@ -138,7 +145,7 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     // Only this repository's own build output. A plain "dist" pattern would also hide
     // node_modules/<pkg>/dist/*, which is where packages like vitest resolve to.
-    exclude: { path: '^(packages|apps|packs)/[^/]+/dist/' },
+    exclude: { path: ['^(packages|apps|packs)/[^/]+/dist/', '^infra/(dist|cdk\\.out)/'] },
     // Count `import type` and imports that TypeScript erases, too.
     tsPreCompilationDeps: true,
     // Workspace packages expose their TypeScript source through package.json "exports".

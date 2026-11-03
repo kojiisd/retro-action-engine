@@ -49,9 +49,9 @@ jobs:
 
       - name: Build
         env:
-          VITE_BASE: /
+          SITE_BASE: /
           VITE_COMMIT_SHA: ${{ github.sha }}
-        run: VITE_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" pnpm --filter @retro-action-engine/player build
+        run: VITE_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" pnpm site:build
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -60,7 +60,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Upload
-        run: .github/scripts/sync-site.sh production apps/player/dist "$S3_BUCKET"
+        run: .github/scripts/sync-site.sh production dist-site "$S3_BUCKET"
 
       - name: Invalidate CloudFront cache
         # pr-* is invalidated too; previews are re-fetched from S3 unchanged.

@@ -14,6 +14,17 @@ retro-action-engine で作業するセッションが守るルール。設計の
 - ドキュメント、ADR、コミットメッセージ、PR 本文は日本語。
 - コードの識別子、コメント、ログメッセージ、テスト名は英語。
 
+## 確認が必要な事項（進め方のポリシー）
+
+事故を起こさないことを最優先にする。次の内容は Claude が独断で決めない。選択肢と推奨を示して所有者の確認を取るか、所有者に作業を依頼する。迷ったら確認する側に倒す。
+
+- **セキュリティに関わる内容**: IAM と信頼ポリシー、公開範囲（バケット、配信、リポジトリ）、レスポンスヘッダー、暗号化、認証、シークレットと認証情報、CI の権限、依存パッケージの権限やスクリプト実行。
+- **公開情報に関わる内容**: 公開 URL とパス、公開ページの文言と画像、DNS、PR や Issue やコミットに書く外部向けの情報、ライセンス表記。
+- **決定済みの内容から外れる変更**: 上記に関わる設定値を、ADR や合意済みの値から変える場合。
+- **取り消しにくい操作**: AWS への適用、公開、削除、履歴の書き換えなど。AWS への適用は所有者が手元で行う。
+
+確認を取った内容は、該当する ADR か PR 本文に記録する。
+
 ## 層と依存方向（違反は CI の dependency-cruiser で失敗する）
 
 ```
@@ -22,6 +33,8 @@ input → core
 renderer-phaser → core, pack, phaser
 apps/player → core, pack, input, renderer-phaser（packs/sample は静的コピーと fixture）
 infra → aws-cdk-lib のみ（エンジンの全パッケージから独立）
+apps/gallery → scripts/site（ビルド設定のみ。エンジンには依存しない）
+scripts/site → なし（アプリはパッケージ名で呼ぶだけで import しない）
 ```
 
 | パッケージ | してはいけないこと |
@@ -95,6 +108,7 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 | `pnpm test` | Vitest。root の `vitest.config.ts` の `projects` で全パッケージを実行 |
 | `pnpm depcruise` | 依存方向の検査（`.dependency-cruiser.cjs`） |
 | `pnpm build` | 各パッケージの `build` スクリプト（現状は `apps/player` の `vite build` のみ） |
+| `pnpm site:build` | サイト全体を `dist-site/` に組み立てる（ルートに一覧、`play/<slug>/` に各ゲーム）。`SITE_BASE` で base を指定（既定 `/`、プレビューは `/pr-<n>/`） |
 | `pnpm --filter @retro-action-engine/infra synth` | CDK の 2 スタックをプレースホルダー設定で synth（認証情報不要、CI と同じ） |
 | `pnpm golden:update` / `pnpm e2e` | 各パッケージの同名スクリプトを実行（M1 以降で追加。無ければ何もしない） |
 
@@ -103,10 +117,12 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 - `tsc --noEmit -b` は参照先プロジェクトが emit を無効にできないため使えない。`tsc -b` を使う。
 - infra の設定値（アカウント ID、ホストゾーン ID、証明書 ARN）は gitignore 済みの `infra/config/deploy.json` に置き、コミットしない。見本は `infra/config/deploy.example.json`（プレースホルダー）。`fromLookup` などの AWS ルックアップは使わない（synth とテストを認証情報なしで通すため）。
 - `infra/bin/app.ts` は Node の型除去で直接実行する。infra の相対 import には `.ts` 拡張子を付け、enum などの型除去できない構文は使わない。
+- サイトの構成（一覧に載せるゲーム、各ゲームの slug、表示名、説明、画像）はリポジトリ直下の `site.json` だけで管理する。slug を変えるときもこのファイルだけを書き換える。内容は公開情報なので、変更は所有者の確認を取る。
 - 依存方向のルールを変えるときは `docs/architecture.md` の表と `.dependency-cruiser.cjs` の `LAYERS` を同じ PR で直す。パッケージを追加するときも同様。
 
 ## 現在の状態
 
-- M1-1（infra とプレビュー配備）まで実装済み。エンジンの各パッケージは空の `src/index.ts` だけで、ゲームのロジックはまだ無い。`apps/player` はビルド情報を表示するプレースホルダーページ。
-- 実際の AWS への適用はリポジトリ所有者が `infra/README.md` の手順で行う。
+- M1-1（infra とプレビュー配備）のコードは実装済み。サイトのトップは一覧（`apps/gallery`）、ゲームは `/play/2dsample/`（`apps/player` のプレースホルダーページ）。
+- AWS への適用と M1-1 の手動の受け入れ確認は、所有者が `infra/README.md` の手順で行う途中。完了したらこの節を更新する。
+- エンジンの各パッケージは空の `src/index.ts` だけで、ゲームのロジックはまだ無い。
 - 次は `docs/roadmap.md` の M1-2（Fx / World / タイル衝突）。

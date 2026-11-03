@@ -45,6 +45,10 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # Assembles the whole site (gallery at the root, games under play/<slug>/) as deploys do.
+      - name: Site build
+        run: pnpm site:build
+
       # Synthesizes both CDK stacks with the placeholder config. No AWS credentials are used.
       - name: CDK synth
         run: pnpm --filter @retro-action-engine/infra synth

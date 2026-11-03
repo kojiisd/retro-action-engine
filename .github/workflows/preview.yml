@@ -51,10 +51,10 @@ jobs:
 
       - name: Build
         env:
-          VITE_BASE: /pr-${{ github.event.pull_request.number }}/
+          SITE_BASE: /pr-${{ github.event.pull_request.number }}/
           VITE_PR_NUMBER: ${{ github.event.pull_request.number }}
           VITE_COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
-        run: VITE_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" pnpm --filter @retro-action-engine/player build
+        run: VITE_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)" pnpm site:build
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
@@ -68,7 +68,7 @@ jobs:
           "_deny-check/pr-${PR_NUMBER}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.txt"
 
       - name: Upload
-        run: .github/scripts/sync-site.sh preview apps/player/dist "$S3_BUCKET" "$PR_NUMBER"
+        run: .github/scripts/sync-site.sh preview dist-site "$S3_BUCKET" "$PR_NUMBER"
 
       - name: Invalidate CloudFront cache
         run: >-

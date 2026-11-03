@@ -5,8 +5,10 @@
 #   sync-site.sh preview    <dist-dir> <bucket> <pr-number>   # -> s3://<bucket>/pr-<n>/
 #   sync-site.sh production <dist-dir> <bucket>               # -> s3://<bucket>/ (keeps pr-*)
 #
-# Cache policy (ADR-0014): hashed files under assets/ are immutable; everything else
-# (index.html, pack data, service worker) is no-cache.
+# Site layout (site.json): the gallery at the root, each game under play/<slug>/.
+# Cache policy (ADR-0014): Vite's hashed files are immutable. They live in assets/ (gallery) and
+# play/<slug>/assets/ (games). Everything else (index.html, images, pack data, service worker) is
+# no-cache.
 # Order: new assets first, then the rest, then stale assets are removed, so a page never
 # references an asset that was already deleted.
 set -euo pipefail
@@ -44,16 +46,16 @@ esac
 immutable='public, max-age=31536000, immutable'
 revalidate='no-cache'
 
-if [[ -d "$dist/assets" ]]; then
-  echo "Uploading assets to ${dest}/assets/"
-  aws s3 sync "$dist/assets" "${dest}/assets" --cache-control "$immutable" --no-progress
-fi
+# AWS CLI filters match the path relative to the sync root; "*" also matches "/".
+hashed=(--exclude '*' --include 'assets/*' --include 'play/*/assets/*')
+not_hashed=(--exclude 'assets/*' --exclude 'play/*/assets/*')
+
+echo "Uploading hashed assets to ${dest}/"
+aws s3 sync "$dist" "${dest}/" "${hashed[@]}" --cache-control "$immutable" --no-progress
 
 echo "Uploading the rest to ${dest}/"
-aws s3 sync "$dist" "${dest}/" --delete --exclude 'assets/*' "${excludes[@]}" \
+aws s3 sync "$dist" "${dest}/" --delete "${not_hashed[@]}" "${excludes[@]}" \
   --cache-control "$revalidate" --no-progress
 
-if [[ -d "$dist/assets" ]]; then
-  echo "Removing stale assets from ${dest}/assets/"
-  aws s3 sync "$dist/assets" "${dest}/assets" --delete --cache-control "$immutable" --no-progress
-fi
+echo "Removing stale hashed assets from ${dest}/"
+aws s3 sync "$dist" "${dest}/" --delete "${hashed[@]}" --cache-control "$immutable" --no-progress

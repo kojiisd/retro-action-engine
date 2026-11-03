@@ -34,7 +34,7 @@
 - root スクリプト（M0 で確定）: `pnpm lint`（`biome check .`）, `pnpm format`, `pnpm typecheck`（`tsc -b` に続けて `tsc -p tsconfig.test.json`）, `pnpm test`（`vitest run`）, `pnpm depcruise`, `pnpm build`, `pnpm golden:update`, `pnpm e2e`。`build`、`golden:update`、`e2e` は各パッケージの同名スクリプトを `pnpm -r --if-present run` で実行する。
 - `.nvmrc` = 22。`engines.node >= 22.12`。
 - コミットは Conventional Commits。リリースは当面 git tag。npm 公開することになったら changesets を検討する。
-- CI の基本ジョブ（`ci.yml`）: `pnpm install --frozen-lockfile` → `lint` → `typecheck` → `test` → `depcruise` → `build` → `cdk synth`（infra、プレースホルダー、認証情報なし。M1-1 から）。Playwright は M1-5 から追加。
+- CI の基本ジョブ（`ci.yml`）: `pnpm install --frozen-lockfile` → `lint` → `typecheck` → `test` → `depcruise` → `build` → `site:build`（サイト全体の組み立て）→ `cdk synth`（infra、プレースホルダー、認証情報なし。M1-1 から）。Playwright は M1-5 から追加。
 
 ## 結果
 

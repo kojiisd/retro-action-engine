@@ -20,13 +20,13 @@
 
 ## M1: 1 画面の縦切り
 
-### M1-1: インフラとプレビュー配備（1 PR）
+### M1-1: インフラとプレビュー配備（実装 PR + 仕上げ PR + 記録 PR）
 
 | 項目 | 内容 |
 | --- | --- |
-| 内容 | `infra/`（CDK TypeScript）。証明書スタック（us-east-1、ACM + DNS 検証）と、メインスタック（us-west-2）を作る。メインスタックの中身は次のとおり。<br>・非公開 S3<br>・CloudFront（OAC、`arcade.kojiisd.jp`、ディレクトリ index 補完の Function、セキュリティヘッダー、`pr-*` に `X-Robots-Tag: noindex`）<br>・既存ホストゾーンへの A / AAAA Alias<br>・GitHub OIDC プロバイダ（作成または参照）<br>・`deploy-production` と `deploy-preview` の 2 ロール<br>・出力値<br>このほか `.github/workflows/preview.yml`（拒否確認ステップを含む）、`deploy.yml`、`ci.yml` への `cdk synth` 追加、`apps/player` のプレースホルダーページ（ビルド情報と PR 番号を表示） |
+| 内容 | `infra/`（CDK TypeScript）。証明書スタック（us-east-1、ACM + DNS 検証）と、メインスタック（us-west-2）を作る。メインスタックの中身は次のとおり。<br>・非公開 S3<br>・CloudFront（OAC、`arcade.kojiisd.jp`、ディレクトリ index 補完の Function、セキュリティヘッダー、`pr-*` に `X-Robots-Tag: noindex`）<br>・既存ホストゾーンへの A / AAAA Alias<br>・GitHub OIDC プロバイダ（作成または参照）<br>・`deploy-production` と `deploy-preview` の 2 ロール<br>・出力値<br>仕上げとして、サイトの構成をトップ = ゲーム一覧（`apps/gallery`）、ゲーム = `/play/<slug>/`（初回 `2dsample`、`site.json` で一元管理）にし、HSTS を初回 1 日、既定ドメインからの 301 を加える。このほか `.github/workflows/preview.yml`（拒否確認ステップを含む）、`deploy.yml`、`ci.yml` への `cdk synth` 追加、`apps/player` のプレースホルダーページ（ビルド情報と PR 番号を表示） |
 | 所有者の作業 | [infra/README.md](../infra/README.md) の手順書に従う。<br>1. `config/deploy.json` を作る。<br>2. us-east-1 と us-west-2 で `cdk bootstrap` する。<br>3. 証明書スタックを deploy し、ARN を転記する。<br>4. メインスタックを deploy する。<br>5. 出力値を repository variables（`AWS_REGION`、`AWS_ROLE_ARN_PRODUCTION`、`AWS_ROLE_ARN_PREVIEW`、`S3_BUCKET`、`CF_DISTRIBUTION_ID`、`SITE_DOMAIN`）に登録する。<br>6. Environment `production` のデプロイブランチが `main` のみであることを確認する。<br>7. `main` のブランチ保護を設定する。 |
-| 受け入れ条件 | 自動（CI）: CDK テスト（本番ロールの trust が `environment:production`、プレビューロールの trust が `pull_request`、プレビューロールの S3 書き込みが `pr-*` に限定、両ビヘイビアのセキュリティヘッダー、`pr-*` のみ noindex、証明書スタックが us-east-1 でメインスタックが設定のリージョン、メインに us-east-1 を指定すると検証エラー）と、認証情報なしの `cdk synth` が通る。<br>手動（所有者、手順書の 9）:<br>・PR にプレビュー URL がコメントされ、`https://arcade.kojiisd.jp/pr-<n>/` が HTTPS で見える。<br>・プレビューの応答に `X-Robots-Tag: noindex` とセキュリティヘッダーが付く。<br>・Preview ワークフローの拒否確認ステップが AccessDenied を確認する。<br>・PR を close すると `pr-<n>/` が消え、reopen で復活する。<br>・`main` へのマージで `/` に配備され、`pr-*` は消えない。<br>・fork からの PR ではワークフローがスキップされる。 |
+| 受け入れ条件 | 自動（CI）: CDK テスト（本番ロールの trust が `environment:production`、プレビューロールの trust が `pull_request`、プレビューロールの S3 書き込みが `pr-*` に限定、両ビヘイビアのセキュリティヘッダー、`pr-*` のみ noindex、証明書スタックが us-east-1 でメインスタックが設定のリージョン、メインに us-east-1 を指定すると検証エラー）と、認証情報なしの `cdk synth` が通る。<br>手動（所有者、手順書の 9）:<br>・PR にプレビュー URL がコメントされ、`https://arcade.kojiisd.jp/pr-<n>/` に一覧、`/pr-<n>/play/2dsample/` にゲームのプレースホルダーが HTTPS で見える。<br>・プレビューの応答に `X-Robots-Tag: noindex` とセキュリティヘッダー（HSTS は max-age=86400）が付く。<br>・CloudFront の既定ドメインへのアクセスが `https://arcade.kojiisd.jp/` の同じパスへ 301 になる。<br>・Preview ワークフローの拒否確認ステップが AccessDenied を確認する。<br>・PR を close すると `pr-<n>/` が消え、reopen で復活する。<br>・`main` へのマージで `/` に一覧、`/play/2dsample/` にゲームが配備され、`pr-*` は消えない。本番には noindex が付かない。<br>・fork からの PR ではワークフローがスキップされる。 |
 
 ### M1-2: Fx / World / タイル衝突（1 PR）
 
@@ -105,10 +105,10 @@ M1 完了時の状態: 1 画面で、2 人パーティの切替、移動、ジ�
 | --- | --- |
 | 音声フォーマット、iOS サイレントスイッチ | M4-5 |
 | Content-Security-Policy | M4-6 |
+| HSTS の max-age を 2 年に延ばす（初回は 1 日。延ばすのは所有者が HTTPS の運用の安定を確認してから） | M1-1 の完了後、所有者の判断で |
 | 外部パックのコード実行 | M5-5 |
 | TypeScript 7 への移行 | 周辺ツール対応後 |
 | `desynchronized: true` | M2-3 |
-| カスタムドメイン | 任意 |
 
 ## リスクと緩和
 

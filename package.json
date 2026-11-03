@@ -11,8 +11,9 @@
     "format": "biome format --write .",
     "typecheck": "tsc -b && tsc -p tsconfig.test.json",
     "test": "vitest run",
-    "depcruise": "depcruise packages apps packs infra --config .dependency-cruiser.cjs",
+    "depcruise": "depcruise packages apps packs infra scripts --config .dependency-cruiser.cjs",
     "build": "pnpm -r --if-present run build",
+    "site:build": "node scripts/site/src/build-site.ts",
     "golden:update": "pnpm -r --if-present run golden:update",
     "e2e": "pnpm -r --if-present run e2e"
   },

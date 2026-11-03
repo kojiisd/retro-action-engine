@@ -1,0 +1,17 @@
+{
+  "page": {
+    "title": "Arcade",
+    "heading": "Arcade",
+    "lead": "ブラウザで遊べるゲームの一覧です。"
+  },
+  "games": [
+    {
+      "slug": "2dsample",
+      "app": "player",
+      "title": "2D Sample",
+      "description": "サンプルパックで動く 2D アクションの試作です。いまは準備中のページを表示します。",
+      "image": "images/2dsample.svg",
+      "imageAlt": "足場の上に立つドット絵のキャラクター"
+    }
+  ]
+}

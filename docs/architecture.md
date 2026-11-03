@@ -24,7 +24,7 @@
 
 ## 3. パッケージ構成と依存方向
 
-初期パッケージは 6 つと、エンジンから独立した `infra` の計 7 つ。リプレイ機能は `core` に含める。`pack-cli` は M4 で `pack` から分離する。
+エンジンのパッケージは 6 つ。ほかに、エンジンから独立した `infra`、サイトのトップのゲーム一覧 `apps/gallery`、サイト全体を組み立てる `scripts/site` がある（M1-1 で追加）。リプレイ機能は `core` に含める。`pack-cli` は M4 で `pack` から分離する。
 
 ```mermaid
 graph BT
@@ -35,6 +35,8 @@ graph BT
   player["apps/player<br/>PWA shell, integration tests"]
   sample["packs/sample<br/>data only (CC0)"]
   infra["infra<br/>AWS CDK (isolated)"]
+  gallery["apps/gallery<br/>game list at the site root"]
+  sitetools["scripts/site<br/>site.json, site build"]
   phaser[("phaser")]
 
   pack --> core
@@ -47,6 +49,7 @@ graph BT
   player --> input
   player --> renderer
   player -. "static copy / test fixture" .-> sample
+  gallery -- "build config only" --> sitetools
 ```
 
 | パッケージ | 依存してよいもの | 依存してはいけないもの | 責務 |
@@ -57,6 +60,8 @@ graph BT
 | `renderer-phaser` | `core`、`pack`（アセット記述型）、`phaser` | `input` | Phaser Scene、ループドライバ、補間描画、タイル描画、音の再生、HUD |
 | `apps/player` | 上記すべて | なし | 配線、設定 UI、PWA、`window.__engine` テストフック、サンプルパックを使う統合テスト |
 | `packs/sample` | なし（データのみ） | なし | サンプルパック。`apps/player` の `public/packs/sample` にコピーされ、`pack` と `apps/player` のテスト fixture になる |
+| `apps/gallery` | `scripts/site`（`vite.config.ts` からのみ） | エンジンの全パッケージ | サイトのトップ（`/`）のゲーム一覧。`site.json` からカードを作る。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
+| `scripts/site` | なし | エンジンと各アプリ（パッケージ名で呼ぶだけ） | `site.json` の検証と、サイト全体の組み立て（`pnpm site:build`。一覧をルートに、各ゲームを `play/<slug>/` に） |
 | `infra` | `aws-cdk-lib`、`constructs` | エンジンの全パッケージ | 証明書スタック（us-east-1、ACM）とメインスタック（S3 + CloudFront、Route 53 の Alias、OIDC、IAM ロール 2 本）。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
 
 `core` のテストはインラインの小さな fixture のみを使う。`packs/sample` を読むテストは `pack` と `apps/player` に置く。
@@ -347,13 +352,16 @@ Phaser 4 の変更点（Pipeline→RenderNode、FX→Filters、`roundPixels` 既
 
 ```
 retro-action-engine/
-├─ apps/player/              # PWA シェル、統合テスト、Playwright
+├─ apps/player/              # ゲーム本体（/play/<slug>/）。PWA シェル、統合テスト、Playwright
+├─ apps/gallery/             # サイトのトップのゲーム一覧（/）
 ├─ packages/core/            # 純 TS シミュレーション
 ├─ packages/pack/            # スキーマ、ローダ、Tiled importer（M4 で pack-cli を分離）
 ├─ packages/input/           # デバイス、Action マップ、InputBuffer
 ├─ packages/renderer-phaser/ # Phaser 4 アダプタ
 ├─ packs/sample/             # サンプルパック（データのみ、CC0）
 ├─ infra/                    # AWS CDK（ACM、S3 + CloudFront、Route 53、OIDC、IAM）。手順書は infra/README.md
+├─ scripts/site/             # site.json の検証とサイト全体の組み立て（pnpm site:build）
+├─ site.json                 # 一覧に載せるゲームと各ゲームの slug（公開情報。変更は所有者が確認）
 ├─ schemas/                  # zod から生成した JSON Schema（M4）
 ├─ docs/                     # 本書、ADR、仕様
 ├─ .github/workflows/        # ci.yml, preview.yml, deploy.yml

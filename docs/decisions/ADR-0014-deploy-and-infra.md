@@ -1,7 +1,7 @@
 # ADR-0014: 配信基盤（S3 + CloudFront、独自ドメイン、OIDC、CDK）
 
 - Status: Accepted
-- Date: 2026-10-04（改訂 2026-10-05）
+- Date: 2026-10-04（改訂 2026-10-05、2026-11-03）
 - 論点: J（デプロイ）
 
 ## 改訂履歴
@@ -10,6 +10,7 @@
 | --- | --- |
 | 2026-10-04 | 初版 |
 | 2026-10-05 | M1-1 の実装に合わせて追記した。追記内容は次のとおり。<br>・独自ドメイン `arcade.kojiisd.jp` と、証明書のリージョン戦略（案 C）<br>・セキュリティヘッダーとプレビューの noindex<br>・OIDC プロバイダの作成と参照の切替<br>・設定ファイルとプレースホルダー検証<br>・repository variables の変更（`CF_DOMAIN` を `SITE_DOMAIN` に変更、`AWS_REGION` を追加）<br>・拒否確認の方法とパス設計の方針<br>初版の要確認「カスタムドメイン」を解消した。初版の決定を覆す変更ではなく、要確認の解消と追加なので、ADR の README の規約に対して同一 ADR への追記とした |
+| 2026-11-03 | AWS 適用前に、所有者の確認を受けて次を決めた。<br>・パス設計の確定: トップ（`/`）はゲーム一覧、各ゲームは `/play/<slug>/`。slug はリポジトリ直下の `site.json` で一元管理する（初回は `2dsample`）<br>・HSTS の max-age を初回 1 日にし、運用が安定してから延ばす<br>・CloudFront の既定ドメイン（`*.cloudfront.net`）への要求を独自ドメインへ 301 で転送する<br>いずれも「将来のパス設計」の具体化と、適用前の設定値の変更で、既存の決定を覆すものではないため同一 ADR に追記した |
 
 ## 背景
 
@@ -60,9 +61,11 @@ CloudFront に付ける ACM 証明書は us-east-1 に置く必要がある。
 
 - S3 バケット: 非公開（Block Public Access）、SSL 必須、SSE-S3、バージョニングなし、`RETAIN`。CloudFront の OAC からのみ読める。
 - CloudFront Distribution: 1 つ。オリジンはバケット（OAC）。代替ドメイン `arcade.kojiisd.jp`、証明書は設定の ARN を参照、`TLSv1.2_2021`、HTTP/2 と HTTP/3、`PriceClass_200`（日本を含む。設定可）、`defaultRootObject: index.html`、HTTPS へリダイレクト。
-- CloudFront Function（viewer-request、JS 2.0）: `/pr-12/` のようなディレクトリ要求に `index.html` を補完し、拡張子の無いパスは末尾 `/` へ 301（クエリ保持）。
+- CloudFront Function（viewer-request、JS 2.0）:
+  - Host が独自ドメイン以外（`*.cloudfront.net` など）なら、`https://<独自ドメイン>` の同じパスとクエリへ 301 で転送する。既定ドメインで同じ内容が公開され、検索されるのを防ぐため。ドメインは synth 時に関数コードへ埋め込む（`infra/src/viewer-request-code.ts`）。
+  - `/pr-12/` のようなディレクトリ要求に `index.html` を補完し、拡張子の無いパスは末尾 `/` へ 301（クエリ保持）。
 - ResponseHeadersPolicy を 2 つ作る。
-  - 既定ビヘイビア: `Strict-Transport-Security`（2 年、`includeSubDomains` なし。`kojiisd.jp` の他のサブドメインへ波及させないため）、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`X-Frame-Options: DENY`。
+  - 既定ビヘイビア: `Strict-Transport-Security`（max-age は初回 1 日。HTTPS の運用が安定してから別の変更で 2 年に延ばす。ブラウザは最後に受け取った値を保持するため、長い値は後から取り消せない。`includeSubDomains` なし。`kojiisd.jp` の他のサブドメインへ波及させないため）、`X-Content-Type-Options: nosniff`、`Referrer-Policy: strict-origin-when-cross-origin`、`X-Frame-Options: DENY`。
   - `pr-*` ビヘイビア: 上記と同じセキュリティヘッダーに加え `X-Robots-Tag: noindex`。プレビューを検索エンジンにインデックスさせない。
   - `Content-Security-Policy` は Phaser と Service Worker との兼ね合いがあるため M4 で検討する（roadmap）。
 - Route 53: 既存ホストゾーンを `fromHostedZoneAttributes`（ID とゾーン名）で参照し、`arcade.kojiisd.jp` の A / AAAA Alias を作る。ホストゾーンは作らず、ルックアップもしない。
@@ -95,9 +98,9 @@ CloudFront に付ける ACM 証明書は us-east-1 に置く必要がある。
 
 | ファイル | トリガ | 内容 |
 | --- | --- | --- |
-| `preview.yml` | `pull_request`（opened, synchronize, reopened, closed） | 同一リポジトリの PR のみ（fork はスキップ）。`deploy` ジョブ: build（`VITE_BASE=/pr-<n>/`）→ preview ロールを assume → 拒否確認 → `pr-<n>/` へ sync → invalidation `/pr-<n>/*` → プレビュー URL を 1 件のコメントに upsert。`cleanup` ジョブ（closed）: `pr-<n>/` を削除 → invalidation → コメントを更新 |
-| `deploy.yml` | `push` to `main`、`workflow_dispatch` | Environment `production` で production ロールを assume → `/` へ sync（`pr-*` と `_deny-check/` は除外）→ invalidation `/*` |
-| `ci.yml` | `pull_request`、`push` to `main` | 既存の検査に加え、`cdk synth`（プレースホルダー、認証情報なし） |
+| `preview.yml` | `pull_request`（opened, synchronize, reopened, closed） | 同一リポジトリの PR のみ（fork はスキップ）。`deploy` ジョブ: サイト全体を build（`SITE_BASE=/pr-<n>/ pnpm site:build`）→ preview ロールを assume → 拒否確認 → `pr-<n>/` へ sync → invalidation `/pr-<n>/*` → プレビュー URL を 1 件のコメントに upsert。`cleanup` ジョブ（closed）: `pr-<n>/` を削除 → invalidation → コメントを更新 |
+| `deploy.yml` | `push` to `main`、`workflow_dispatch` | サイト全体を build（`SITE_BASE=/`）→ Environment `production` で production ロールを assume → `/` へ sync（`pr-*` と `_deny-check/` は除外）→ invalidation `/*` |
+| `ci.yml` | `pull_request`、`push` to `main` | 既存の検査に加え、サイト全体の build（`pnpm site:build`）と `cdk synth`（プレースホルダー、認証情報なし） |
 
 - 拒否確認: プレビュー用ロールで `_deny-check/pr-<n>-<run>.txt` への `put-object` を試し、AccessDenied なら成功とする。書けてしまったら削除を試みてジョブを失敗させる（`.github/scripts/check-preview-deny.sh`）。
 - repository variables: `AWS_REGION`、`AWS_ROLE_ARN_PRODUCTION`、`AWS_ROLE_ARN_PREVIEW`、`S3_BUCKET`、`CF_DISTRIBUTION_ID`、`SITE_DOMAIN`。
@@ -105,20 +108,25 @@ CloudFront に付ける ACM 証明書は us-east-1 に置く必要がある。
   - ロール ARN があって他が欠けている場合は失敗させる。リージョンも明示的に渡し、既定値に頼らない。
 - `permissions`: preview は `id-token: write, contents: read, pull-requests: write`、deploy は `id-token: write, contents: read`。
 - キャッシュヘッダ（`.github/scripts/sync-site.sh`）:
-  - `assets/` 配下（ハッシュ付き）は `Cache-Control: public, max-age=31536000, immutable`。それ以外（`index.html`、将来の `sw.js` やパックデータ）は `no-cache`。
+  - Vite のハッシュ付きファイル（一覧の `assets/` と、各ゲームの `play/<slug>/assets/`）は `Cache-Control: public, max-age=31536000, immutable`。それ以外（`index.html`、一覧の画像、将来の `sw.js` やパックデータ）は `no-cache`。
   - 新しいアセットを先に上げ、HTML を差し替えてから古いアセットを消す。
 - Environment `production` の Deployment branches を `main` に限定する（必須）。PR のワークフローは PR ブランチ側の YAML で動くため、制限が無いと PR が `environment: production` を指定して本番ロールの `sub` を得られてしまう。
 - Vite の `base` と vite-plugin-pwa のスコープがプレフィックスに追従することは、M4 の smoke で確認する。
 
-### パス設計（将来の複数ゲーム）
+### パス設計（サイトの構成）
 
-- トップレベルの名前空間を予約する。
-  - `pr-*` はプレビュー専用。
-  - ゲーム（パック）は `/play/<packId>/` 配下。
-  - トップレベル直下は本番のシェル（将来のランチャー）。
-- プレビューはサイト全体を `/pr-<n>/` 配下に複製する（`/pr-<n>/play/<packId>/`）ので衝突しない。
-- 本番 deploy の `s3 sync --delete` は常に `pr-*` を除外する（実装済み）。`packId` は `pr-` で始めてはならない（M4 のパックスキーマで検証する）。
-- 今回は実装しない。
+| パス | 内容 |
+| --- | --- |
+| `/` | ゲーム一覧（`apps/gallery`）。キャプチャと説明のカードを並べる |
+| `/play/<slug>/` | 各ゲーム（今は `apps/player`）。初回の slug は `2dsample` |
+| `/pr-<n>/` | PR プレビュー。上の構成全体を `/pr-<n>/` 配下に複製する（`/pr-<n>/play/<slug>/`） |
+
+- 一覧とゲームの対応は、リポジトリ直下の `site.json` で一元管理する。slug を変えるときはこのファイルだけを書き換える。ワークフローやスクリプトに slug を書かない。
+- サイト全体は `pnpm site:build`（`scripts/site/`）で `dist-site/` に組み立てる。一覧はルートに、ゲームは `play/<slug>/` にビルドする。
+- slug は小文字英数字とハイフンのみで、`pr-` で始めてはならない（`scripts/site/src/site-config.ts` で検証）。
+- 一覧のリンクと画像は相対パスにする。プレビューのプレフィックス配下でもそのまま動く。
+- 本番 deploy の `s3 sync --delete` は常に `pr-*` と `_deny-check/` を除外する。slug を変えた場合、古い `play/<旧 slug>/` は次の本番 deploy で削除される（リダイレクトは用意しない）。
+- 一覧に載せる文言と画像は公開情報なので、変更のたびに所有者の確認を取る（CLAUDE.md の進め方のポリシー）。
 
 ### 準備手順
 
@@ -149,4 +157,5 @@ CloudFront に付ける ACM 証明書は us-east-1 に置く必要がある。
 
 ## 要確認
 
-- なし（Content-Security-Policy は M4 の検討事項として roadmap に記載）。
+- HSTS の max-age を 2 年に延ばす時期。HTTPS の運用が安定したことを所有者が確認してから、別の変更で行う（roadmap に記載）。
+- Content-Security-Policy は M4 の検討事項として roadmap に記載。

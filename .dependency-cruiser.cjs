@@ -30,6 +30,14 @@ const LAYERS = {
   },
   // Data only. The sample pack is copied statically; it never imports engine code.
   sample: { dir: 'packs/sample', name: '@retro-action-engine/sample-pack', allowed: [] },
+  // The game list at the top of the site. Its build config reads site.json through site-tools.
+  gallery: {
+    dir: 'apps/gallery',
+    name: '@retro-action-engine/gallery',
+    allowed: ['site-tools'],
+  },
+  // Builds the whole site from site.json. Knows the app packages by name only, never imports them.
+  'site-tools': { dir: 'scripts/site', name: '@retro-action-engine/site-tools', allowed: [] },
   // Isolated from the engine in both directions.
   infra: { dir: 'infra', name: '@retro-action-engine/infra', allowed: [] },
 };
@@ -39,7 +47,7 @@ const TEST_FILE = '\\.test\\.ts$';
 // vitest.config.ts) and type declarations. They may use devDependencies and root tooling.
 const BUILD_TIME_FILE = '(\\.test\\.ts|\\.config\\.ts|\\.d\\.ts)$';
 // Any module that belongs to this repository, in resolved or unresolved form.
-const REPO_INTERNAL = '^(packages|apps|packs|infra)/|^@retro-action-engine/';
+const REPO_INTERNAL = '^(packages|apps|packs|infra|scripts)/|^@retro-action-engine/';
 
 const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 
@@ -145,7 +153,13 @@ module.exports = {
     doNotFollow: { path: 'node_modules' },
     // Only this repository's own build output. A plain "dist" pattern would also hide
     // node_modules/<pkg>/dist/*, which is where packages like vitest resolve to.
-    exclude: { path: ['^(packages|apps|packs)/[^/]+/dist/', '^infra/(dist|cdk\\.out)/'] },
+    exclude: {
+      path: [
+        '^(packages|apps|packs|scripts)/[^/]+/dist/',
+        '^infra/(dist|cdk\\.out)/',
+        '^dist-site/',
+      ],
+    },
     // Count `import type` and imports that TypeScript erases, too.
     tsPreCompilationDeps: true,
     // Workspace packages expose their TypeScript source through package.json "exports".

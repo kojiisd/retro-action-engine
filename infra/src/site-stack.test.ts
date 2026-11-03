@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { App, Stack } from 'aws-cdk-lib';
 import { Template } from 'aws-cdk-lib/assertions';
 import { describe, expect, it } from 'vitest';
@@ -8,6 +6,7 @@ import { CertificateStack } from './certificate-stack.ts';
 import { type DeployConfig, PLACEHOLDERS } from './config.ts';
 import { SiteStack } from './site-stack.ts';
 import { asList, renderCfn, TEST_CONFIG } from './test-support.ts';
+import { renderViewerRequestCode } from './viewer-request-code.ts';
 
 type Resource = { Type: string; Properties: Record<string, unknown> };
 type Statement = {
@@ -181,7 +180,7 @@ describe('SiteStack', () => {
 
     const expectedSecurityHeaders = {
       StrictTransportSecurity: {
-        AccessControlMaxAgeSec: 63_072_000,
+        AccessControlMaxAgeSec: 86_400,
         IncludeSubdomains: false,
         Preload: false,
         Override: true,
@@ -250,13 +249,10 @@ describe('SiteStack', () => {
       }
     });
 
-    it('deploys the viewer-request function file unchanged on the JS 2.0 runtime', () => {
+    it('deploys the viewer-request function with the site domain on the JS 2.0 runtime', () => {
       const fn = onlyResourceOfType(site.resources, 'AWS::CloudFront::Function');
-      const source = readFileSync(
-        fileURLToPath(new URL('../functions/viewer-request.js', import.meta.url)),
-        'utf8',
-      );
-      expect(fn.Properties.FunctionCode).toBe(source);
+      expect(fn.Properties.FunctionCode).toBe(renderViewerRequestCode('arcade.example.com'));
+      expect(fn.Properties.FunctionCode).toContain("const SITE_DOMAIN = 'arcade.example.com';");
       expect((fn.Properties.FunctionConfig as Record<string, unknown>).Runtime).toBe(
         'cloudfront-js-2.0',
       );

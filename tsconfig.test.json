@@ -14,6 +14,7 @@
     "apps/*/src/**/*.test.ts",
     "packs/*/src/**/*.test.ts",
     "infra/src/**/*.test.ts",
+    "scripts/*/src/**/*.test.ts",
     "apps/*/vite.config.ts"
   ]
 }

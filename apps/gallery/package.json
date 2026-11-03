@@ -1,0 +1,13 @@
+{
+  "name": "@retro-action-engine/gallery",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "@retro-action-engine/site-tools": "workspace:*",
+    "vite": "^8.3.2"
+  }
+}

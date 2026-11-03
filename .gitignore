@@ -4,6 +4,7 @@ coverage/
 *.tsbuildinfo
 .vite/
 infra/cdk.out/
+dist-site/
 infra/config/deploy.json
 .DS_Store
 *.log

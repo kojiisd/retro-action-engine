@@ -1,0 +1,9 @@
+{
+  "name": "@retro-action-engine/site-tools",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./site-config": "./src/site-config.ts"
+  }
+}

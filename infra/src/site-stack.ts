@@ -1,4 +1,3 @@
-import { fileURLToPath } from 'node:url';
 import { CfnOutput, Duration, RemovalPolicy, Stack, type StackProps } from 'aws-cdk-lib';
 import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
@@ -15,6 +14,7 @@ import {
   previewSubject,
   productionSubject,
 } from './config.ts';
+import { renderViewerRequestCode } from './viewer-request-code.ts';
 
 /** Key prefix of PR previews: pr-<number>/. Production never writes or deletes under it. */
 export const PREVIEW_KEY_PATTERN = 'pr-*';
@@ -22,12 +22,11 @@ export const PREVIEW_KEY_PATTERN = 'pr-*';
 /** CloudFront path pattern of PR previews. */
 export const PREVIEW_PATH_PATTERN = 'pr-*';
 
-/** Two years, the usual HSTS max-age. */
-const HSTS_MAX_AGE = Duration.days(730);
-
-const VIEWER_REQUEST_FUNCTION_PATH = fileURLToPath(
-  new URL('../functions/viewer-request.js', import.meta.url),
-);
+/**
+ * HSTS max-age. Starts at one day and is raised in a later change once HTTPS operation is
+ * stable (ADR-0014). Browsers keep the value they saw last, so a long value cannot be undone.
+ */
+export const HSTS_MAX_AGE = Duration.days(1);
 
 export interface SiteStackProps extends Omit<StackProps, 'env'> {
   readonly config: DeployConfig;
@@ -67,10 +66,9 @@ export class SiteStack extends Stack {
     );
 
     const viewerRequest = new cloudfront.Function(this, 'ViewerRequestFunction', {
-      code: cloudfront.FunctionCode.fromFile({ filePath: VIEWER_REQUEST_FUNCTION_PATH }),
+      code: cloudfront.FunctionCode.fromInline(renderViewerRequestCode(config.domainName)),
       runtime: cloudfront.FunctionRuntime.JS_2_0,
-      comment:
-        'Serve index.html for directory paths and add a trailing slash to extensionless paths',
+      comment: 'Redirect other hosts to the site domain, serve index.html, add trailing slashes',
     });
 
     const securityHeadersBehavior: cloudfront.ResponseSecurityHeadersBehavior = {

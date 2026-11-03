@@ -7,10 +7,10 @@
 | スタック | リージョン | 中身 |
 | --- | --- | --- |
 | `RetroActionEngineCertificate` | us-east-1（固定） | ACM 証明書（DNS 検証。検証用 CNAME は既存ホストゾーンに自動作成） |
-| `RetroActionEngineSite` | 設定の `region`（us-west-2。us-east-1 は不可） | 非公開 S3、CloudFront（OAC、セキュリティヘッダー、`pr-*` に noindex）、Route 53 の A / AAAA Alias、GitHub OIDC プロバイダ（作成または参照）、IAM ロール 2 本 |
+| `RetroActionEngineSite` | 設定の `region`（us-west-2。us-east-1 は不可） | 非公開 S3、CloudFront（OAC、セキュリティヘッダー、`pr-*` に noindex、既定ドメインから独自ドメインへの 301）、Route 53 の A / AAAA Alias、GitHub OIDC プロバイダ（作成または参照）、IAM ロール 2 本 |
 
 - 証明書スタックを先に deploy し、出力された証明書 ARN を設定ファイルへ転記してから、メインスタックを deploy します。リージョンをまたぐ自動参照は使いません。
-- CloudFront Function（`functions/viewer-request.js`）は、`/pr-12/` に `index.html` を補い、`/pr-12` を `/pr-12/` へ 301 で転送します。
+- CloudFront Function（`functions/viewer-request.js`）は、Host が独自ドメイン以外なら独自ドメインへ 301 で転送し、`/pr-12/` に `index.html` を補い、`/pr-12` を `/pr-12/` へ 301 で転送します。
 - `cdk synth` とテストは AWS の認証情報なしで動きます。ホストゾーンなどの値はルックアップせず、設定ファイルから読みます。
 
 | ファイル | 内容 |
@@ -171,18 +171,31 @@ gh variable list
 
 ### 9. 動作確認
 
-1. **プレビュー**: M1-1 の PR を close してから reopen します（受け入れ条件の確認を兼ねる）。
+サイトの構成は、トップ（`/`）がゲーム一覧、各ゲームが `/play/<slug>/`（今は `/play/2dsample/`）、PR プレビューが `/pr-<番号>/` 配下です。
+
+1. **プレビュー**: M1-1 の PR を close してから reopen します（変数登録後に Preview を動かすため。受け入れ条件の確認も兼ねる）。
    - Preview ワークフローが実行され、PR に `https://arcade.kojiisd.jp/pr-<番号>/` のコメントが付くこと。
-   - ブラウザで開くと、プレースホルダーページに「Preview of PR #<番号>」が表示されること。
+   - ブラウザで `/pr-<番号>/` に一覧が表示され、カードから `/pr-<番号>/play/2dsample/` に移動すると「Preview of PR #<番号>」が表示されること。
 2. **ヘッダー**:
 
    ```sh
-   curl -sI https://arcade.kojiisd.jp/pr-<番号>/ | grep -iE 'x-robots-tag|strict-transport|x-content-type|referrer-policy|x-frame'
+   for path in "pr-<番号>/" "pr-<番号>/play/2dsample/"; do
+     curl -sI "https://arcade.kojiisd.jp/$path" | grep -iE 'x-robots-tag|strict-transport|x-content-type|referrer-policy|x-frame'
+   done
    ```
 
-   - `x-robots-tag: noindex` と 4 つのセキュリティヘッダーが出ること。
-   - マージ後、`curl -sI https://arcade.kojiisd.jp/` ではセキュリティヘッダーだけが出て、`x-robots-tag` は出ないこと。
-3. **プレビュー用ロールの権限**:
+   - `x-robots-tag: noindex` と 4 つのセキュリティヘッダーが出ること。`strict-transport-security` は `max-age=86400`。
+   - マージ後、`curl -sI https://arcade.kojiisd.jp/` と `https://arcade.kojiisd.jp/play/2dsample/` ではセキュリティヘッダーだけが出て、`x-robots-tag` は出ないこと。
+3. **既定ドメインからの転送**:
+
+   ```sh
+   CF=$(aws cloudformation describe-stacks --region us-west-2 --stack-name RetroActionEngineSite \
+     --query "Stacks[0].Outputs[?OutputKey=='DistributionDomainName'].OutputValue" --output text)
+   curl -sI "https://$CF/play/2dsample/?a=1" | grep -iE '^HTTP|^location'
+   ```
+
+   `301` と `location: https://arcade.kojiisd.jp/play/2dsample/?a=1` が出ること。
+4. **プレビュー用ロールの権限**:
    - Preview ワークフローの「Check that the preview role cannot write outside pr-*」ステップのログに `OK: ... was denied (AccessDenied)` が出ること。
    - 補助として、手元で IAM ポリシーシミュレータでも確認できます（assume は不要）。
 
@@ -194,8 +207,8 @@ gh variable list
    ```
 
    `index.html` が `implicitDeny`、`pr-1/index.html` が `allowed` なら期待どおりです。
-4. **削除と復活**: PR を close すると、Preview ワークフローの cleanup ジョブが `pr-<番号>/` を削除し、URL が 403 を返すこと。reopen で復活すること。
-5. **本番**: PR をマージすると Deploy ワークフローが実行され、`https://arcade.kojiisd.jp/` に「Production build」が表示されること。既存の `pr-*` は消えないこと。
+5. **削除と復活**: PR を close すると、Preview ワークフローの cleanup ジョブが `pr-<番号>/` を削除し、URL が 403 を返すこと。reopen で復活すること。
+6. **本番**: PR をマージすると Deploy ワークフローが実行され、`https://arcade.kojiisd.jp/` に一覧、`/play/2dsample/` に「Production build」が表示されること。既存の `pr-*` は消えないこと。
 
 ## 運用メモ
 
@@ -208,4 +221,5 @@ gh variable list
 - **片付け**: `pnpm exec cdk destroy RetroActionEngineSite RetroActionEngineCertificate`。
   - S3 バケットは中身ごと残ります（`RETAIN`）。不要なら手動で空にして削除します。
   - `oidcProvider: create` で作った OIDC プロバイダも残ります（`RETAIN`。他の用途で使われ始めている可能性があるため）。
-- **パス設計**: `pr-*` はプレビュー専用です。将来ゲームを並べる場合は `/play/<packId>/` 配下に置きます（ADR-0014）。
+- **パス設計**: トップ（`/`）は一覧、各ゲームは `/play/<slug>/`、`pr-*` はプレビュー専用です（ADR-0014）。slug や一覧の内容はリポジトリ直下の `site.json` で変えます。
+- **HSTS**: 初回は max-age を 1 日にしています。2 年に延ばすのは、HTTPS の運用が安定したことを確認してからです（roadmap の「後続で判断する事項」）。

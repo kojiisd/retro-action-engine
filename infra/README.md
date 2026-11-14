@@ -94,10 +94,20 @@ cp config/deploy.example.json config/deploy.json
 | `hostedZone.name` | `kojiisd.jp` |
 | `domainName` | `arcade.kojiisd.jp` |
 | `certificateArn` | 手順 5 で転記する。今はプレースホルダーのまま |
+| `github.ownerId` / `github.repoId` | オーナーとリポジトリの数値 ID（文字列で書く）。下のコマンドで調べる |
 | `github.oidcProvider` | 手順 1 の結果に従い `create` または `import` |
 | `priceClass` | `PriceClass_200`（日本を含む。全エッジを使うなら `PriceClass_All`） |
 
 設定に誤りがあると、synth の時点で項目ごとのエラーが表示されて止まります。
+
+`github.ownerId` と `github.repoId` は、ロールの信頼ポリシーが OIDC の `sub` を不変 ID 形式（`repo:<owner>@<ownerId>/<repo>@<repoId>:...`）で照合するために使います。リポジトリの設定で確認できます。
+
+```sh
+gh api repos/kojiisd/retro-action-engine/actions/oidc/customization/sub
+# {"use_default":true,"use_immutable_subject":true,"sub_claim_prefix":"repo:kojiisd@<ownerId>/retro-action-engine@<repoId>"}
+```
+
+`sub_claim_prefix` が上の形でない場合（`use_immutable_subject` が無い、または `false`）は、信頼ポリシーと一致しないため assume が拒否されます。その場合は先に相談してください。
 
 ### 4. CDK bootstrap（初回のみ、2 リージョン）
 

@@ -105,13 +105,13 @@ describe('SiteStack', () => {
 
     it('lets only the production GitHub environment assume the production role', () => {
       expect(trustOf(productionRoleId)).toEqual(
-        expectedTrust('repo:example-owner/example-repo:environment:production'),
+        expectedTrust('repo:example-owner@1001/example-repo@2002:environment:production'),
       );
     });
 
     it('lets only pull_request events assume the preview role', () => {
       expect(trustOf(previewRoleId)).toEqual(
-        expectedTrust('repo:example-owner/example-repo:pull_request'),
+        expectedTrust('repo:example-owner@1001/example-repo@2002:pull_request'),
       );
     });
   });

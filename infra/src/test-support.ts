@@ -12,6 +12,8 @@ export const TEST_CONFIG: DeployConfig = {
   github: {
     owner: 'example-owner',
     repo: 'example-repo',
+    ownerId: '1001',
+    repoId: '2002',
     productionEnvironment: 'production',
     oidcProvider: 'create',
   },

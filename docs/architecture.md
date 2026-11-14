@@ -139,14 +139,14 @@ sequenceDiagram
 | `world/` | `World` の型、エンティティ表（`EntityStore`。SoA + tombstone、M1-2）、`snapshot/restore` |
 | `hash/` | `World` の決定論的 hash（FNV-1a を 2 レーン、`[hi, lo]`、M1-2） |
 | `collision/` | 衝突グリッド、AABB、軸分離スイープ、oneway、`CollisionContext`、`movement` システム（M1-2）。slope は M5 |
-| `controller/` | キャラクター状態機械、操作感プロファイルの適用 |
-| `party/` | 有効タグの計算、切替、HP と所持品のスコープ |
+| `input/` | `InputFrame` と Action 語彙のビット（M1-3） |
+| `sim/` | `createWorld`、`step`（システムを 4.3 の固定順で実行）、`inputIntent`、`controller`（キャラクター状態機械、操作感プロファイルの適用）、`party`（有効タグの計算、切替）（M1-3）。HP と所持品のスコープは M3 |
 | `behavior/` | BehaviorSpec の評価、Primitive と Condition の実装 |
 | `events/` | トリガ、Condition、Action、フラグストア |
 | `camera/` | screenFlip と scroll |
-| `replay/` | `InputFrame` の記録（RLE）、再生、checkpoint |
+| `replay/` | `InputFrame` の記録（RLE）、再生、checkpoint（M1-4）。Feel scenario 用の合成 DSL `script()`（M1-3） |
 | `loop/` | アキュムレータの純粋部分（`advance`）。DOM に触れない |
-| `runtime/` | `PackRuntime` の型（`pack` が構築し、`core` が消費する）。M1-2 時点は `TileClass` のみ |
+| `runtime/` | `PackRuntime` の型（`pack` が構築し、`core` が消費する）。M1-3 時点は `TileClass`、`FeelProfile`（Fx に変換済み）、`CharacterDef`、`RulesDef.party`、`RoomData`、`StartState` |
 
 ## 6. 境界 API の型スケッチ
 
@@ -219,7 +219,8 @@ export interface TileClass {
 }
 
 // ---- core/world ----
-// M1-2 時点は tick, rng, roomId, flags, entities。残りは使うシステムと同じ PR で追加する（ADR-0002 の hash 順に挿入）。
+// M1-3 時点は tick, rng, roomId, party, controller, flags, entities。残りは使うシステムと同じ PR で追加する（ADR-0002 の hash 順に挿入）。
+// controller は操作中キャラクターの状態機械の記憶（接地 tick、ジャンプバッファ、SOCD の押下 tick など）。
 export interface World {
   tick: number;
   rng: number;               // xorshift32 の状態
@@ -252,6 +253,7 @@ export interface Simulation {
 
 export type WorldHash = readonly [number, number];
 
+// M1-3 時点の StepOutput は ui（activeCharacterId と canSwitch）のみ。render は M1-5、audio と transition は M3。
 export interface StepOutput {
   render: RenderSnapshot;
   audio: AudioCue[];

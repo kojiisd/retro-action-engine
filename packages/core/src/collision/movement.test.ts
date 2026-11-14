@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { fromPx } from '../fx/fx';
 import { hashWorld } from '../hash/hash';
 import { buildRoom } from '../test-support';
-import { cloneWorld, createWorld, type World } from '../world/world';
+import { cloneWorld, newWorld, type World } from '../world/world';
 import { type CollisionContext, NO_ABILITIES } from './grid';
 import { CONTACT_GROUNDED, CONTACT_WALL } from './move';
 import { moveEntities } from './movement';
@@ -11,7 +11,7 @@ const room = buildRoom(['........', '........', '..~.....', '........', '#######
 const collider = { w: fromPx(8), h: fromPx(8), ox: fromPx(-4), oy: fromPx(-8) };
 
 function worldWithEntities(): World {
-  const world = createWorld({ seed: 1, roomId: 'test' });
+  const world = newWorld({ seed: 1, roomId: 'test' });
   world.entities.create({ x: fromPx(8), y: fromPx(48), vx: fromPx(30), collider });
   world.entities.create({ x: fromPx(100), y: fromPx(20), vy: fromPx(60), collider });
   world.entities.create({ x: fromPx(60), y: fromPx(64), vx: fromPx(-5), collider });

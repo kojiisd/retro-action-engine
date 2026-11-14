@@ -24,6 +24,8 @@ export interface CollisionGrid {
 /** Abilities of the moving entity. `requiresAnyTag` tiles let it through if it has one of them. */
 export interface CollisionContext {
   readonly abilityTags: ReadonlySet<string>;
+  /** Drop-through: oneway tiles count as empty (docs/input-and-feel.md 6.4). */
+  readonly ignoreOneway?: boolean;
 }
 
 export const NO_ABILITIES: CollisionContext = { abilityTags: new Set<string>() };
@@ -97,6 +99,9 @@ export function solidAt(
         return 'none';
       }
     }
+  }
+  if (tileClass.solid === 'oneway' && context.ignoreOneway === true) {
+    return 'none';
   }
   return tileClass.solid;
 }

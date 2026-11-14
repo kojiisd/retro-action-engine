@@ -118,7 +118,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Remove the preview
-        run: aws s3 rm "s3://${S3_BUCKET}/pr-${PR_NUMBER}/" --recursive --no-progress
+        run: aws s3 rm "s3://${S3_BUCKET}/pr-${PR_NUMBER}/" --recursive
 
       - name: Invalidate CloudFront cache
         run: >-

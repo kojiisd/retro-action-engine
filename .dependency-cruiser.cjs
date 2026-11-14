@@ -81,17 +81,19 @@ module.exports = {
       severity: 'error',
       comment:
         'packages/core must be pure TypeScript: no npm packages and no Node built-ins in source files. ' +
-        'Only vitest and fast-check are allowed in test files.',
-      from: { path: '^packages/core/', pathNot: TEST_FILE },
+        'Test files have their own rule below; build-time config files (vitest.config.ts) are exempt.',
+      from: { path: '^packages/core/', pathNot: BUILD_TIME_FILE },
       to: { dependencyTypesNot: ['local'] },
     },
     {
       name: 'core-test-external',
       severity: 'error',
-      comment: 'Core test files may import only vitest and fast-check from outside the package.',
+      comment:
+        'Core test files may import only vitest, fast-check and Node built-ins (the determinism ' +
+        'guard reads the sources) from outside the package.',
       from: { path: `^packages/core/.*${TEST_FILE}` },
       to: {
-        dependencyTypesNot: ['local'],
+        dependencyTypesNot: ['local', 'core'],
         pathNot: [
           '^node_modules/\\.pnpm/(vitest|fast-check)@',
           '^(vitest|fast-check)$',

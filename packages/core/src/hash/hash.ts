@@ -1,0 +1,96 @@
+import { COLUMNS } from '../world/entity-store';
+import type { World } from '../world/world';
+
+/** `[hi, lo]`: two independent FNV-1a 32-bit lanes (ADR-0002). */
+export type WorldHash = readonly [number, number];
+
+const FNV_PRIME = 0x01000193;
+/** Standard FNV-1a offset basis. */
+const LANE_HI_BASIS = 0x811c9dc5;
+/** Second lane: FNV-1a of the ASCII bytes "retro-action-engine", fixed so it never changes. */
+const LANE_LO_BASIS = 0xea4bc20d;
+
+/**
+ * Byte-level FNV-1a over two lanes. Inputs:
+ * - int32: 4 bytes, little-endian.
+ * - bool: 1 byte (0 or 1).
+ * - string: its length as int32, then each UTF-16 code unit as 2 bytes, little-endian.
+ */
+export class Hasher {
+  private hi = LANE_HI_BASIS;
+  private lo = LANE_LO_BASIS;
+
+  byte(value: number): this {
+    const b = value & 0xff;
+    this.hi = Math.imul(this.hi ^ b, FNV_PRIME);
+    this.lo = Math.imul(this.lo ^ b, FNV_PRIME);
+    return this;
+  }
+
+  int32(value: number): this {
+    if (!Number.isInteger(value) || value < -(2 ** 31) || value > 2 ** 32 - 1) {
+      throw new RangeError(`hash: ${value} is not a 32-bit integer`);
+    }
+    const v = value | 0;
+    return this.byte(v)
+      .byte(v >>> 8)
+      .byte(v >>> 16)
+      .byte(v >>> 24);
+  }
+
+  bool(value: boolean): this {
+    return this.byte(value ? 1 : 0);
+  }
+
+  string(value: string): this {
+    this.int32(value.length);
+    for (let i = 0; i < value.length; i++) {
+      const unit = value.charCodeAt(i);
+      this.byte(unit).byte(unit >>> 8);
+    }
+    return this;
+  }
+
+  digest(): WorldHash {
+    return [this.hi >>> 0, this.lo >>> 0];
+  }
+}
+
+const FLAG_NUMBER = 0;
+const FLAG_BOOLEAN = 1;
+
+/**
+ * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, flags (keys sorted by
+ * UTF-16 code units), entities (live ones in ascending id order, columns in `COLUMNS` order).
+ * Tombstones and slot positions do not affect the result, so `compact` keeps the hash.
+ */
+export function hashWorld(world: World): WorldHash {
+  const h = new Hasher();
+  h.int32(world.tick).int32(world.rng).string(world.roomId);
+
+  const keys = Object.keys(world.flags).sort();
+  h.int32(keys.length);
+  for (const key of keys) {
+    const value = world.flags[key] as number | boolean;
+    h.string(key);
+    if (typeof value === 'boolean') {
+      h.byte(FLAG_BOOLEAN).bool(value);
+    } else {
+      h.byte(FLAG_NUMBER).int32(value);
+    }
+  }
+
+  const store = world.entities;
+  h.int32(store.count);
+  for (let slot = 0; slot < store.length; slot++) {
+    if (store.alive[slot] !== 1) {
+      continue;
+    }
+    for (const key of COLUMNS) {
+      if (key !== 'alive') {
+        h.int32(store[key][slot] as number);
+      }
+    }
+  }
+  return h.digest();
+}

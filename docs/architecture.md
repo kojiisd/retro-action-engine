@@ -135,10 +135,10 @@ sequenceDiagram
 
 | モジュール | 内容 |
 | --- | --- |
-| `fx/` | 8.8 固定小数点の演算、値域チェック、PRNG（xorshift32） |
-| `world/` | `World` の型、エンティティ表（コンポーネント表）、`snapshot/restore` |
-| `hash/` | `World` の決定論的 hash（FNV-1a を 2 レーン、`[hi, lo]`） |
-| `collision/` | タイルクラス、AABB、軸分離スイープ、oneway、slope（M5）、`CollisionContext` |
+| `fx/` | 8.8 固定小数点の演算、値域チェック、PRNG（xorshift32）（M1-2） |
+| `world/` | `World` の型、エンティティ表（`EntityStore`。SoA + tombstone、M1-2）、`snapshot/restore` |
+| `hash/` | `World` の決定論的 hash（FNV-1a を 2 レーン、`[hi, lo]`、M1-2） |
+| `collision/` | 衝突グリッド、AABB、軸分離スイープ、oneway、`CollisionContext`、`movement` システム（M1-2）。slope は M5 |
 | `controller/` | キャラクター状態機械、操作感プロファイルの適用 |
 | `party/` | 有効タグの計算、切替、HP と所持品のスコープ |
 | `behavior/` | BehaviorSpec の評価、Primitive と Condition の実装 |
@@ -146,7 +146,7 @@ sequenceDiagram
 | `camera/` | screenFlip と scroll |
 | `replay/` | `InputFrame` の記録（RLE）、再生、checkpoint |
 | `loop/` | アキュムレータの純粋部分（`advance`）。DOM に触れない |
-| `runtime/` | `PackRuntime` の型（`pack` が構築し、`core` が消費する） |
+| `runtime/` | `PackRuntime` の型（`pack` が構築し、`core` が消費する）。M1-2 時点は `TileClass` のみ |
 
 ## 6. 境界 API の型スケッチ
 
@@ -219,6 +219,7 @@ export interface TileClass {
 }
 
 // ---- core/world ----
+// M1-2 時点は tick, rng, roomId, flags, entities。残りは使うシステムと同じ PR で追加する（ADR-0002 の hash 順に挿入）。
 export interface World {
   tick: number;
   rng: number;               // xorshift32 の状態

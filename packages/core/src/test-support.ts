@@ -230,6 +230,8 @@ export function simRuntime(options: SimFixtureOptions): PackRuntime {
     spawns: { start: { x: fromPx(col * T + T / 2), y: fromPx((row + 1) * T) } },
   };
   return {
+    id: 'test-pack',
+    version: '0.0.0',
     tileSize: T,
     rooms: { room },
     characters: { walker: WALKER, swimmer: SWIMMER },

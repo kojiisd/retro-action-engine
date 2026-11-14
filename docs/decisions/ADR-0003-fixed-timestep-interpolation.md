@@ -49,6 +49,13 @@
 - エンティティが同一 tick 内でワープした場合（部屋遷移、`warp` アクション、spawn 直後）は補間しない。`RenderSprite` に `teleported: true` を立てる。
 - ピクセルスナップ: 補間後の座標を床関数で整数 px にし、Phaser 側も `roundPixels: true` と `camera.setRoundPixels(true)` にする（v4 では `roundPixels` の既定が false。MIGRATION-GUIDE 16 節）。
 
+## 実装（M1-4、2026-11-14）
+
+- `advance` と、フレームごとに `advance` を呼んで tick を消化する `LoopDriver` は `packages/core/src/loop/` の純粋なコード。`renderer-phaser`（M1-5）は `scene.update` の `delta` を `LoopDriver.frame()` に渡すだけにする。
+- `dropped` のフレームでは、tick を消化する前にドライバが `dropped` フックを呼ぶ（InputBuffer の再同期 (c)）。
+- フレーム時間の切り捨て（1）でも tick 数の上限（3）でも `dropped = true` になる。既定値では 250ms が 15 tick に当たるため両方が同時に起きるが、設定を変えたときのために個別に扱う。
+- Determinism テスト (b) は `packages/core/src/replay/replay.test.ts`（60 / 120 / 144Hz、スパイク入り、ランダムなフレーム時間列）。
+
 ## 結果
 
 - 得られるもの: 60/120/144Hz で同一の tick 列、補間による滑らかな表示、原作風では補間なしの硬い表示。

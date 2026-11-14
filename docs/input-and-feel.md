@@ -1,7 +1,7 @@
 # 入力層と操作感プロファイル
 
 - 版: 設計初版
-- 更新日: 2026-11-14（M1-3 の実装に合わせて 6 章と 8 章を詳細化）
+- 更新日: 2026-11-14（M1-3 で 6 章と 8 章、M1-4 で 5 章と 11 章を実装に合わせて詳細化）
 - 根拠: [ADR-0008](decisions/ADR-0008-input-architecture.md)、[ADR-0003](decisions/ADR-0003-fixed-timestep-interpolation.md)、[ADR-0002](decisions/ADR-0002-fixed-point-determinism.md)
 
 ## 1. 目標
@@ -118,6 +118,9 @@ interface Transition { action: ActionId; kind: 'down' | 'up'; seq: number }
 6. 1 tick の間に複数回ポーリングされても差分がキューに積まれるのでタップは失われない。
 7. 再同期（5.2）。
 8. リプレイは規則適用後の `InputFrame` を記録する。
+9. 状態を変えない遷移（すでに押されている action の down、離されている action の up）は、キューに積む時点で捨てる。各 action の遷移は必ず down と up が交互になる。
+
+実装（M1-4）: 規則の純粋部分は `core` の `EdgeBuffer`（`packages/core/src/input/edge-buffer.ts`）。DOM 側の `InputBuffer`（`packages/input`）は、デバイスの遷移を `EdgeBuffer` に渡し、各デバイスの物理状態の和を再同期に使い、フォーカス喪失のイベントを配線する。
 
 例 1: 1 フレームで 2 tick、キュー = `jump↓, jump↑, jump↓`
 
@@ -158,6 +161,8 @@ interface Transition { action: ActionId; kind: 'down' | 'up'; seq: number }
 3. 異なる action にだけ遷移を 1 つ積む（物理が押下なら down、解放なら up）。
 4. 次の tick でエッジは action あたり最大 1 つ、held は 1 tick 後に現実と一致する。
 5. `resyncCount` を計上し、開発ビルドでは警告を出す。
+
+トリガの検査の場所（M1-4）: (a) と (b) は遷移を積むたびに `EdgeBuffer` が検査する。(c) はループドライバが `dropped` のフレームで tick を消化する前に呼ぶ。(d) は `InputBuffer` が `window` の `blur` と `document` の `visibilitychange`（`hidden` のときだけ）で、物理状態を 0 として呼ぶ。
 
 再同期はライブ入力の生成にのみ影響する。記録済みの `InputFrame` 列の再生には関与しない。
 
@@ -389,7 +394,8 @@ interface ReplayFile {
 ```
 
 - `Recorder.push(frame)` は直前と同じなら `count` を増やす。pressed / released が非ゼロのフレームは原理的に連続しないので、RLE は held だけの区間を圧縮する。
-- `Player` は `frames` を展開して tick ごとに `InputFrame` を返す。終端後は `held = 0` を返す。
+- `Player` は `frames` を展開して tick ごとに `InputFrame` を返す。終端後は、押されたままの action があれば 1 回だけ `released` を返し、以降は `held = 0` の空フレームを返す。
+- 再生は `packId` と `packVersion` が実行中のパックと一致するときだけ行う（異なるデータでは結果が変わるため、`runReplayHeadless` はエラーにする）。
 - `checkpoints` は任意。Determinism テストでは実行同士の tick 毎 hash を比較するため、ファイル内の hash は参考情報。Golden テストだけが `final.hash` を使う。
 
 ### 11.2 使い方

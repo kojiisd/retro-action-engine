@@ -139,13 +139,13 @@ sequenceDiagram
 | `world/` | `World` の型、エンティティ表（`EntityStore`。SoA + tombstone、M1-2）、`snapshot/restore` |
 | `hash/` | `World` の決定論的 hash（FNV-1a を 2 レーン、`[hi, lo]`、M1-2） |
 | `collision/` | 衝突グリッド、AABB、軸分離スイープ、oneway、`CollisionContext`、`movement` システム（M1-2）。slope は M5 |
-| `input/` | `InputFrame` と Action 語彙のビット（M1-3） |
+| `input/` | `InputFrame` と Action 語彙のビット（M1-3）、`EdgeBuffer`（InputBuffer の純粋部分。エッジ規則と再同期、M1-4） |
 | `sim/` | `createWorld`、`step`（システムを 4.3 の固定順で実行）、`inputIntent`、`controller`（キャラクター状態機械、操作感プロファイルの適用）、`party`（有効タグの計算、切替）（M1-3）。HP と所持品のスコープは M3 |
 | `behavior/` | BehaviorSpec の評価、Primitive と Condition の実装 |
 | `events/` | トリガ、Condition、Action、フラグストア |
 | `camera/` | screenFlip と scroll |
-| `replay/` | `InputFrame` の記録（RLE）、再生、checkpoint（M1-4）。Feel scenario 用の合成 DSL `script()`（M1-3） |
-| `loop/` | アキュムレータの純粋部分（`advance`）。DOM に触れない |
+| `replay/` | `Recorder`（RLE）、`Player`、checkpoint、`runReplayHeadless`（M1-4）。Feel scenario 用の合成 DSL `script()`（M1-3） |
+| `loop/` | アキュムレータの純粋部分（`advance`）と `LoopDriver`（フレームごとに tick を消化する純粋部分、M1-4）。DOM に触れない |
 | `runtime/` | `PackRuntime` の型（`pack` が構築し、`core` が消費する）。M1-3 時点は `TileClass`、`FeelProfile`（Fx に変換済み）、`CharacterDef`、`RulesDef.party`、`RoomData`、`StartState` |
 
 ## 6. 境界 API の型スケッチ

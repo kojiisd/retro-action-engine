@@ -44,6 +44,8 @@ export interface RoomData {
 }
 
 export interface PackRuntime {
+  readonly id: string;
+  readonly version: string;
   readonly tileSize: number;
   readonly rooms: Readonly<Record<string, RoomData>>;
   readonly characters: Readonly<Record<string, CharacterDef>>;

@@ -31,6 +31,14 @@ export {
 export { nextInt, nextU32, type RngHolder, seedRng } from './fx/rng';
 export { Hasher, hashWorld, type WorldHash } from './hash/hash';
 export {
+  DEFAULT_MAX_BACKLOG_TICKS,
+  EdgeBuffer,
+  type EdgeBufferOptions,
+  MAX_QUEUE,
+  type ResyncReason,
+  type Transition,
+} from './input/edge-buffer';
+export {
   ACTIONS,
   type ActionId,
   actionBit,
@@ -42,6 +50,25 @@ export {
   isReleased,
   mirrorFrame,
 } from './input/frame';
+export {
+  type AdvanceResult,
+  advance,
+  DEFAULT_LOOP_CONFIG,
+  type LoopConfig,
+  type LoopState,
+  newLoopState,
+  UNITS_PER_TICK,
+} from './loop/advance';
+export { LoopDriver, type LoopHooks } from './loop/driver';
+export {
+  checkReplayPack,
+  type HeadlessResult,
+  Player,
+  Recorder,
+  type ReplayFile,
+  runReplayHeadless,
+  startOf,
+} from './replay/replay';
 export { Script, script } from './replay/script';
 export { type FeelMotion, type FeelProfile, resolveFeel } from './runtime/feel';
 export type {

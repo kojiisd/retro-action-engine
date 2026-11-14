@@ -9,6 +9,11 @@
 // This file is a plain script: CloudFront calls the top-level `handler` function.
 // The SITE_DOMAIN value below is replaced with the configured domain at synth time
 // (infra/src/viewer-request-code.ts). It is unit-tested by infra/src/viewer-request.test.ts.
+//
+// Only use syntax the cloudfront-js-2.0 runtime accepts. Node runs the unit tests, so a token
+// the runtime rejects passes them and fails only at the edge (503 FunctionExecutionError).
+// Known rejected: `for...of`. Avoided as a precaution: optional chaining, nullish coalescing.
+// viewer-request.test.ts checks the source for these.
 
 const SITE_DOMAIN = '__SITE_DOMAIN__';
 
@@ -47,13 +52,17 @@ function redirect(location) {
 }
 
 // Rebuilds "?a=1&b=2" from the CloudFront querystring object, keeping repeated keys.
+// Plain index loops: the cloudfront-js-2.0 runtime rejects `for...of` with a SyntaxError.
 function toQueryString(querystring) {
   const parts = [];
-  for (const name of Object.keys(querystring || {})) {
+  const names = Object.keys(querystring || {});
+  for (let i = 0; i < names.length; i++) {
+    const name = names[i];
     const entry = querystring[name];
     const values = entry.multiValue ? entry.multiValue : [entry];
-    for (const item of values) {
-      parts.push(item.value === '' ? name : `${name}=${item.value}`);
+    for (let j = 0; j < values.length; j++) {
+      const value = values[j].value;
+      parts.push(value === '' ? name : `${name}=${value}`);
     }
   }
   return parts.length > 0 ? `?${parts.join('&')}` : '';

@@ -41,6 +41,13 @@ export interface DeployConfig {
   readonly github: {
     readonly owner: string;
     readonly repo: string;
+    /**
+     * Numeric IDs of the owner account and the repository. The repository issues OIDC subjects in
+     * the immutable form `repo:<owner>@<ownerId>/<repo>@<repoId>:...`, so the trust policies match
+     * on the IDs as well as the names (a renamed or re-created repository gets a new ID).
+     */
+    readonly ownerId: string;
+    readonly repoId: string;
     /** GitHub Environment whose OIDC subject may assume the production role. */
     readonly productionEnvironment: string;
     /** Create the GitHub OIDC provider, or import the one that already exists in the account. */
@@ -75,6 +82,7 @@ const REGION_PATTERN = /^[a-z]{2}(-[a-z]+)+-\d+$/;
 const HOSTED_ZONE_ID_PATTERN = /^Z[A-Z0-9]{5,31}$/;
 const DOMAIN_PATTERN = /^(?=.{1,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/;
 const GITHUB_NAME_PATTERN = /^[A-Za-z0-9_.-]+$/;
+const GITHUB_ID_PATTERN = /^[1-9]\d{0,19}$/;
 const CERTIFICATE_ARN_PATTERN =
   /^arn:aws:acm:([a-z0-9-]+):(\d{12}):certificate\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
@@ -131,6 +139,8 @@ export function parseConfig(raw: unknown, options: ParseOptions): ParsedConfig {
   const github = readObject(root, 'github', 'github', problems);
   const owner = readString(github, 'owner', 'github.owner', problems);
   const repo = readString(github, 'repo', 'github.repo', problems);
+  const ownerId = readString(github, 'ownerId', 'github.ownerId', problems);
+  const repoId = readString(github, 'repoId', 'github.repoId', problems);
   const productionEnvironment = readString(
     github,
     'productionEnvironment',
@@ -194,6 +204,12 @@ export function parseConfig(raw: unknown, options: ParseOptions): ParsedConfig {
   if (repo && !GITHUB_NAME_PATTERN.test(repo)) {
     problems.push('github.repo contains characters that are not allowed in a GitHub name');
   }
+  if (ownerId && !GITHUB_ID_PATTERN.test(ownerId)) {
+    problems.push('github.ownerId must be the numeric ID of the owner account, as a string');
+  }
+  if (repoId && !GITHUB_ID_PATTERN.test(repoId)) {
+    problems.push('github.repoId must be the numeric ID of the repository, as a string');
+  }
   if (oidcProvider && oidcProvider !== 'create' && oidcProvider !== 'import') {
     problems.push('github.oidcProvider must be "create" or "import"');
   }
@@ -226,6 +242,8 @@ export function parseConfig(raw: unknown, options: ParseOptions): ParsedConfig {
       github: {
         owner,
         repo,
+        ownerId,
+        repoId,
         productionEnvironment,
         oidcProvider: oidcProvider as OidcProviderMode,
       },
@@ -235,12 +253,22 @@ export function parseConfig(raw: unknown, options: ParseOptions): ParsedConfig {
   };
 }
 
+/**
+ * Start of the OIDC `sub` claim in GitHub's immutable form, e.g.
+ * `repo:octo-org@123/octo-repo@456`. The repository's subject customization reports this as
+ * `sub_claim_prefix` (`gh api repos/<owner>/<repo>/actions/oidc/customization/sub`).
+ */
+export function subjectPrefix(config: DeployConfig): string {
+  const { owner, ownerId, repo, repoId } = config.github;
+  return `repo:${owner}@${ownerId}/${repo}@${repoId}`;
+}
+
 /** OIDC `sub` claim that GitHub issues for jobs bound to the production environment. */
 export function productionSubject(config: DeployConfig): string {
-  return `repo:${config.github.owner}/${config.github.repo}:environment:${config.github.productionEnvironment}`;
+  return `${subjectPrefix(config)}:environment:${config.github.productionEnvironment}`;
 }
 
 /** OIDC `sub` claim that GitHub issues for `pull_request` events. */
 export function previewSubject(config: DeployConfig): string {
-  return `repo:${config.github.owner}/${config.github.repo}:pull_request`;
+  return `${subjectPrefix(config)}:pull_request`;
 }

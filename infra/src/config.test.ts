@@ -114,6 +114,20 @@ describe('parseConfig', () => {
     expect(problemsOf(raw, lenient)).toEqual([]);
   });
 
+  describe('github IDs', () => {
+    it('are required', () => {
+      const problems = problemsOf(rawConfig({}, { ownerId: undefined, repoId: '' }));
+      expect(problems).toContain('github.ownerId is required and must be a non-empty string');
+      expect(problems).toContain('github.repoId is required and must be a non-empty string');
+    });
+
+    it('must be numeric strings', () => {
+      const problems = problemsOf(rawConfig({}, { ownerId: 'example-owner', repoId: '0123' }));
+      expect(problems.join('\n')).toMatch(/github\.ownerId must be the numeric ID/);
+      expect(problems.join('\n')).toMatch(/github\.repoId must be the numeric ID/);
+    });
+  });
+
   it('reports every problem at once', () => {
     const problems = problemsOf(
       rawConfig({ account: '123', region: 'us-east-1', priceClass: 'x' }),
@@ -125,8 +139,10 @@ describe('parseConfig', () => {
 describe('OIDC subjects', () => {
   it('binds production to the GitHub environment and previews to pull_request events', () => {
     expect(productionSubject(TEST_CONFIG)).toBe(
-      'repo:example-owner/example-repo:environment:production',
+      'repo:example-owner@1001/example-repo@2002:environment:production',
     );
-    expect(previewSubject(TEST_CONFIG)).toBe('repo:example-owner/example-repo:pull_request');
+    expect(previewSubject(TEST_CONFIG)).toBe(
+      'repo:example-owner@1001/example-repo@2002:pull_request',
+    );
   });
 });

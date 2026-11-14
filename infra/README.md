@@ -94,10 +94,20 @@ cp config/deploy.example.json config/deploy.json
 | `hostedZone.name` | `kojiisd.jp` |
 | `domainName` | `arcade.kojiisd.jp` |
 | `certificateArn` | 手順 5 で転記する。今はプレースホルダーのまま |
+| `github.ownerId` / `github.repoId` | オーナーとリポジトリの数値 ID（文字列で書く）。下のコマンドで調べる |
 | `github.oidcProvider` | 手順 1 の結果に従い `create` または `import` |
 | `priceClass` | `PriceClass_200`（日本を含む。全エッジを使うなら `PriceClass_All`） |
 
 設定に誤りがあると、synth の時点で項目ごとのエラーが表示されて止まります。
+
+`github.ownerId` と `github.repoId` は、ロールの信頼ポリシーが OIDC の `sub` を不変 ID 形式（`repo:<owner>@<ownerId>/<repo>@<repoId>:...`）で照合するために使います。リポジトリの設定で確認できます。
+
+```sh
+gh api repos/kojiisd/retro-action-engine/actions/oidc/customization/sub
+# {"use_default":true,"use_immutable_subject":true,"sub_claim_prefix":"repo:kojiisd@<ownerId>/retro-action-engine@<repoId>"}
+```
+
+`sub_claim_prefix` が上の形でない場合（`use_immutable_subject` が無い、または `false`）は、信頼ポリシーと一致しないため assume が拒否されます。その場合は先に相談してください。
 
 ### 4. CDK bootstrap（初回のみ、2 リージョン）
 
@@ -106,6 +116,14 @@ cp config/deploy.example.json config/deploy.json
 ```sh
 pnpm exec cdk bootstrap aws://<アカウントID>/us-east-1 aws://<アカウントID>/us-west-2
 ```
+
+`AutomaticImportNeedsRetain`（`Automatic import of existing resource ... needs a DeletionPolicy of 'Retain'`）で失敗した場合は、以前に削除した bootstrap スタックのリソース（`cdk-hnb659fds-...-<リージョン>` のロールなど）が残っています。
+
+1. 残っているリソースを確認する（ロール、`cdk-hnb659fds-assets-...` バケット、ECR リポジトリ、SSM パラメータ `/cdk-bootstrap/hnb659fds/version`）。
+2. 各リソースがどのスタックにも属さず、使われていないことを確認する（`aws cloudformation describe-stack-resources --physical-resource-id <名前>`、ロールの `RoleLastUsed`）。
+3. 削除してから、そのリージョンだけ bootstrap し直す。失敗時に残る `REVIEW_IN_PROGRESS` の空の `CDKToolkit` スタックは、そのまま再利用されます。
+
+別の qualifier で bootstrap したスタック（`cdk-<別の qualifier>-...`）は無関係なので触りません。
 
 ### 5. 証明書スタックを deploy し、ARN を転記する
 
@@ -172,6 +190,19 @@ gh variable list
 ### 9. 動作確認
 
 サイトの構成は、トップ（`/`）がゲーム一覧、各ゲームが `/play/<slug>/`（今は `/play/2dsample/`）、PR プレビューが `/pr-<番号>/` 配下です。
+
+0. **CloudFront Function の実行確認**: Function の構文エラーや実行時エラーは、全リクエストが `503`（`X-Cache: FunctionExecutionError`）になる形で現れます。メインスタックを deploy したら、公開中（LIVE）の関数をテスト実行します。関数名は長いと切り詰められるため（例: `us-west-2RetroActionEnginrRequestFunction...`）、一覧で名前を確かめてから指定します。
+
+   ```sh
+   aws cloudfront list-functions --query "FunctionList.Items[].Name" --output text
+   FN=<上で確認した名前>
+   ETAG=$(aws cloudfront describe-function --name "$FN" --stage LIVE --query ETag --output text)
+   echo '{"version":"1.0","context":{"eventType":"viewer-request"},"viewer":{"ip":"192.0.2.1"},"request":{"method":"GET","uri":"/","querystring":{},"headers":{"host":{"value":"arcade.kojiisd.jp"}},"cookies":{}}}' > event.json
+   aws cloudfront test-function --name "$FN" --if-match "$ETAG" --stage LIVE --event-object fileb://event.json \
+     --query "TestResult.{error:FunctionErrorMessage,output:FunctionOutput}" --output json
+   ```
+
+   `error` が空で、`output` の `request.uri` が `/index.html` なら期待どおりです。PowerShell では、イベントのファイルを `[IO.File]::WriteAllText` で書きます（`Set-Content` は BOM を付けるため読み込めない）。
 
 1. **プレビュー**: M1-1 の PR を close してから reopen します（変数登録後に Preview を動かすため。受け入れ条件の確認も兼ねる）。
    - Preview ワークフローが実行され、PR に `https://arcade.kojiisd.jp/pr-<番号>/` のコメントが付くこと。

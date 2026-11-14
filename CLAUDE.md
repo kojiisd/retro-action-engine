@@ -122,7 +122,10 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 
 ## 現在の状態
 
-- M1-1（infra とプレビュー配備）のコードは実装済み。サイトのトップは一覧（`apps/gallery`）、ゲームは `/play/2dsample/`（`apps/player` のプレースホルダーページ）。
-- AWS への適用と M1-1 の手動の受け入れ確認は、所有者が `infra/README.md` の手順で行う途中。完了したらこの節を更新する。
+- M1-1（infra とプレビュー配備）は完了。AWS に適用済みで、受け入れ確認も済んでいる（2026-11-14）。
+  - 本番は `https://arcade.kojiisd.jp/`。トップは一覧（`apps/gallery`）、ゲームは `/play/2dsample/`（`apps/player` のプレースホルダーページ）。
+  - PR を作ると `/pr-<番号>/` にプレビューが出て、PR に URL がコメントされる。close で消え、reopen で戻る。`main` へのマージで本番に配信される。
+  - `main` はルールセットで保護されている（PR 必須、`ci` 必須、force push と削除を禁止）。
+  - infra（`infra/`）を変えたときだけ、所有者が手元で `cdk deploy` する。CloudFront Function を変えたら、手順書 9-0 の `test-function` で確認する。
 - エンジンの各パッケージは空の `src/index.ts` だけで、ゲームのロジックはまだ無い。
 - 次は `docs/roadmap.md` の M1-2（Fx / World / タイル衝突）。

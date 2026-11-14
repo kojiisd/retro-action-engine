@@ -1,7 +1,7 @@
 # ADR-0014: 配信基盤（S3 + CloudFront、独自ドメイン、OIDC、CDK）
 
 - Status: Accepted
-- Date: 2026-10-04（改訂 2026-10-05、2026-11-03）
+- Date: 2026-10-04（改訂 2026-10-05、2026-11-03、2026-11-14）
 - 論点: J（デプロイ）
 
 ## 改訂履歴
@@ -11,6 +11,7 @@
 | 2026-10-04 | 初版 |
 | 2026-10-05 | M1-1 の実装に合わせて追記した。追記内容は次のとおり。<br>・独自ドメイン `arcade.kojiisd.jp` と、証明書のリージョン戦略（案 C）<br>・セキュリティヘッダーとプレビューの noindex<br>・OIDC プロバイダの作成と参照の切替<br>・設定ファイルとプレースホルダー検証<br>・repository variables の変更（`CF_DOMAIN` を `SITE_DOMAIN` に変更、`AWS_REGION` を追加）<br>・拒否確認の方法とパス設計の方針<br>初版の要確認「カスタムドメイン」を解消した。初版の決定を覆す変更ではなく、要確認の解消と追加なので、ADR の README の規約に対して同一 ADR への追記とした |
 | 2026-11-03 | AWS 適用前に、所有者の確認を受けて次を決めた。<br>・パス設計の確定: トップ（`/`）はゲーム一覧、各ゲームは `/play/<slug>/`。slug はリポジトリ直下の `site.json` で一元管理する（初回は `2dsample`）<br>・HSTS の max-age を初回 1 日にし、運用が安定してから延ばす<br>・CloudFront の既定ドメイン（`*.cloudfront.net`）への要求を独自ドメインへ 301 で転送する<br>いずれも「将来のパス設計」の具体化と、適用前の設定値の変更で、既存の決定を覆すものではないため同一 ADR に追記した |
+| 2026-11-14 | 初回の適用後、所有者の確認を受けて次を変えた。<br>・OIDC の `sub` を不変 ID 形式（`repo:<owner>@<ownerId>/<repo>@<repoId>:...`）で照合する。このリポジトリは GitHub が不変 ID 形式で `sub` を発行しており（`actions/oidc/customization/sub` の `use_immutable_subject: true`）、名前だけの形式では assume が拒否された。ID も照合するので、名前の変更や同名での作り直しで別のリポジトリが信頼されることも防げる。ID は `config/deploy.json` の `github.ownerId` と `github.repoId` で渡す<br>・CloudFront Function の `for...of` を使わない書き方に直した（`cloudfront-js-2.0` が SyntaxError で拒否し、全リクエストが 503 になった） |
 
 ## 背景
 
@@ -76,8 +77,8 @@ CloudFront に付ける ACM 証明書は us-east-1 に置く必要がある。
 
 | ロール | trust（OIDC の `sub`） | 権限 |
 | --- | --- | --- |
-| production | `repo:kojiisd/retro-action-engine:environment:production` | バケット全体の `s3:PutObject`、`s3:DeleteObject`、`s3:ListBucket`。対象 Distribution の `cloudfront:CreateInvalidation` |
-| preview | `repo:kojiisd/retro-action-engine:pull_request` | `s3:PutObject`、`s3:DeleteObject` を `arn:aws:s3:::<bucket>/pr-*` のみ。`s3:ListBucket` は `s3:prefix` が `pr-*` の条件付き。対象 Distribution の `cloudfront:CreateInvalidation` |
+| production | `repo:kojiisd@<ownerId>/retro-action-engine@<repoId>:environment:production` | バケット全体の `s3:PutObject`、`s3:DeleteObject`、`s3:ListBucket`。対象 Distribution の `cloudfront:CreateInvalidation` |
+| preview | `repo:kojiisd@<ownerId>/retro-action-engine@<repoId>:pull_request` | `s3:PutObject`、`s3:DeleteObject` を `arn:aws:s3:::<bucket>/pr-*` のみ。`s3:ListBucket` は `s3:prefix` が `pr-*` の条件付き。対象 Distribution の `cloudfront:CreateInvalidation` |
 
 - 既知の制約: `cloudfront:CreateInvalidation` はパスで IAM 制限できないため、プレビュー用ロールでも `/` の無効化は技術的に可能。影響はキャッシュ破棄のみでコンテンツは書けないため許容する。
 - 既知の制約: 同一リポジトリの PR は `pr-*` 全体へ書けるので、他の PR のプレビューも上書きできる。個人リポジトリのため許容する。

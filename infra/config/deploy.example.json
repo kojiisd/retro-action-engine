@@ -10,6 +10,8 @@
   "github": {
     "owner": "kojiisd",
     "repo": "retro-action-engine",
+    "ownerId": "1331301",
+    "repoId": "1404135398",
     "productionEnvironment": "production",
     "oidcProvider": "create"
   },

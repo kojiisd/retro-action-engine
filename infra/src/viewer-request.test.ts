@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { renderViewerRequestCode } from './viewer-request-code.ts';
 
@@ -79,6 +81,27 @@ describe('viewer-request CloudFront Function', () => {
       expect((run('/', {}, 'arcade.example.com.evil.test') as Redirect).statusCode).toBe(301);
       expect((run('/', {}, 'xarcade.example.com') as Redirect).statusCode).toBe(301);
     });
+  });
+});
+
+describe('viewer-request source', () => {
+  // Node accepts syntax that the cloudfront-js-2.0 runtime rejects, so the tests above cannot
+  // catch it. A rejected token makes every request fail with 503 FunctionExecutionError.
+  const code = readFileSync(
+    fileURLToPath(new URL('../functions/viewer-request.js', import.meta.url)),
+    'utf8',
+  )
+    .split('\n')
+    .filter((line) => !line.trim().startsWith('//'))
+    .join('\n');
+
+  it('does not use for...of (rejected by the CloudFront runtime)', () => {
+    expect(code).not.toMatch(/\bfor\s*\([^)]*\sof\s/);
+  });
+
+  it('does not use optional chaining or nullish coalescing', () => {
+    expect(code).not.toMatch(/\?\.(?!\d)/);
+    expect(code).not.toMatch(/\?\?/);
   });
 });
 

@@ -127,5 +127,6 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
   - PR を作ると `/pr-<番号>/` にプレビューが出て、PR に URL がコメントされる。close で消え、reopen で戻る。`main` へのマージで本番に配信される。
   - `main` はルールセットで保護されている（PR 必須、`ci` 必須、force push と削除を禁止）。
   - infra（`infra/`）を変えたときだけ、所有者が手元で `cdk deploy` する。CloudFront Function を変えたら、手順書 9-0 の `test-function` で確認する。
-- エンジンの各パッケージは空の `src/index.ts` だけで、ゲームのロジックはまだ無い。
-- 次は `docs/roadmap.md` の M1-2（Fx / World / タイル衝突）。
+- M1-2（Fx / World / タイル衝突）は `core` に実装済み: `fx`（値域チェック付き）、xorshift32、`World` と `EntityStore`、`hash`、衝突グリッドと `movement`。core のテストの fixture は `packages/core/src/test-support.ts`（`buildRoom` など）。
+- `core` 以外のエンジンのパッケージは、まだ空の `src/index.ts` だけ。
+- 次は `docs/roadmap.md` の M1-3（キャラクター制御、2 人切替、能力タグ通行）。

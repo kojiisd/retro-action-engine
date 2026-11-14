@@ -1,7 +1,7 @@
 # ADR-0002: 8.8 固定小数点と決定論の規則
 
 - Status: Accepted
-- Date: 2026-10-04
+- Date: 2026-10-04（改訂 2026-11-14）
 - 論点: A-1
 
 ## 背景
@@ -59,7 +59,7 @@
 
 - `core` では `Math.random`、`Date`、`performance`、`Math.sin/cos/tan/atan2/pow/exp/log/sqrt` を使わない。
 - 三角関数的な動き（sine-float など）が必要な場合は、整数の周期テーブル（例: 256 要素）をデータとしてコミットし、コアは参照するだけにする。
-- 乱数は xorshift32 を `World.rng`（非ゼロの uint32）として持つ。`nextInt(n)` は `n ≤ 2^20` を前提に `floor((x >>> 0) / 2^32 * n)` で計算する（`x / 2^32` は正確、`× n` も 52bit 以内で正確）。
+- 乱数は xorshift32（シフト 13 / 17 / 5）を `World.rng`（非ゼロの uint32）として持つ。シードは `>>> 0` で uint32 にし、0 になる場合は固定の非ゼロ値（`0x9e3779b9`）に置き換える。`nextInt(n)` は `n ≤ 2^20` を前提に `floor((x >>> 0) / 2^32 * n)` で計算する（`x / 2^32` は正確、`× n` も 52bit 以内で正確）。
 - エンティティの走査は id 昇順。`sort` は id でタイブレーク。`Map`/`Set` の反復順に依存しない。
 - 時間は tick のみ。壁時計時間をコアに入れない。
 
@@ -68,6 +68,14 @@
 - `hash(world)` は FNV-1a 32bit を 2 レーン（異なる offset basis）で計算し `[hi, lo]` を返す。
 - 走査順は固定: `tick`、`rng`、`roomId`（UTF-16 code unit）、`camera`、`party`、`inventory`、`flags`（キーをソート）、`entities`（id 昇順、各コンポーネントはフィールド順固定）。
 - 文字列は code unit を、真偽値は 0/1 を、`Fx` と整数は int32 の 4 バイトを投入する。
+- 入力のバイト列は次のとおり固定する（M1-2 で実装）。
+  - int32: 4 バイト、リトルエンディアン。`rng` のような uint32 も同じビット列で投入する。
+  - 真偽値: 1 バイト（0 / 1）。
+  - 文字列: 長さを int32 で投入してから、各 UTF-16 code unit を 2 バイト（リトルエンディアン）で投入する。長さを先に入れることで、`"a" + "b"` と `"ab" + ""` を区別する。
+  - `flags`: 件数（int32）、続いてキーの昇順に「キー（文字列）、型タグ 1 バイト（0 = 数値、1 = 真偽値）、値」。
+  - `entities`: 生存数（int32）、続いて生存エンティティを id 昇順に、コンポーネントの列を固定順で投入する。tombstone とスロット位置は結果に影響しない（`compact` で hash は変わらない）。
+- レーンの offset basis: hi は FNV-1a 標準の `0x811c9dc5`、lo は ASCII 文字列 `retro-action-engine` の FNV-1a（`0xea4bc20d`）。どちらも一度決めたら変えない。
+- `World` のフィールドは、それを使うシステムと同じ PR で追加し、上の走査順の位置に挿入する（M1-2 時点は `tick`、`rng`、`roomId`、`flags`、`entities`）。
 
 ## 結果
 
@@ -76,6 +84,19 @@
 - 描画層は `toPxFloor` で px に変換して `RenderSnapshot` を作る。補間は描画層が浮動小数点で行ってよい（決定論の対象外）。
 - `World` の JSON 化は整数のみになり、golden の差分が読みやすい。
 
+## 改訂履歴
+
+| 日付 | 内容 |
+| --- | --- |
+| 2026-11-14 | M1-2 の実装で次を決めた。<br>・`Fx` は `number` の型エイリアスにする（下記）<br>・xorshift32 のシフト量とゼロシードの扱い、hash に投入するバイト列とレーンの offset basis を明記した<br>・値域 assert は `FxRangeError` を投げる。テストでは `packages/core/vitest.config.ts` の setup で常に有効にする<br>・core のソースに禁止 API（`Math.random`、`Date`、`performance`、超越関数、`**`、DOM のグローバル）が無いことを、テスト（`determinism-guard.test.ts`）で検査する |
+
+## `Fx` の型（2026-11-14 に決定）
+
+`number` の型エイリアス（`type Fx = number`）にする。branded type は採らない。
+
+- ホットなコンポーネントは `Int32Array` の SoA（ADR-0005）で持つ。配列の要素は `number` として読み書きされ、ブランドは配列の境界で失われるため、取り違えを防ぐ効果が小さい。
+- 取り違えは、px を受け取る関数名（`fromPx`、`toPxFloor`）と、引数名の `Px` 接尾辞（`xPx`）で区別する。衝突の Property テスト（鏡像、貫通しない）が単位の誤りを検出する。
+
 ## 要確認
 
-- `Fx` を `number` の型エイリアスにするか、branded type（`number & { readonly __fx: unique symbol }`）にするか。px と Fx の取り違えをコンパイル時に防げる利点があるが、記述が重くなる。M1-2 の実装着手時に判断する。
+- なし（`Fx` の型は 2026-11-14 に決定）。

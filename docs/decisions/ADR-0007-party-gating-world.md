@@ -1,7 +1,7 @@
 # ADR-0007: パーティ、能力ゲーティング、ワールド構造
 
 - Status: Accepted
-- Date: 2026-10-04
+- Date: 2026-10-04（改訂 2026-11-14）
 - 論点: E
 
 ## 背景
@@ -78,6 +78,12 @@ Condition は ADR-0005 の集合に `hasTag`, `hasItem`, `partyIncludes` を加�
 - `ExitDef = { id, kind: 'edge' | 'door' | 'warp', rect, toRoomId, spawnId, effect: 'cut' | 'fade' | 'scroll', requiresAnyTag?, requiresFlag? }`。`edge` は部屋外周の領域、`door` は `confirm` で入る、`warp` は接触で発動。
 - 部屋遷移はコアが `TransitionRequest` を出し、ドライバが `sim.enterRoom()` を呼ぶ。遷移演出の間の tick 停止数（`transitionLockTicks`）は `camera.json` で定義し決定論を保つ。
 - 敵の再出現は `rules.respawn.enemies`。ボスの撃破は `room.<id>.boss.<entityId>` フラグに自動記録し、`never` 扱いにする。開いた扉などの永続状態もフラグで表す。
+
+## 実装の状況（M1-3、2026-11-14）
+
+- パーティは 1 体のエンティティを操作中キャラクターが動かす。切替でコライダーと有効タグと操作感の上書きが入れ替わる。
+- 有効タグは M1-3 時点では `Character.abilityTags` のみ。アイテムとフラグによる `grants` / `revokes` は M3 で加える。
+- `mode: 'atPoints'` はゾーン（M3）が入るまで `never` と同じ扱い。`placement: 'spawn'` は部屋に入ったときの spawn。切替の細則は `docs/input-and-feel.md` 6.5。
 
 ## 結果
 

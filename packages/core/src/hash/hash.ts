@@ -60,13 +60,34 @@ const FLAG_NUMBER = 0;
 const FLAG_BOOLEAN = 1;
 
 /**
- * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, flags (keys sorted by
- * UTF-16 code units), entities (live ones in ascending id order, columns in `COLUMNS` order).
+ * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, party, controller, flags
+ * (keys sorted by UTF-16 code units), entities (live ones in ascending id order, columns in
+ * `COLUMNS` order).
  * Tombstones and slot positions do not affect the result, so `compact` keeps the hash.
  */
 export function hashWorld(world: World): WorldHash {
   const h = new Hasher();
   h.int32(world.tick).int32(world.rng).string(world.roomId);
+
+  const p = world.party;
+  h.int32(p.members.length);
+  for (const member of p.members) {
+    h.string(member);
+  }
+  h.int32(p.activeIndex).int32(p.cooldownTicks).int32(p.entityId).int32(p.spawnX).int32(p.spawnY);
+
+  const c = world.controller;
+  h.string(c.feelProfileId)
+    .int32(c.facing)
+    .int32(c.lastGroundedTick)
+    .bool(c.jumpedSinceGrounded)
+    .int32(c.jumpPressedTick)
+    .int32(c.jumpStartTick)
+    .bool(c.jumpCut)
+    .int32(c.dropThroughUntilTick)
+    .int32(c.landingLagUntilTick)
+    .int32(c.leftPressedTick)
+    .int32(c.rightPressedTick);
 
   const keys = Object.keys(world.flags).sort();
   h.int32(keys.length);

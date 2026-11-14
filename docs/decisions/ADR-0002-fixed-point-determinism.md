@@ -1,7 +1,7 @@
 # ADR-0002: 8.8 固定小数点と決定論の規則
 
 - Status: Accepted
-- Date: 2026-10-04（改訂 2026-11-14）
+- Date: 2026-10-04（改訂 2026-11-14、M1-2 と M1-3）
 - 論点: A-1
 
 ## 背景
@@ -66,7 +66,7 @@
 ### hash
 
 - `hash(world)` は FNV-1a 32bit を 2 レーン（異なる offset basis）で計算し `[hi, lo]` を返す。
-- 走査順は固定: `tick`、`rng`、`roomId`（UTF-16 code unit）、`camera`、`party`、`inventory`、`flags`（キーをソート）、`entities`（id 昇順、各コンポーネントはフィールド順固定）。
+- 走査順は固定: `tick`、`rng`、`roomId`（UTF-16 code unit）、`camera`、`party`、`controller`、`inventory`、`flags`（キーをソート）、`entities`（id 昇順、各コンポーネントはフィールド順固定）。
 - 文字列は code unit を、真偽値は 0/1 を、`Fx` と整数は int32 の 4 バイトを投入する。
 - 入力のバイト列は次のとおり固定する（M1-2 で実装）。
   - int32: 4 バイト、リトルエンディアン。`rng` のような uint32 も同じビット列で投入する。
@@ -75,7 +75,9 @@
   - `flags`: 件数（int32）、続いてキーの昇順に「キー（文字列）、型タグ 1 バイト（0 = 数値、1 = 真偽値）、値」。
   - `entities`: 生存数（int32）、続いて生存エンティティを id 昇順に、コンポーネントの列を固定順で投入する。tombstone とスロット位置は結果に影響しない（`compact` で hash は変わらない）。
 - レーンの offset basis: hi は FNV-1a 標準の `0x811c9dc5`、lo は ASCII 文字列 `retro-action-engine` の FNV-1a（`0xea4bc20d`）。どちらも一度決めたら変えない。
-- `World` のフィールドは、それを使うシステムと同じ PR で追加し、上の走査順の位置に挿入する（M1-2 時点は `tick`、`rng`、`roomId`、`flags`、`entities`）。
+- `World` のフィールドは、それを使うシステムと同じ PR で追加し、上の走査順の位置に挿入する（M1-3 時点は `tick`、`rng`、`roomId`、`party`、`controller`、`flags`、`entities`）。
+  - `party`: メンバー数と各 id（文字列）、`activeIndex`、`cooldownTicks`、`entityId`、`spawnX`、`spawnY`。
+  - `controller`: `feelProfileId`（文字列）、`facing`、`lastGroundedTick`、`jumpedSinceGrounded`（真偽値）、`jumpPressedTick`、`jumpStartTick`、`jumpCut`（真偽値）、`dropThroughUntilTick`、`landingLagUntilTick`、`leftPressedTick`、`rightPressedTick`。「まだ起きていない」tick は `NEVER`（`-0x7fffffff`）。
 
 ## 結果
 
@@ -88,6 +90,7 @@
 
 | 日付 | 内容 |
 | --- | --- |
+| 2026-11-14（M1-3） | 走査順に `controller`（操作中キャラクターの状態機械の記憶）を `party` の直後に追加した。各フィールドの順序を上に明記した |
 | 2026-11-14 | M1-2 の実装で次を決めた。<br>・`Fx` は `number` の型エイリアスにする（下記）<br>・xorshift32 のシフト量とゼロシードの扱い、hash に投入するバイト列とレーンの offset basis を明記した<br>・値域 assert は `FxRangeError` を投げる。テストでは `packages/core/vitest.config.ts` の setup で常に有効にする<br>・core のソースに禁止 API（`Math.random`、`Date`、`performance`、超越関数、`**`、DOM のグローバル）が無いことを、テスト（`determinism-guard.test.ts`）で検査する |
 
 ## `Fx` の型（2026-11-14 に決定）

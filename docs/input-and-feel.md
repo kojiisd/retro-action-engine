@@ -1,7 +1,7 @@
 # 入力層と操作感プロファイル
 
 - 版: 設計初版
-- 更新日: 2026-10-04
+- 更新日: 2026-11-14（M1-3 の実装に合わせて 6 章と 8 章を詳細化）
 - 根拠: [ADR-0008](decisions/ADR-0008-input-architecture.md)、[ADR-0003](decisions/ADR-0003-fixed-timestep-interpolation.md)、[ADR-0002](decisions/ADR-0002-fixed-point-determinism.md)
 
 ## 1. 目標
@@ -181,17 +181,31 @@ interface Transition { action: ActionId; kind: 'down' | 'up'; seq: number }
 - コヨーテタイム: 接地を失ってから `coyoteTicks` 以内の `jump` pressed はジャンプできる。実装は「最後に接地していた tick」を保存して比較する。ジャンプで離陸した場合は無効。
 - どちらも `InputFrame` の履歴から導けるため、デバイス層には持たせない。
 
+tick の数え方（M1-3 で確定。`controller` は `movement` より前に動くため、接地は前 tick の衝突結果で判定する）:
+
+| 規則 | 定義 |
+| --- | --- |
+| 接地 | tick t の `controller` は、tick t−1 の `movement` の接触フラグ（grounded）を見る。接地していれば `lastGroundedTick = t − 1` |
+| コヨーテタイム | `(t − 1) − lastGroundedTick ≤ coyoteTicks` ならジャンプできる。最後に接地してからジャンプしていれば不可。崖から離れた最初の tick（`movement` 後に接地していない tick）を L とすると、`L + coyoteTicks` の押下は成功し、`L + coyoteTicks + 1` は失敗する |
+| ジャンプバッファ | tick p の押下は、ジャンプできる最初の tick t で `t − p ≤ jumpBufferTicks` なら有効。着地 tick G（接地した状態で始まる最初の tick）の `jumpBufferTicks` 前の押下で G に跳び、`jumpBufferTicks + 1` 前では跳ばない。0 なら同じ tick の押下だけ |
+| 離陸 tick の重力 | 速度を先に更新する（8.3）ため、ジャンプした tick にも重力がかかる |
+
 ### 6.3 SOCD（左右同時押し）
 
 `feel.socd` で選ぶ。`neutral`（両方押しで停止、原作風の多く）/ `lastWins`（後に押した方。pressed の tick を記録して判定）/ `leftWins`。上下は `neutral` 固定。
 
 ### 6.4 すり抜け床の降下
 
-`down` を held の状態で `jump` が pressed になったら、ジャンプせず `dropThroughTicks` の間 oneway を無視する。
+`down` を held の状態で `jump` が pressed になったら、ジャンプせず `dropThroughTicks` の間 oneway を無視する。足元がすべて oneway のとき（`onOneway`）だけ降下し、full の床の上では通常のジャンプになる。`up` と `down` を同時に押しているときは `down` を押していない扱い（上下は neutral）。
 
 ### 6.5 切替
 
 `switch` pressed で `rules.party.switch` に従って切替要求。cooldown 中、`requireGrounded` 未達、`mode: 'never'`、1 人構成では無視する。
+
+- 切替はメンバー順に次の人へ（最後の次は先頭）。
+- cooldown は tick 単位。tick t で切り替えると、`t + cooldownTicks − 1` までの要求は無視し、`t + cooldownTicks` から受け付ける。
+- `placement: 'same'` は位置と速度を保つ。`'spawn'` は部屋に入ったときの spawn へ移し、速度を 0 にする。
+- `mode: 'atPoints'` はゾーン（M3）が入るまで `never` と同じ扱い。
 
 ## 7. ループ連携
 
@@ -243,6 +257,10 @@ interface FeelMotion {
 }
 ```
 
+パックのファイルでは px の小数で書く。`pack` がロード時に 1 回だけ `Math.round(v × 256)` で Fx に変換し（ADR-0002）、`core` は変換後の整数（速度、加速度、倍率はいずれも Fx。倍率 1 は 256）だけを扱う。tick 数は整数のまま。
+
+可変ジャンプ: ジャンプ中に `jump` が held でなくなり、離陸から `minJumpTicks` 以上経っていて上昇中なら、上昇速度に `jumpCutScale` を 1 回だけ掛ける。
+
 キャラクターの `feelOverrides` は `FeelMotion` の一部を上書きする（`effective = { ...profile, ...character.feelOverrides }`）。プロファイルの切替はゲーム中いつでも可能で、次の tick から効く。
 
 ### 8.2 パラメータ一覧と例値
@@ -284,6 +302,7 @@ interface FeelMotion {
 
 - 上昇 tick 数 `T = ceil(jumpVelocity / gravity)`。
 - 最高到達高さ `H = Σ_{k=1..T} max(0, jumpVelocity − k·gravity)`（Fx の trunc を含めて同じ式で計算する）。
+- `apexGravityScale` を使うプロファイルでは、速度 v（上向き正）を毎 tick `v −= (|v| < apexThreshold ? gravity × apexGravityScale : gravity)` で更新し、v > 0 の間の v を足し上げる。テストはこの漸化式を px の小数で計算して期待値にする（`packages/core/src/sim/feel.test.ts`）。
 - retro 例: `jumpVelocity 4.5`, `gravity 0.25` → `T = 18`、`H ≈ 38.25 px`（約 2.4 タイル）。
 - 水平到達距離（空中制御なし）: `runSpeed × 滞空 tick 数`。
 

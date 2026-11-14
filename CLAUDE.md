@@ -128,5 +128,6 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
   - `main` はルールセットで保護されている（PR 必須、`ci` 必須、force push と削除を禁止）。
   - infra（`infra/`）を変えたときだけ、所有者が手元で `cdk deploy` する。CloudFront Function を変えたら、手順書 9-0 の `test-function` で確認する。
 - M1-2（Fx / World / タイル衝突）は `core` に実装済み: `fx`（値域チェック付き）、xorshift32、`World` と `EntityStore`、`hash`、衝突グリッドと `movement`。core のテストの fixture は `packages/core/src/test-support.ts`（`buildRoom` など）。
+- M1-3（キャラクター制御、2 人切替、能力タグ通行）は `core` に実装済み: `createWorld` と `step`、`inputIntent`、`controller`、`party`、シナリオ DSL `script()`。Feel scenario は `packages/core/src/sim/feel.test.ts`（retro と modern、320×180 と 256×192）。
 - `core` 以外のエンジンのパッケージは、まだ空の `src/index.ts` だけ。
-- 次は `docs/roadmap.md` の M1-3（キャラクター制御、2 人切替、能力タグ通行）。
+- 次は `docs/roadmap.md` の M1-4（InputBuffer、エッジ規則、リプレイ、Determinism）。

@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { fromPx } from '../fx/fx';
 import { nextU32 } from '../fx/rng';
-import { cloneWorld, createWorld, type World } from '../world/world';
+import { cloneWorld, newWorld, type World } from '../world/world';
 import { Hasher, hashWorld } from './hash';
 
 function sampleWorld(): World {
-  const world = createWorld({ seed: 1234, roomId: 'room-a' });
+  const world = newWorld({ seed: 1234, roomId: 'room-a' });
   world.tick = 42;
   world.flags = { opened: true, coins: 3 };
   const collider = { w: fromPx(12), h: fromPx(14), ox: fromPx(-6), oy: fromPx(-14) };
@@ -37,6 +37,18 @@ describe('hashWorld', () => {
     },
     roomId: (w) => {
       w.roomId = 'room-b';
+    },
+    'party member': (w) => {
+      w.party.members.push('extra');
+    },
+    'party cooldown': (w) => {
+      w.party.cooldownTicks = 3;
+    },
+    'controller jump buffer': (w) => {
+      w.controller.jumpPressedTick = 5;
+    },
+    'controller jump cut': (w) => {
+      w.controller.jumpCut = true;
     },
     'flag value': (w) => {
       w.flags.coins = 4;

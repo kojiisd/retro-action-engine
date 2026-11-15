@@ -11,7 +11,7 @@ import {
   startOf,
   step,
 } from '@retro-action-engine/core';
-import { MODERN_PX, RETRO_PX, WALKER } from '@retro-action-engine/core/testing';
+import { type FeelInPx, MODERN_PX, RETRO_PX, WALKER } from '@retro-action-engine/core/testing';
 import { describe, expect, it } from 'vitest';
 import { measureRise } from './probe';
 import { solveRoom } from './solve';
@@ -108,7 +108,7 @@ describe('solveRoom: the highest reachable foothold', () => {
   }
 
   /** 1 px tiles: a floor, and a oneway shelf over the whole width, `shelfPx` above the floor. */
-  function shelfRoom(shelfPx: number, feel: { jumpVelocity: number; gravity: number }) {
+  function shelfRoom(shelfPx: number, feel: Partial<FeelInPx>) {
     const colliderPx = WALKER.collider.h / FX_ONE;
     const rows = emptyRows(24, shelfPx + colliderPx + 9);
     const floorRow = rows.length - 1;
@@ -125,19 +125,23 @@ describe('solveRoom: the highest reachable foothold', () => {
     };
   }
 
-  const cases = [
+  const cases: Array<Partial<FeelInPx> & { jumpVelocity: number; gravity: number }> = [
     { jumpVelocity: RETRO_PX.jumpVelocity, gravity: RETRO_PX.gravity },
     { jumpVelocity: 3, gravity: 0.125 },
     { jumpVelocity: 5, gravity: 0.5 },
     // The rise is a whole number of px: the feet reach the shelf top exactly.
     { jumpVelocity: 4, gravity: 0.5 },
+    // A variable jump: only the longest hold gets the full rise.
+    { jumpVelocity: 4, gravity: 0.25, jumpCutScale: 0.5, minJumpTicks: 2 },
   ];
 
   for (const feel of cases) {
     const rise = riseInPx(feel.jumpVelocity, feel.gravity);
     const highest = Math.floor(rise);
 
-    it(`jump ${feel.jumpVelocity}, gravity ${feel.gravity}: reaches ${highest} px (rise ${rise})`, () => {
+    const name = `jump ${feel.jumpVelocity}, gravity ${feel.gravity}, cut ${feel.jumpCutScale ?? 1}`;
+
+    it(`${name}: reaches ${highest} px (rise ${rise})`, () => {
       const { runtime, report, floor, shelf } = shelfRoom(highest, feel);
       expect(floor.status).toBe('reached');
       expect(shelf.status).toBe('reached');
@@ -145,7 +149,7 @@ describe('solveRoom: the highest reachable foothold', () => {
       expect(report.complete).toBe(true);
     });
 
-    it(`jump ${feel.jumpVelocity}, gravity ${feel.gravity}: does not reach ${highest + 1} px`, () => {
+    it(`${name}: does not reach ${highest + 1} px`, () => {
       const { report, floor, shelf } = shelfRoom(highest + 1, feel);
       expect(floor.status).toBe('reached');
       expect(shelf.status).toBe('unreached');
@@ -289,74 +293,105 @@ describe('solveRoom: a foothold that needs coyote time', () => {
   });
 });
 
+describe('solveRoom: a take-off point in the middle of a floor', () => {
+  // The shelf is one tile wide and the profile has no air control: it is only reached by jumps
+  // that start from a narrow range of positions on the floor, away from the walls.
+  const rows = emptyRows(12, 6);
+  fill(rows, '#', 0, 11, 5);
+  fill(rows, '=', 6, 6, 3);
+  const runtime = roomRuntime({ rows, tileSize: 16, spawn: [1, 4] });
+
+  it('is found with the default position quantum', () => {
+    const scope = scopeOf(solveRoom(runtime, { ...START, feelProfile: 'retro' }), 'walker');
+    const shelf = footholdAt(scope, 6, 3);
+    expect(shelf.status).toBe('reached');
+    expectWitnessEndsOn(runtime, shelf);
+  });
+});
+
 describe('solveRoom: limits, statistics and determinism', () => {
-  const rows = emptyRows(12, 8);
-  fill(rows, '#', 0, 11, 7);
-  fill(rows, '=', 2, 5, 5);
-  fill(rows, '=', 7, 10, 3);
+  const rows = emptyRows(8, 7);
+  fill(rows, '#', 0, 7, 6);
+  fill(rows, '=', 2, 4, 4);
+  fill(rows, '~', 6, 6, 0, 5);
   const runtime = roomRuntime({
     rows,
     tileSize: 16,
-    spawn: [1, 6],
+    spawn: [1, 5],
     members: ['walker', 'swimmer'],
   });
   const start: StartState = { ...START, feelProfile: 'modern' };
+  const full = solveRoom(runtime, start);
 
   it('reports the same thing for the same input', () => {
-    const first = solveRoom(runtime, start);
-    const second = solveRoom(runtime, start);
-    expect(second).toEqual(first);
-    expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+    const again = solveRoom(runtime, start);
+    expect(again).toEqual(full);
+    expect(JSON.stringify(again)).toBe(JSON.stringify(full));
   });
 
   it('verifies one replay per reached foothold and counts the work', () => {
-    const report = solveRoom(runtime, start);
-    expect(report.complete).toBe(true);
-    for (const scope of report.scopes) {
+    expect(full.complete).toBe(true);
+    for (const scope of full.scopes) {
       const reached = scope.footholds.filter((f) => f.status === 'reached');
-      expect(reached).toHaveLength(scope.footholds.length);
+      expect(reached.length).toBeGreaterThan(1);
       expect(scope.stats.replaysVerified).toBe(reached.length);
       for (const foothold of reached) {
         expectWitnessEndsOn(runtime, foothold);
+        expect(foothold.witness?.ticks).toBe(
+          runReplayHeadless(foothold.witness.replay, runtime).tick,
+        );
       }
       expect(scope.stats.nodes).toBeGreaterThan(0);
       expect(scope.stats.macros).toBeGreaterThanOrEqual(scope.stats.edges);
     }
-    expect(report.totals.steps).toBe(report.scopes.reduce((sum, s) => sum + s.stats.steps, 0));
-    expect(report.totals.elapsedMs).toBeUndefined();
+    // The walker cannot pass the water; the swimmer reaches everything.
+    expect(scopeOf(full, 'walker').footholds.some((f) => f.status === 'unreached')).toBe(true);
+    expect(scopeOf(full, 'swimmer').footholds.every((f) => f.status === 'reached')).toBe(true);
+    expect(full.totals.steps).toBe(full.scopes.reduce((sum, s) => sum + s.stats.steps, 0));
+    expect(full.totals.elapsedMs).toBeUndefined();
   });
 
   it('a node limit cuts the search short and says so', () => {
-    const report = solveRoom(runtime, start, { maxNodes: 3 });
+    // One node: the start state is recorded, and nothing is tried from it.
+    const report = solveRoom(runtime, start, { maxNodes: 1 });
     expect(report.complete).toBe(false);
     for (const scope of report.scopes) {
       expect(scope.complete).toBe(false);
-      expect(scope.footholds.some((f) => f.status === 'unreached')).toBe(true);
+      expect(scope.stats.nodes).toBeLessThan(scopeOf(full, scope.scope.characterId).stats.nodes);
       // What was found before the cut is still verified.
       for (const foothold of scope.footholds.filter((f) => f.status === 'reached')) {
         expectWitnessEndsOn(runtime, foothold);
       }
     }
+    expect(scopeOf(report, 'walker').stats.macros).toBe(0);
+    // The shelf is reachable (the full run found it) but the cut run did not get that far.
+    const shelfId = footholdAt(scopeOf(full, 'walker'), 3, 4).id;
+    expect(scopeOf(full, 'walker').footholds.find((f) => f.id === shelfId)?.status).toBe('reached');
+    expect(scopeOf(report, 'walker').footholds.find((f) => f.id === shelfId)?.status).toBe(
+      'unreached',
+    );
   });
 
   it('a step limit covers the whole call', () => {
-    const full = solveRoom(runtime, start);
     const maxSteps = Math.floor(full.totals.steps / 4);
     const report = solveRoom(runtime, start, { maxSteps });
     expect(report.complete).toBe(false);
     expect(report.totals.steps).toBeLessThanOrEqual(maxSteps);
     expect(report.limits.maxSteps).toBe(maxSteps);
+    // The budget ran out in the first scope, so the second one could not even start.
+    expect(report.scopes.map((scope) => scope.complete)).toEqual([false, false]);
   });
 
   it('a macro that never lands is dropped and counted', () => {
     // Too few ticks for any jump to come down again.
-    const report = solveRoom(runtime, start, { maxMacroTicks: 5 });
+    const report = solveRoom(runtime, start, { maxMacroTicks: 5, maxNodes: 50 });
     expect(scopeOf(report, 'walker').stats.timeouts).toBeGreaterThan(0);
+    expect(scopeOf(full, 'walker').stats.timeouts).toBe(0);
   });
 
   it('measures the time only with the clock it is given', () => {
     let now = 0;
-    const report = solveRoom(runtime, start, { now: () => (now += 5) });
+    const report = solveRoom(runtime, start, { maxNodes: 1, now: () => (now += 5) });
     expect(report.totals.elapsedMs).toBe(5);
   });
 

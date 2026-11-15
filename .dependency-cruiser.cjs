@@ -23,6 +23,8 @@ const LAYERS = {
     name: '@retro-action-engine/renderer-phaser',
     allowed: ['core', 'pack'],
   },
+  // Analysis tool. Uses the simulation as a library; nothing imports it.
+  solver: { dir: 'packages/solver', name: '@retro-action-engine/solver', allowed: ['core'] },
   player: {
     dir: 'apps/player',
     name: '@retro-action-engine/player',
@@ -99,6 +101,17 @@ module.exports = {
           '^(vitest|fast-check)$',
           REPO_INTERNAL,
         ],
+      },
+    },
+    {
+      name: 'core-testing-only-in-tests',
+      severity: 'error',
+      comment:
+        'The core test fixtures (@retro-action-engine/core/testing) are for test files only. ' +
+        'A package may build its own fixtures on them in src/test-support.ts (or test-setup.ts).',
+      from: { pathNot: [TEST_FILE, '^packages/[^/]+/src/test-(support|setup)\\.ts$'] },
+      to: {
+        path: ['^packages/core/src/test-support\\.ts$', '^@retro-action-engine/core/testing$'],
       },
     },
     {

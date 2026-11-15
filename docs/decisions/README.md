@@ -20,6 +20,7 @@
 | [ADR-0012](ADR-0012-test-strategy.md) | テスト戦略 | I | Accepted |
 | [ADR-0013](ADR-0013-monorepo-tooling.md) | モノレポ構成とツール | J | Accepted |
 | [ADR-0014](ADR-0014-deploy-and-infra.md) | 配信基盤（S3 + CloudFront、OIDC、CDK） | J | Accepted |
+| [ADR-0015](ADR-0015-reachability-solver.md) | 到達可能性ソルバー（健全性、探索の近似、完全性の範囲） | 解析ツール | Accepted |
 
 ## 書式
 

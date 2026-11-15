@@ -32,6 +32,7 @@ pack → core
 input → core
 renderer-phaser → core, pack, phaser
 apps/player → core, pack, input, renderer-phaser（packs/sample は静的コピーと fixture）
+solver → core（解析ツール。どのパッケージからも import されない）
 infra → aws-cdk-lib のみ（エンジンの全パッケージから独立）
 apps/gallery → scripts/site（ビルド設定のみ。エンジンには依存しない）
 scripts/site → なし（アプリはパッケージ名で呼ぶだけで import しない）
@@ -44,6 +45,7 @@ scripts/site → なし（アプリはパッケージ名で呼ぶだけで impor
 | `input` | `pack`、`renderer-phaser` を import する |
 | `renderer-phaser` | `input` を import する。ゲームロジックを書く |
 | `apps/player` | ゲームロジックや衝突判定を書く（配線と UI のみ） |
+| `solver` | 位置や速度を自分で計算する（物理は core の `step` だけ）。検証していない経路を「到達できる」と報告する。`core` 以外を import する |
 
 `core` の tsconfig は `lib: ["ES2023"]` で DOM 型を含めない。`window`、`document`、`performance`、`fetch` が `core` に現れたら設計違反。
 

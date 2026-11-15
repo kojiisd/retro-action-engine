@@ -18,7 +18,7 @@ const DEFAULTS = {
   jumpHoldSamples: 4,
   maxMacroTicks: 600,
   maxNodes: 20_000,
-  maxSteps: 5_000_000,
+  maxSteps: 20_000_000,
 } as const;
 
 function solveCharacter(

@@ -1,5 +1,4 @@
 import {
-  type ActionId,
   actionMask,
   CONTACT_GROUNDED,
   CONTACT_ONEWAY,
@@ -9,7 +8,6 @@ import {
   step,
   type World,
 } from '@retro-action-engine/core';
-import type { MacroKind } from './types';
 
 /** -1 left, 0 none, 1 right. */
 export type Dir = -1 | 0 | 1;
@@ -208,8 +206,6 @@ export function runMacro(sim: Sim, macro: Macro, bucketOf: (x: number) => number
   }
 }
 
-export const macroKind = (macro: Macro): MacroKind => macro.kind;
-
 const DIRS: readonly Dir[] = [-1, 0, 1];
 
 /** Steering choices in the air: constant, plus one change at the apex when the air is steerable. */
@@ -278,6 +274,3 @@ export function edgeMacros(feel: FeelProfile, holds: readonly number[], dir: Dir
   }
   return macros;
 }
-
-/** Buttons a macro may hold, for documentation and tests. */
-export const MACRO_ACTIONS: readonly ActionId[] = ['left', 'right', 'jump', 'down'];

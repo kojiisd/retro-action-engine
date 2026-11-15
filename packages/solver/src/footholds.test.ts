@@ -59,6 +59,32 @@ describe('listFootholds', () => {
   });
 });
 
+describe('standingOn: in the air', () => {
+  it('does not count a tile the feet merely pass, even exactly at its top edge', () => {
+    // 1 px tiles. With these values a jump has risen 3.5 + 3 + 2.5 = 9 px after three ticks:
+    // the feet are exactly on the top edge of the oneway shelf, still moving up.
+    const rows = emptyRows(16, 40);
+    fill(rows, '#', 0, 15, 39);
+    fill(rows, '=', 0, 15, 30);
+    const runtime = roomRuntime({
+      rows,
+      tileSize: 1,
+      spawn: [8, 38],
+      feel: { jumpVelocity: 4, gravity: 0.5 },
+    });
+    const grid = roomGrid(runtime, 'room');
+    const index = new FootholdIndex(grid, [WALKER]);
+    const world = createWorld(runtime, { ...START, feelProfile: 'retro' });
+    const jump = actionMask('jump');
+    step(world, { held: jump, pressed: jump, released: 0 }, runtime);
+    step(world, { held: jump, pressed: 0, released: 0 }, runtime);
+    step(world, { held: jump, pressed: 0, released: 0 }, runtime);
+    expect(world.entities.y[0]).toBe(30 * 256);
+    expect(world.entities.vy[0]).toBeLessThan(0);
+    expect(standingOn(grid, index, world, WALKER)).toEqual([]);
+  });
+});
+
 describe('standingOn', () => {
   const rows = emptyRows(6, 4);
   fill(rows, '#', 0, 5, 3);

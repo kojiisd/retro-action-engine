@@ -48,10 +48,12 @@ function expectWitnessEndsOn(runtime: PackRuntime, foothold: FootholdReport): vo
 }
 
 describe('solveRoom: a wall that needs an ability tag', () => {
-  // A floor, with a column of water from the ceiling to the floor in the middle.
+  // A floor, with a column of water from the ceiling to the floor in the middle, and a shelf
+  // on the far side.
   const rows = emptyRows(12, 6);
   fill(rows, '#', 0, 11, 5);
   fill(rows, '~', 6, 6, 0, 4);
+  fill(rows, '=', 8, 10, 3);
   const runtime = roomRuntime({
     rows,
     tileSize: 16,
@@ -72,6 +74,7 @@ describe('solveRoom: a wall that needs an ability tag', () => {
       expect(near.status).toBe('reached');
       expect(far.status).toBe('unreached');
       expect(far.witness).toBeUndefined();
+      expect(footholdAt(walker, 9, 3).status).toBe('unreached');
       expect(walker.startFootholds).toEqual([near.id]);
       expect(walker.complete).toBe(true);
     });
@@ -84,6 +87,12 @@ describe('solveRoom: a wall that needs an ability tag', () => {
       expect(floor.colTo).toBe(11);
       expect(floor.status).toBe('reached');
       expectWitnessEndsOn(runtime, floor);
+      // The shelf is only reached by going through the water.
+      const shelf = footholdAt(swimmer, 9, 3);
+      expect(shelf.status).toBe('reached');
+      expectWitnessEndsOn(runtime, shelf);
+      // The replay is for this character alone.
+      expect(shelf.witness?.replay.start.party).toEqual(['swimmer']);
     });
   }
 });

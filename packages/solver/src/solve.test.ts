@@ -337,9 +337,8 @@ describe('solveRoom: limits, statistics and determinism', () => {
       expect(scope.stats.replaysVerified).toBe(reached.length);
       for (const foothold of reached) {
         expectWitnessEndsOn(runtime, foothold);
-        expect(foothold.witness?.ticks).toBe(
-          runReplayHeadless(foothold.witness.replay, runtime).tick,
-        );
+        const witness = foothold.witness as NonNullable<FootholdReport['witness']>;
+        expect(witness.ticks).toBe(runReplayHeadless(witness.replay, runtime).tick);
       }
       expect(scope.stats.nodes).toBeGreaterThan(0);
       expect(scope.stats.macros).toBeGreaterThanOrEqual(scope.stats.edges);

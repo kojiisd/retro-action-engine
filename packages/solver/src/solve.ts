@@ -9,10 +9,30 @@ import {
 } from '@retro-action-engine/core';
 import { FootholdIndex } from './footholds';
 import { type Budget, jumpHolds } from './macros';
-import { measureRise } from './probe';
+import { measureRise, measureRiseBound } from './probe';
+import { Proofs } from './proofs';
 import { explore, pathHelds, type SearchContext, type SearchNode } from './search';
-import type { FootholdReport, MacroKind, ScopeReport, SolveReport, SolverOptions } from './types';
+import type {
+  Foothold,
+  FootholdReport,
+  MacroKind,
+  ReturnReport,
+  ScopeReport,
+  SolveReport,
+  SolverOptions,
+} from './types';
 import { replayFromHelds, verifyWitness } from './witness';
+
+/**
+ * Thrown when a proof says "impossible" about something a verified replay does. One of the two
+ * is wrong, so nothing is reported: a solver bug, never a report entry.
+ */
+export class ProofError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ProofError';
+  }
+}
 
 const DEFAULTS = {
   jumpHoldSamples: 4,
@@ -47,8 +67,15 @@ function solveCharacter(
     maxNodes: limits.maxNodes,
   };
 
+  const riseBound = measureRiseBound(runtime, character, start.feelProfile);
+  const proofs = Proofs.of(grid, character, world, riseBound);
+
   const stepsBefore = budget.steps;
-  const search = explore(context, world, budget);
+  const search = explore(context, { world, held: 0 }, budget);
+  const startFootholds: readonly number[] = search.nodes[0]?.footholds ?? [];
+  const startFoothold = footholds.all[startFootholds[0] ?? -1];
+  let complete = search.complete;
+  let returnSearches = 0;
 
   // The first node found on a foothold is the one with the fewest macros (breadth-first).
   const firstNode = new Map<number, SearchNode>();
@@ -61,18 +88,63 @@ function solveCharacter(
   }
 
   let replaysVerified = 0;
+
+  /**
+   * The way back from the first state found on a foothold to the start foothold. "It can" is
+   * only said with a replay of the whole trip that passed the gate.
+   */
+  const returnFrom = (foothold: Foothold, node: SearchNode, there: number[]): ReturnReport => {
+    if (startFoothold !== undefined) {
+      const proof = proofs?.cannotClimb(foothold, startFoothold);
+      if (proof !== undefined) {
+        return { status: 'provenNo', ...proof };
+      }
+    }
+    if (startFootholds.length === 0) {
+      return { status: 'notFound' };
+    }
+    const isStart = (landedOn: readonly number[]) =>
+      landedOn.some((index) => startFootholds.includes(index));
+    const back = explore(context, { world: node.world, held: node.held, goal: isStart }, budget);
+    if (back.macros > 0) {
+      returnSearches++;
+    }
+    if (back.goal === undefined) {
+      complete &&= back.complete;
+      return { status: 'notFound' };
+    }
+    const target = back.goal.footholds.find((index) => startFootholds.includes(index)) as number;
+    const replay = replayFromHelds(runtime, scopeStart, [...there, ...back.goal.helds]);
+    verifyWitness(runtime, grid, footholds, character, replay, target, back.goal.world);
+    replaysVerified++;
+    return {
+      status: 'verified',
+      witness: { replay, ticks: back.goal.world.tick, macros: node.depth + back.goal.depth },
+    };
+  };
+
   const reports: FootholdReport[] = footholds.all.map((foothold, index) => {
     const node = firstNode.get(index);
+    const blocker = proofs?.unreachable(foothold);
     if (node === undefined) {
-      return { ...foothold, status: 'unreached' };
+      return blocker === undefined
+        ? { ...foothold, status: 'unreached' }
+        : { ...foothold, status: 'unreached', blocker };
     }
-    const replay = replayFromHelds(runtime, scopeStart, pathHelds(search.nodes, node.id));
+    const there = pathHelds(search.nodes, node.id);
+    const replay = replayFromHelds(runtime, scopeStart, there);
     verifyWitness(runtime, grid, footholds, character, replay, index, node.world);
     replaysVerified++;
+    if (blocker !== undefined) {
+      throw new ProofError(
+        `foothold ${foothold.id} is reached by a verified replay, but "${blocker.reason}" claims it cannot be`,
+      );
+    }
     return {
       ...foothold,
       status: 'reached',
       witness: { replay, ticks: node.world.tick, macros: node.depth },
+      return: returnFrom(foothold, node, there),
     };
   });
 
@@ -82,6 +154,15 @@ function solveCharacter(
     for (const from of (search.nodes[edge.from] as SearchNode).footholds) {
       for (const to of edge.landedOn) {
         if (from === to) continue;
+        // Every edge is a transition the simulation made from an exact state. A proof that
+        // denies one of them is wrong.
+        const fromFoothold = footholds.all[from] as Foothold;
+        const toFoothold = footholds.all[to] as Foothold;
+        if (proofs?.cannotClimb(fromFoothold, toFoothold) !== undefined) {
+          throw new ProofError(
+            `the simulation went from ${fromFoothold.id} to ${toFoothold.id}, against a proof`,
+          );
+        }
         const key = `${from}>${to}`;
         const kinds = kindsByPair.get(key) ?? new Set<MacroKind>();
         kinds.add(edge.kind);
@@ -100,8 +181,9 @@ function solveCharacter(
 
   return {
     scope: { kind: 'character', characterId: character.id },
-    complete: search.complete,
-    startFootholds: (search.nodes[0]?.footholds ?? []).map(idOf),
+    complete,
+    startFootholds: startFootholds.map(idOf),
+    riseBound: riseBound === Number.POSITIVE_INFINITY ? null : riseBound,
     footholds: reports,
     edges,
     stats: {
@@ -111,16 +193,19 @@ function solveCharacter(
       steps: budget.steps - stepsBefore,
       timeouts: search.timeouts,
       replaysVerified,
+      returnSearches,
     },
   };
 }
 
 /**
- * Reachability of one room, one character at a time (ADR-0015, stage 1). For each party member
- * it lists every foothold, whether a path to it was found, and a replay that proves each path.
+ * Reachability of one room, one character at a time (ADR-0015). For each party member it lists
+ * every foothold, whether a path to it was found, a replay that proves each path, whether the
+ * character can get back to where it started, and the footholds proven to be out of reach.
  *
- * Sound, not complete: a reached foothold always comes with a replay that was run and checked;
- * an unreached one means no path was found within the macros and limits, not that none exists.
+ * Sound, not complete: "reached" and "can return" always come with a replay that was run and
+ * checked; "proven" holds for every input sequence. Anything else means "not found within the
+ * macros and limits", not that it cannot be done.
  */
 export function solveRoom(
   runtime: PackRuntime,

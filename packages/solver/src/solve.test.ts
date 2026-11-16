@@ -13,7 +13,7 @@ import {
 } from '@retro-action-engine/core';
 import { type FeelInPx, MODERN_PX, RETRO_PX, WALKER } from '@retro-action-engine/core/testing';
 import { describe, expect, it } from 'vitest';
-import { measureRise } from './probe';
+import { measureRise, measureRiseBound } from './probe';
 import { solveRoom } from './solve';
 import { emptyRows, fill, roomRuntime, START } from './test-support';
 import type { FootholdReport, ScopeReport, SolveReport } from './types';
@@ -47,6 +47,54 @@ function expectWitnessEndsOn(runtime: PackRuntime, foothold: FootholdReport): vo
   expect(left).toBeLessThan((foothold.colTo + 1) * T);
 }
 
+/** Held mask of every tick of a replay. */
+function heldsOf(replay: ReplayFile): number[] {
+  return replay.frames.flatMap(([count, held]) => Array.from({ length: count }, () => held));
+}
+
+/**
+ * Checks every "way back" of a scope independently of the solver: a verified one is a replay
+ * that first goes to the foothold exactly as its own witness does, and ends standing on a
+ * start foothold.
+ */
+function expectReturnsHold(runtime: PackRuntime, scope: ScopeReport): void {
+  const starts = scope.footholds.filter((f) => scope.startFootholds.includes(f.id));
+  for (const foothold of scope.footholds) {
+    if (foothold.status === 'unreached') {
+      expect(foothold.witness).toBeUndefined();
+      expect(foothold.return).toBeUndefined();
+      continue;
+    }
+    expect(foothold.blocker).toBeUndefined();
+    expect(foothold.return).toBeDefined();
+    if (foothold.return?.status !== 'verified') {
+      // A start foothold always has the trivial way back.
+      expect(scope.startFootholds).not.toContain(foothold.id);
+      continue;
+    }
+    const there = foothold.witness as NonNullable<FootholdReport['witness']>;
+    const back = foothold.return.witness;
+    const helds = heldsOf(back.replay);
+    expect(helds.slice(0, there.ticks)).toEqual(heldsOf(there.replay));
+    expect(back.ticks).toBe(helds.length);
+    expect(back.macros).toBeGreaterThanOrEqual(there.macros);
+    const { world } = runReplayHeadless(back.replay, runtime);
+    const s = world.entities;
+    const T = runtime.tileSize;
+    const left = ((s.x[0] as number) + (s.colOx[0] as number)) / 256;
+    const right = left + (s.colW[0] as number) / 256;
+    expect((s.contact[0] as number) & CONTACT_GROUNDED).toBe(CONTACT_GROUNDED);
+    expect(
+      starts.some(
+        (start) =>
+          s.y[0] === start.topPx * 256 && right > start.colFrom * T && left < (start.colTo + 1) * T,
+      ),
+    ).toBe(true);
+  }
+}
+
+const PROVEN_ENCLOSED = { certainty: 'proven', reason: 'enclosed' } as const;
+
 describe('solveRoom: a wall that needs an ability tag', () => {
   // A floor, with a column of water from the ceiling to the floor in the middle, and a shelf
   // on the far side.
@@ -75,6 +123,11 @@ describe('solveRoom: a wall that needs an ability tag', () => {
       expect(far.status).toBe('unreached');
       expect(far.witness).toBeUndefined();
       expect(footholdAt(walker, 9, 3).status).toBe('unreached');
+      // For this character the water is a wall from floor to ceiling: proven out of reach.
+      expect(far.blocker).toEqual(PROVEN_ENCLOSED);
+      expect(footholdAt(walker, 9, 3).blocker).toEqual(PROVEN_ENCLOSED);
+      expect(near.blocker).toBeUndefined();
+      expectReturnsHold(runtime, walker);
       expect(walker.startFootholds).toEqual([near.id]);
       expect(walker.complete).toBe(true);
     });
@@ -93,6 +146,9 @@ describe('solveRoom: a wall that needs an ability tag', () => {
       expectWitnessEndsOn(runtime, shelf);
       // The replay is for this character alone.
       expect(shelf.witness?.replay.start.party).toEqual(['swimmer']);
+      // And it can come back through the water.
+      expect(shelf.return?.status).toBe('verified');
+      expectReturnsHold(runtime, swimmer);
     });
   }
 });
@@ -155,15 +211,24 @@ describe('solveRoom: the highest reachable foothold', () => {
       expect(floor.status).toBe('reached');
       expect(shelf.status).toBe('reached');
       expectWitnessEndsOn(runtime, shelf);
+      expect(shelf.blocker).toBeUndefined();
       expect(report.complete).toBe(true);
+      expectReturnsHold(runtime, scopeOf(report, 'walker'));
     });
 
     it(`${name}: does not reach ${highest + 1} px`, () => {
       const { report, floor, shelf } = shelfRoom(highest + 1, feel);
       expect(floor.status).toBe('reached');
       expect(shelf.status).toBe('unreached');
-      // The search ran to the end, so this is "not found within the macros", not a cut-off.
       expect(report.complete).toBe(true);
+      // Not only "not found": no input sequence rises that far.
+      expect(shelf.blocker).toEqual({
+        certainty: 'proven',
+        reason: 'tooHigh',
+        riseNeeded: (highest + 1) * FX_ONE,
+        riseBound: rise * FX_ONE,
+      });
+      expect(scopeOf(report, 'walker').riseBound).toBe(rise * FX_ONE);
     });
   }
 
@@ -210,11 +275,15 @@ describe('solveRoom: oneway floors', () => {
       expect(shelf.status).toBe('reached');
       expectWitnessEndsOn(runtime, shelf);
       expect(kindsBetween(scope, floor, shelf)).toContain('jump');
+      // Down again through the shelf: a replay of the round trip.
+      expect(shelf.return?.status).toBe('verified');
+      expectReturnsHold(runtime, scope);
     });
 
-    it(`${feelProfile}: a full shelf at the same height does not`, () => {
+    it(`${feelProfile}: a full shelf at the same height does not, and that is proven`, () => {
       const { shelf } = shelfRoom('#', 2, 'floor');
       expect(shelf.status).toBe('unreached');
+      expect(shelf.blocker).toEqual(PROVEN_ENCLOSED);
     });
 
     it(`${feelProfile}: from a oneway shelf the only way down is the drop, and there is no way back`, () => {
@@ -225,11 +294,23 @@ describe('solveRoom: oneway floors', () => {
       expect(kindsBetween(scope, shelf, floor)).toEqual(['drop']);
       // Too high to jump back up: no transition from the floor to the shelf was seen.
       expect(kindsBetween(scope, floor, shelf)).toBeUndefined();
+      // And that is a proof, not only a search result: whatever the inputs, no way back.
+      const riseBound = measureRiseBound(runtime, WALKER, feelProfile);
+      expect(floor.return).toEqual({
+        status: 'provenNo',
+        riseNeeded: 3 * T * FX_ONE,
+        riseBound,
+      });
+      expect(scope.riseBound).toBe(riseBound);
+      expect(shelf.return?.status).toBe('verified');
+      expect(scope.stats.returnSearches).toBe(0);
+      expectReturnsHold(runtime, scope);
     });
 
-    it(`${feelProfile}: a full shelf cannot be dropped through`, () => {
+    it(`${feelProfile}: a full shelf cannot be dropped through, and that is proven`, () => {
       const { floor } = shelfRoom('#', 3, 'shelf');
       expect(floor.status).toBe('unreached');
+      expect(floor.blocker).toEqual(PROVEN_ENCLOSED);
     });
   }
 });
@@ -289,6 +370,9 @@ describe('solveRoom: a foothold that needs coyote time', () => {
     expect(kindsBetween(scope, corridor, target)).toEqual(['walkOffJump']);
     const presses = jumpPresses(runtime, target.witness?.replay as ReplayFile);
     expect(presses.some((press) => !press.grounded)).toBe(true);
+    // The pit is too deep to climb out of, whatever the inputs.
+    expect(footholdAt(scope, 24, 35).return?.status).toBe('provenNo');
+    expectReturnsHold(runtime, scope);
   });
 
   it('without coyote time the same target is not reached', () => {
@@ -297,6 +381,9 @@ describe('solveRoom: a foothold that needs coyote time', () => {
     const scope = scopeOf(report, 'walker');
     expect(report.complete).toBe(true);
     expect(footholdAt(scope, 24, 15).status).toBe('unreached');
+    // "Not found", not "impossible": the target is within the rise and not walled off, so
+    // there is no proof either way.
+    expect(footholdAt(scope, 24, 15).blocker).toBeUndefined();
     // The pit is still reached, by falling.
     expect(footholdAt(scope, 24, 35).status).toBe('reached');
   });
@@ -315,6 +402,72 @@ describe('solveRoom: a take-off point in the middle of a floor', () => {
     const shelf = footholdAt(scope, 6, 3);
     expect(shelf.status).toBe('reached');
     expectWitnessEndsOn(runtime, shelf);
+  });
+});
+
+describe('solveRoom: the way back', () => {
+  // 4 px tiles. The start is the top of a block; next to it is a shaft only 4 px wider than
+  // the character, with a floor 32 px lower. The rise is enough to get back up (so nothing is
+  // proven), but the block's side is in the way of any jump that already moves left.
+  const T = 4;
+  const rows = emptyRows(16, 25);
+  fill(rows, '#', 0, 15, 24);
+  fill(rows, '#', 0, 7, 16, 24);
+  fill(rows, '#', 12, 15, 0, 24);
+  const fixture = { rows, tileSize: T, spawn: [3, 15] as const };
+
+  it('the fixture is not decided by the rise bound', () => {
+    const runtime = roomRuntime(fixture);
+    for (const feelProfile of ['retro', 'modern']) {
+      expect(measureRiseBound(runtime, WALKER, feelProfile)).toBeGreaterThan(8 * T * FX_ONE);
+    }
+  });
+
+  it('without air control no way back is found, and it is not called impossible', () => {
+    const runtime = roomRuntime(fixture);
+    const report = solveRoom(runtime, { ...START, feelProfile: 'retro' });
+    const scope = scopeOf(report, 'walker');
+    const top = footholdAt(scope, 3, 16);
+    const shaft = footholdAt(scope, 9, 24);
+    expect(scope.startFootholds).toEqual([top.id]);
+    expect(shaft.status).toBe('reached');
+    expect(shaft.return).toEqual({ status: 'notFound' });
+    // The search for a way back ran to its end: "not found" is not a cut-off here.
+    expect(report.complete).toBe(true);
+    expect(scope.stats.returnSearches).toBe(1);
+    expectReturnsHold(runtime, scope);
+  });
+
+  it('with air control the way back is found and replayed', () => {
+    const runtime = roomRuntime(fixture);
+    const report = solveRoom(runtime, { ...START, feelProfile: 'modern' });
+    const scope = scopeOf(report, 'walker');
+    const shaft = footholdAt(scope, 9, 24);
+    expect(shaft.return?.status).toBe('verified');
+    expectWitnessEndsOn(runtime, {
+      ...footholdAt(scope, 3, 16),
+      witness: shaft.return?.status === 'verified' ? shaft.return.witness : undefined,
+    } as FootholdReport);
+    expectReturnsHold(runtime, scope);
+  });
+
+  it('the start foothold has the trivial way back', () => {
+    const runtime = roomRuntime(fixture);
+    const scope = scopeOf(solveRoom(runtime, { ...START, feelProfile: 'retro' }), 'walker');
+    const top = footholdAt(scope, 3, 16);
+    expect(top.return).toEqual({ status: 'verified', witness: top.witness });
+  });
+
+  it('a search for a way back that runs out of budget says so', () => {
+    const runtime = roomRuntime(fixture);
+    const start: StartState = { ...START, feelProfile: 'retro' };
+    const full = solveRoom(runtime, start);
+    // Enough for the search from the start, not for the whole search from the shaft.
+    const report = solveRoom(runtime, start, { maxSteps: full.totals.steps - 1 });
+    const scope = scopeOf(report, 'walker');
+    expect(footholdAt(scope, 9, 24).status).toBe('reached');
+    expect(footholdAt(scope, 9, 24).return).toEqual({ status: 'notFound' });
+    expect(report.complete).toBe(false);
   });
 });
 
@@ -343,7 +496,8 @@ describe('solveRoom: limits, statistics and determinism', () => {
     for (const scope of full.scopes) {
       const reached = scope.footholds.filter((f) => f.status === 'reached');
       expect(reached.length).toBeGreaterThan(1);
-      expect(scope.stats.replaysVerified).toBe(reached.length);
+      const returns = reached.filter((f) => f.return?.status === 'verified');
+      expect(scope.stats.replaysVerified).toBe(reached.length + returns.length);
       for (const foothold of reached) {
         expectWitnessEndsOn(runtime, foothold);
         const witness = foothold.witness as NonNullable<FootholdReport['witness']>;

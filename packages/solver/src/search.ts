@@ -56,6 +56,16 @@ export interface SearchEdge {
   readonly landedOn: readonly number[];
 }
 
+/** The first landing that satisfied the goal of a search. */
+export interface GoalHit {
+  /** Held masks of every tick from the start of this search to the landing. */
+  readonly helds: number[];
+  /** The exact state at the landing. */
+  readonly world: World;
+  readonly footholds: readonly number[];
+  readonly depth: number;
+}
+
 export interface SearchResult {
   readonly nodes: SearchNode[];
   readonly edges: SearchEdge[];
@@ -63,6 +73,16 @@ export interface SearchResult {
   readonly complete: boolean;
   readonly macros: number;
   readonly timeouts: number;
+  /** Set when a goal was given and a landing satisfied it; the search stopped there. */
+  readonly goal?: GoalHit;
+}
+
+export interface SearchStart {
+  readonly world: World;
+  /** Buttons held on the tick before `world`. */
+  readonly held: number;
+  /** Stop at the first landing on footholds for which this is true. */
+  readonly goal?: (footholds: readonly number[]) => boolean;
 }
 
 /** floor(a / b), exact for these integer ranges. */
@@ -80,7 +100,8 @@ function keyOf(context: SearchContext, world: World): string {
  * `step` on a copy of the node's exact world. States with the same key are explored once: that
  * skips work but never invents a path, because nothing is simulated from a merged state.
  */
-export function explore(context: SearchContext, start: World, budget: Budget): SearchResult {
+export function explore(context: SearchContext, from: SearchStart, budget: Budget): SearchResult {
+  const start = from.world;
   const feel: FeelProfile = currentFeel(start, context.runtime);
   const baseMacros = groundMacros(feel, context.holds);
   const bucketOf = (x: number) => bucket(x, context.xQuantum);
@@ -91,6 +112,7 @@ export function explore(context: SearchContext, start: World, budget: Budget): S
   let macros = 0;
   let timeouts = 0;
   let complete = true;
+  let goal: GoalHit | undefined;
 
   const newSim = (world: World, held: number): Sim => ({
     world: cloneWorld(world),
@@ -122,7 +144,7 @@ export function explore(context: SearchContext, start: World, budget: Budget): S
   };
 
   // The root is the first landing: a spawn in the air falls first.
-  const root = newSim(start, 0);
+  const root = newSim(start, from.held);
   if (!isGrounded(root.world)) {
     const outcome = runMacro(root, { kind: 'stop' }, bucketOf);
     if (outcome.status !== 'landed') {
@@ -130,6 +152,11 @@ export function explore(context: SearchContext, start: World, budget: Budget): S
     }
   }
   addNode(root, -1, 0);
+  const rootFootholds = (nodes[0] as SearchNode).footholds;
+  if (from.goal?.(rootFootholds) === true) {
+    goal = { helds: [...root.helds], world: root.world, footholds: rootFootholds, depth: 0 };
+    return { nodes, edges, complete: true, macros, timeouts, goal };
+  }
 
   /** Returns false when the search has to stop. */
   const tryMacro = (node: SearchNode, macro: Macro): { go: boolean; leftGround: boolean } => {
@@ -148,6 +175,17 @@ export function explore(context: SearchContext, start: World, budget: Budget): S
     const landedOn = standingOn(context.grid, context.footholds, sim.world, context.character);
     const to = addNode(sim, node.id, node.depth + 1);
     edges.push({ from: node.id, to, kind: macro.kind, landedOn });
+    if (from.goal?.(landedOn) === true) {
+      // The landing itself is exact (the macro ran from the node's exact state), even when its
+      // key merged it with an older node.
+      goal = {
+        helds: [...pathHelds(nodes, node.id), ...sim.helds],
+        world: sim.world,
+        footholds: landedOn,
+        depth: node.depth + 1,
+      };
+      return { go: false, leftGround: false };
+    }
     return { go: true, leftGround: outcome.leftGround };
   };
 
@@ -176,12 +214,14 @@ export function explore(context: SearchContext, start: World, budget: Budget): S
       if (stopped) break;
     }
     if (stopped) {
-      complete = false;
+      complete = goal !== undefined;
       break;
     }
   }
 
-  return { nodes, edges, complete, macros, timeouts };
+  return goal === undefined
+    ? { nodes, edges, complete, macros, timeouts }
+    : { nodes, edges, complete, macros, timeouts, goal };
 }
 
 /** Held masks of every tick from the start state to the node. */

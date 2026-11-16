@@ -56,6 +56,55 @@ describe('estimates: needsTag', () => {
   });
 });
 
+describe('estimates: needsTag looks at the right footholds', () => {
+  // 8 px tiles. Area A (start), a water column with a low gap above it, area B, then a pit
+  // 80 px wide and 48 px deep, and beyond it the platform C. With the tag the walker gets to
+  // B and into the pit, but never onto C: C is not a "needsTag" case.
+  const rows = emptyRows(32, 16);
+  fill(rows, '#', 0, 31, 0);
+  fill(rows, '#', 0, 14, 9, 15);
+  fill(rows, '~', 8, 8, 2, 8);
+  fill(rows, '#', 15, 31, 15);
+  fill(rows, '#', 25, 31, 9);
+  const walker = scopeOf(
+    solveRoom(roomRuntime({ rows, tileSize: 8, spawn: [3, 8] }), start),
+    'walker',
+  );
+
+  it('B needs the tag; C, on the same row, does not become reachable with it', () => {
+    expect(runAt(walker, 12, 9).blocker).toMatchObject({ reason: 'needsTag', tag: 'move:swim' });
+    // The pit floor under C is reached with the tag, but it is another row.
+    expect(runAt(walker, 28, 15).blocker).toMatchObject({ reason: 'needsTag' });
+    expect(runAt(walker, 28, 9).blocker).toEqual({ certainty: 'estimated', reason: 'tooFar' });
+  });
+});
+
+describe('estimates: needsTag in a party', () => {
+  // The fixture of the party tests, but switching back takes longer than any macro: the
+  // swimmer can cross the water, the walker never gets there to jump.
+  const rows = emptyRows(12, 6);
+  fill(rows, '#', 0, 11, 5);
+  fill(rows, '~', 6, 6, 0, 4);
+  fill(rows, '=', 8, 10, 2);
+  const runtime = roomRuntime({
+    rows,
+    tileSize: 16,
+    spawn: [2, 4],
+    members: ['walker', 'swimmer'],
+    switching: { cooldownTicks: 1000 },
+    walker: { feelOverrides: { jumpVelocity: Math.round(5.5 * FX_ONE) } },
+  });
+
+  it('tries a tag that only some members have, given to all of them', () => {
+    const party = scopeOf(solveRoom(runtime, start), 'party');
+    expect(runAt(party, 9, 2)).toMatchObject({
+      status: 'unreached',
+      blocker: { certainty: 'estimated', reason: 'needsTag', tag: 'move:swim' },
+    });
+    expect(party.stats.tagSearches).toBe(1);
+  });
+});
+
 describe('estimates: budget', () => {
   it('says the search was cut short, and only where nothing is proven', () => {
     const rows = emptyRows(12, 6);
@@ -109,10 +158,17 @@ describe('estimates: tooHigh and tooFar', () => {
     fill(rows, '#', 0, 4, 5, 9);
     fill(rows, '#', 11, 15, 5, 9);
     fill(rows, '#', 5, 10, 9);
-    const walker = scopeOf(
-      solveRoom(roomRuntime({ rows, tileSize: 16, spawn: [2, 4] }), start),
-      'walker',
+    // A water tile nobody needs, out of the way: the swimmer has the tag already and tries
+    // nothing, the walker tries it once.
+    fill(rows, '~', 0, 0, 0);
+    const report = solveRoom(
+      roomRuntime({ rows, tileSize: 16, spawn: [2, 4], members: ['walker', 'swimmer'] }),
+      start,
     );
+    expect(scopeOf(report, 'swimmer').stats.tagSearches).toBe(0);
+    expect(runAt(scopeOf(report, 'swimmer'), 13, 5).blocker).toMatchObject({ reason: 'tooFar' });
+    expect(scopeOf(report, 'walker').stats.tagSearches).toBe(1);
+    const walker = scopeOf(report, 'walker');
     expect(runAt(walker, 7, 9).status).toBe('reached');
     expect(runAt(walker, 13, 5)).toMatchObject({
       status: 'unreached',

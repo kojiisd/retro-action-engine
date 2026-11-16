@@ -206,13 +206,12 @@ function estimator(
     return result.map((blocker, i) => {
       if (blocker !== undefined) return blocker;
       const target = targets[i] as Foothold;
+      // A search that landed nowhere is incomplete, so `budget` came first. Kept as a guard.
       if (reached.length === 0) {
         return { certainty: 'estimated', reason: 'unknown' };
       }
-      // y grows downward: a reached foothold is lower when its top is larger.
-      if (reached.some((foothold) => foothold.topPx <= target.topPx)) {
-        return { certainty: 'estimated', reason: 'tooFar' };
-      }
+      // y grows downward. A reached foothold at the target's height or above gives 0 or less:
+      // then height is not the problem.
       const riseNeeded =
         Math.min(...reached.map((foothold) => foothold.topPx - target.topPx)) * FX_ONE;
       return riseNeeded > rise

@@ -32,6 +32,7 @@ pack → core
 input → core
 renderer-phaser → core, pack, phaser
 apps/player → core, pack, input, renderer-phaser（packs/sample は静的コピーと fixture）
+solver → core（解析ツール。どのパッケージからも import されない）
 infra → aws-cdk-lib のみ（エンジンの全パッケージから独立）
 apps/gallery → scripts/site（ビルド設定のみ。エンジンには依存しない）
 scripts/site → なし（アプリはパッケージ名で呼ぶだけで import しない）
@@ -44,6 +45,7 @@ scripts/site → なし（アプリはパッケージ名で呼ぶだけで impor
 | `input` | `pack`、`renderer-phaser` を import する |
 | `renderer-phaser` | `input` を import する。ゲームロジックを書く |
 | `apps/player` | ゲームロジックや衝突判定を書く（配線と UI のみ） |
+| `solver` | 位置や速度を自分で計算する（物理は core の `step` だけ）。検証していない経路を「到達できる」と報告する。`core` 以外を import する |
 
 `core` の tsconfig は `lib: ["ES2023"]` で DOM 型を含めない。`window`、`document`、`performance`、`fetch` が `core` に現れたら設計違反。
 
@@ -130,5 +132,7 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 - M1-2（Fx / World / タイル衝突）は `core` に実装済み: `fx`（値域チェック付き）、xorshift32、`World` と `EntityStore`、`hash`、衝突グリッドと `movement`。core のテストの fixture は `packages/core/src/test-support.ts`（`buildRoom` など）。
 - M1-3（キャラクター制御、2 人切替、能力タグ通行）は `core` に実装済み: `createWorld` と `step`、`inputIntent`、`controller`、`party`、シナリオ DSL `script()`。Feel scenario は `packages/core/src/sim/feel.test.ts`（retro と modern、320×180 と 256×192）。
 - M1-4（InputBuffer、エッジ規則、リプレイ、Determinism）は実装済み: `core` の `loop`（`advance`、`LoopDriver`）、`EdgeBuffer`、`replay`（`Recorder`、`Player`、`runReplayHeadless`）。`input` の `InputBuffer`（物理状態の集約とフォーカス喪失の再同期）。
+- A-1（到達可能性ソルバー、キャラクター 1 人ずつ）は `solver` に実装済み: `solveRoom`（足場の列挙、着地状態の幅優先探索、マクロ入力、証拠リプレイの再生による検証、上限と統計）。設計は ADR-0015。A-2（切替とパーティ全体、戻れない領域、到達できない理由、Property テスト）は未着手で、引き継ぎは `docs/solver-handoff.md`。
+  - solver のテストの fixture は `packages/solver/src/test-support.ts`（`roomRuntime` など）。core の fixture は `@retro-action-engine/core/testing` から使う（テスト専用）。
 - `pack` と `renderer-phaser` は、まだ空の `src/index.ts` だけ。
-- 次は `docs/roadmap.md` の M1-5（Phaser 描画、サンプルパック、キーボードとゲームパッド、Playwright smoke）。
+- 次は `docs/roadmap.md` の M1-5（Phaser 描画、サンプルパック、キーボードとゲームパッド、Playwright smoke）と、A-2。どちらも互いに独立している。

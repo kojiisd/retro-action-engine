@@ -24,7 +24,7 @@
 
 ## 3. パッケージ構成と依存方向
 
-エンジンのパッケージは 6 つ。ほかに、エンジンから独立した `infra`、サイトのトップのゲーム一覧 `apps/gallery`、サイト全体を組み立てる `scripts/site` がある（M1-1 で追加）。リプレイ機能は `core` に含める。`pack-cli` は M4 で `pack` から分離する。
+エンジンのパッケージは 6 つ。ほかに、エンジンから独立した `infra`、サイトのトップのゲーム一覧 `apps/gallery`、サイト全体を組み立てる `scripts/site` がある（M1-1 で追加）。解析ツールの `solver`（A-1 で追加）は `core` だけに依存し、エンジンの実行時には含めない。リプレイ機能は `core` に含める。`pack-cli` は M4 で `pack` から分離する。
 
 ```mermaid
 graph BT
@@ -36,6 +36,7 @@ graph BT
   sample["packs/sample<br/>data only (CC0)"]
   infra["infra<br/>AWS CDK (isolated)"]
   gallery["apps/gallery<br/>game list at the site root"]
+  solver["@retro-action-engine/solver<br/>reachability analysis (not in the runtime)"]
   sitetools["scripts/site<br/>site.json, site build"]
   phaser[("phaser")]
 
@@ -50,6 +51,7 @@ graph BT
   player --> renderer
   player -. "static copy / test fixture" .-> sample
   gallery -- "build config only" --> sitetools
+  solver --> core
 ```
 
 | パッケージ | 依存してよいもの | 依存してはいけないもの | 責務 |
@@ -60,9 +62,12 @@ graph BT
 | `renderer-phaser` | `core`、`pack`（アセット記述型）、`phaser` | `input` | Phaser Scene、ループドライバ、補間描画、タイル描画、音の再生、HUD |
 | `apps/player` | 上記すべて | なし | 配線、設定 UI、PWA、`window.__engine` テストフック、サンプルパックを使う統合テスト |
 | `packs/sample` | なし（データのみ） | なし | サンプルパック。`apps/player` の `public/packs/sample` にコピーされ、`pack` と `apps/player` のテスト fixture になる |
+| `solver` | `core` | `pack`、`input`、`renderer-phaser`、DOM。どのパッケージからも import されない | 到達可能性の解析（どの足場に行けるか、どこから戻れないか）。物理は core の `step` だけを使い、報告する経路は `runReplayHeadless` で検証する。[ADR-0015](decisions/ADR-0015-reachability-solver.md) |
 | `apps/gallery` | `scripts/site`（`vite.config.ts` からのみ） | エンジンの全パッケージ | サイトのトップ（`/`）のゲーム一覧。`site.json` からカードを作る。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
 | `scripts/site` | なし | エンジンと各アプリ（パッケージ名で呼ぶだけ） | `site.json` の検証と、サイト全体の組み立て（`pnpm site:build`。一覧をルートに、各ゲームを `play/<slug>/` に） |
 | `infra` | `aws-cdk-lib`、`constructs` | エンジンの全パッケージ | 証明書スタック（us-east-1、ACM）とメインスタック（S3 + CloudFront、Route 53 の Alias、OIDC、IAM ロール 2 本）。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
+
+`core` のテスト用 fixture（`packages/core/src/test-support.ts`）は `@retro-action-engine/core/testing` として公開し、ほかのパッケージのテストから再利用できる。テスト以外のファイルからの import は dependency-cruiser で禁止する。
 
 `core` のテストはインラインの小さな fixture のみを使う。`packs/sample` を読むテストは `pack` と `apps/player` に置く。
 
@@ -361,6 +366,7 @@ retro-action-engine/
 ├─ packages/pack/            # スキーマ、ローダ、Tiled importer（M4 で pack-cli を分離）
 ├─ packages/input/           # デバイス、Action マップ、InputBuffer
 ├─ packages/renderer-phaser/ # Phaser 4 アダプタ
+├─ packages/solver/          # 到達可能性ソルバー（解析ツール。実行時には含めない）
 ├─ packs/sample/             # サンプルパック（データのみ、CC0）
 ├─ infra/                    # AWS CDK（ACM、S3 + CloudFront、Route 53、OIDC、IAM）。手順書は infra/README.md
 ├─ scripts/site/             # site.json の検証とサイト全体の組み立て（pnpm site:build）

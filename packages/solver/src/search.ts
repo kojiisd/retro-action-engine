@@ -1,0 +1,200 @@
+import {
+  type CharacterDef,
+  type CollisionGrid,
+  cloneWorld,
+  currentFeel,
+  type FeelProfile,
+  type PackRuntime,
+  type World,
+} from '@retro-action-engine/core';
+import { type FootholdIndex, standingOn } from './footholds';
+import {
+  type Budget,
+  edgeMacros,
+  groundMacros,
+  isGrounded,
+  type Macro,
+  runMacro,
+  type Sim,
+  vxOf,
+  xOf,
+  yOf,
+} from './macros';
+import type { MacroKind } from './types';
+
+/** Everything the search needs to know about one character in one room. */
+export interface SearchContext {
+  readonly runtime: PackRuntime;
+  readonly grid: CollisionGrid;
+  readonly character: CharacterDef;
+  readonly footholds: FootholdIndex;
+  readonly holds: readonly number[];
+  readonly xQuantum: number;
+  readonly vQuantum: number;
+  readonly maxMacroTicks: number;
+  readonly maxNodes: number;
+}
+
+/** A landing state. `world` is exact; the key only decides which states share a node. */
+export interface SearchNode {
+  readonly id: number;
+  readonly world: World;
+  /** Buttons held on the last tick, so the next macro produces correct press edges. */
+  readonly held: number;
+  readonly parent: number;
+  /** Held masks of the ticks that lead here from the parent (from the start for the root). */
+  readonly helds: readonly number[];
+  readonly depth: number;
+  readonly footholds: readonly number[];
+}
+
+export interface SearchEdge {
+  readonly from: number;
+  readonly to: number;
+  readonly kind: MacroKind;
+  /** Footholds the macro actually landed on (the target node may be a merged neighbour). */
+  readonly landedOn: readonly number[];
+}
+
+export interface SearchResult {
+  readonly nodes: SearchNode[];
+  readonly edges: SearchEdge[];
+  /** False when a limit stopped the search before the frontier was empty. */
+  readonly complete: boolean;
+  readonly macros: number;
+  readonly timeouts: number;
+}
+
+/** floor(a / b), exact for these integer ranges. */
+const bucket = (value: number, quantum: number) => Math.floor(value / quantum);
+
+function keyOf(context: SearchContext, world: World): string {
+  // Velocity buckets are symmetric around 0, so that left and right merge alike.
+  const vx = vxOf(world);
+  const vBucket = Math.sign(vx) * Math.floor(Math.abs(vx) / context.vQuantum);
+  return `${yOf(world)}|${bucket(xOf(world), context.xQuantum)}|${vBucket}`;
+}
+
+/**
+ * Breadth-first search over landing states (ADR-0015). Each edge is a macro run with the real
+ * `step` on a copy of the node's exact world. States with the same key are explored once: that
+ * skips work but never invents a path, because nothing is simulated from a merged state.
+ */
+export function explore(context: SearchContext, start: World, budget: Budget): SearchResult {
+  const feel: FeelProfile = currentFeel(start, context.runtime);
+  const baseMacros = groundMacros(feel, context.holds);
+  const bucketOf = (x: number) => bucket(x, context.xQuantum);
+
+  const nodes: SearchNode[] = [];
+  const edges: SearchEdge[] = [];
+  const byKey = new Map<string, number>();
+  let macros = 0;
+  let timeouts = 0;
+  let complete = true;
+
+  const newSim = (world: World, held: number): Sim => ({
+    world: cloneWorld(world),
+    runtime: context.runtime,
+    held,
+    helds: [],
+    budget,
+    maxTicks: context.maxMacroTicks,
+  });
+
+  const addNode = (sim: Sim, parent: number, depth: number): number => {
+    const key = keyOf(context, sim.world);
+    const existing = byKey.get(key);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const id = nodes.length;
+    nodes.push({
+      id,
+      world: sim.world,
+      held: sim.held,
+      parent,
+      helds: sim.helds,
+      depth,
+      footholds: standingOn(context.grid, context.footholds, sim.world, context.character),
+    });
+    byKey.set(key, id);
+    return id;
+  };
+
+  // The root is the first landing: a spawn in the air falls first.
+  const root = newSim(start, 0);
+  if (!isGrounded(root.world)) {
+    const outcome = runMacro(root, { kind: 'stop' }, bucketOf);
+    if (outcome.status !== 'landed') {
+      return { nodes, edges, complete: false, macros: 1, timeouts: 0 };
+    }
+  }
+  addNode(root, -1, 0);
+
+  /** Returns false when the search has to stop. */
+  const tryMacro = (node: SearchNode, macro: Macro): { go: boolean; leftGround: boolean } => {
+    const sim = newSim(node.world, node.held);
+    const outcome = runMacro(sim, macro, bucketOf);
+    macros++;
+    if (outcome.status === 'budget') {
+      return { go: false, leftGround: false };
+    }
+    if (outcome.status === 'timeout') {
+      timeouts++;
+    }
+    if (outcome.status !== 'landed') {
+      return { go: true, leftGround: false };
+    }
+    const landedOn = standingOn(context.grid, context.footholds, sim.world, context.character);
+    const to = addNode(sim, node.id, node.depth + 1);
+    edges.push({ from: node.id, to, kind: macro.kind, landedOn });
+    return { go: true, leftGround: outcome.leftGround };
+  };
+
+  for (let next = 0; next < nodes.length; next++) {
+    if (nodes.length >= context.maxNodes) {
+      complete = false;
+      break;
+    }
+    const node = nodes[next] as SearchNode;
+    let stopped = false;
+    for (const macro of baseMacros) {
+      const { go, leftGround } = tryMacro(node, macro);
+      if (!go) {
+        stopped = true;
+        break;
+      }
+      // Only a walk that reached an edge opens the edge macros (other falls, coyote jumps).
+      if (macro.kind === 'walk' && leftGround) {
+        for (const extra of edgeMacros(feel, context.holds, macro.dir)) {
+          if (!tryMacro(node, extra).go) {
+            stopped = true;
+            break;
+          }
+        }
+      }
+      if (stopped) break;
+    }
+    if (stopped) {
+      complete = false;
+      break;
+    }
+  }
+
+  return { nodes, edges, complete, macros, timeouts };
+}
+
+/** Held masks of every tick from the start state to the node. */
+export function pathHelds(nodes: readonly SearchNode[], id: number): number[] {
+  const chain: SearchNode[] = [];
+  for (let at = id; at >= 0; at = (nodes[at] as SearchNode).parent) {
+    chain.push(nodes[at] as SearchNode);
+  }
+  const helds: number[] = [];
+  for (const node of chain.reverse()) {
+    for (const held of node.helds) {
+      helds.push(held);
+    }
+  }
+  return helds;
+}

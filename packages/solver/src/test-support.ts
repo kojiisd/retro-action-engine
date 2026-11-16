@@ -1,5 +1,11 @@
 // Fixtures for the solver tests. Built on the core test fixtures (@retro-action-engine/core/testing).
-import { type FeelProfile, FX_ONE, type PackRuntime } from '@retro-action-engine/core';
+import {
+  type CharacterDef,
+  type FeelProfile,
+  FX_ONE,
+  type PackRuntime,
+  type PartyRules,
+} from '@retro-action-engine/core';
 import {
   buildRoom,
   type FeelInPx,
@@ -20,6 +26,15 @@ export interface RoomFixture {
   readonly members?: readonly string[];
   /** Replaces values of both test profiles (px, as in the pack file). */
   readonly feel?: Partial<FeelInPx>;
+  /**
+   * Switching rules. Without them the party cannot switch (`mode: 'never'`), so a fixture with
+   * two members is solved one character at a time only. With them, missing fields are
+   * `mode: 'anywhere'`, `cooldownTicks: 20`, `requireGrounded: true`, `placement: 'same'`.
+   */
+  readonly switching?: Partial<PartyRules['switch']>;
+  /** Replaces fields of the test characters (collider, feelOverrides). */
+  readonly walker?: Partial<CharacterDef>;
+  readonly swimmer?: Partial<CharacterDef>;
 }
 
 /** A one-room runtime with the two test characters and the retro and modern profiles. */
@@ -45,7 +60,10 @@ export function roomRuntime(fixture: RoomFixture): PackRuntime {
         },
       },
     },
-    characters: { walker: WALKER, swimmer: SWIMMER },
+    characters: {
+      walker: { ...WALKER, ...fixture.walker },
+      swimmer: { ...SWIMMER, ...fixture.swimmer },
+    },
     feel: {
       retro: profile('retro', RETRO_PX, { interpolation: 'none', socd: 'neutral' }),
       modern: profile('modern', MODERN_PX, { interpolation: 'linear', socd: 'lastWins' }),
@@ -53,7 +71,16 @@ export function roomRuntime(fixture: RoomFixture): PackRuntime {
     rules: {
       party: {
         members: fixture.members ?? ['walker'],
-        switch: { mode: 'anywhere', cooldownTicks: 20, requireGrounded: false, placement: 'same' },
+        switch:
+          fixture.switching === undefined
+            ? { mode: 'never', cooldownTicks: 20, requireGrounded: true, placement: 'same' }
+            : {
+                mode: 'anywhere',
+                cooldownTicks: 20,
+                requireGrounded: true,
+                placement: 'same',
+                ...fixture.switching,
+              },
       },
     },
   };

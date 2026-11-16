@@ -1,22 +1,27 @@
 import {
+  activeCharacter,
   type CharacterDef,
+  canSwitch,
   createWorld,
-  currentFeel,
   FX_ONE,
+  type Fx,
   type PackRuntime,
+  resolveFeel,
   roomGrid,
   type StartState,
+  type World,
 } from '@retro-action-engine/core';
-import { FootholdIndex } from './footholds';
-import { type Budget, jumpHolds } from './macros';
+import { FootholdIndex, mergeFootholds } from './footholds';
+import { type Budget, groundMacros, jumpHolds } from './macros';
 import { measureRise, measureRiseBound } from './probe';
 import { Proofs } from './proofs';
-import { explore, pathHelds, type SearchContext, type SearchNode } from './search';
+import { explore, type MemberPlan, pathHelds, type SearchContext, type SearchNode } from './search';
 import type {
   Foothold,
   FootholdReport,
   MacroKind,
   ReturnReport,
+  Scope,
   ScopeReport,
   SolveReport,
   SolverOptions,
@@ -41,48 +46,95 @@ const DEFAULTS = {
   maxSteps: 20_000_000,
 } as const;
 
-function solveCharacter(
+const sameCollider = (a: CharacterDef, b: CharacterDef) =>
+  a.collider.w === b.collider.w &&
+  a.collider.h === b.collider.h &&
+  a.collider.ox === b.collider.ox &&
+  a.collider.oy === b.collider.oy;
+
+/**
+ * Which proofs the scope may use, and the rise bound for the height proofs (ADR-0015,
+ * "パーティでの証明"). Anything the ADR cannot argue for is left out: no proof rather than a
+ * wrong one.
+ */
+function proofRules(
   runtime: PackRuntime,
-  start: StartState,
-  character: CharacterDef,
+  members: readonly CharacterDef[],
+  feelProfile: string,
+  switching: boolean,
+): { region: boolean; riseBound: Fx } {
+  const bounds = members.map((member) => measureRiseBound(runtime, member, feelProfile));
+  const riseBound = Math.max(...bounds);
+  if (!switching) {
+    return { region: true, riseBound };
+  }
+  const first = members[0] as CharacterDef;
+  const region = members.every((member) => sameCollider(member, first));
+  const rules = runtime.rules.party.switch;
+  const height = region && rules.requireGrounded && rules.placement === 'same';
+  return { region, riseBound: height ? riseBound : Number.POSITIVE_INFINITY };
+}
+
+function solveScope(
+  runtime: PackRuntime,
+  scopeStart: StartState,
+  scope: Scope,
+  members: readonly CharacterDef[],
   options: SolverOptions,
   limits: SolveReport['limits'],
   budget: Budget,
 ): ScopeReport {
-  const scopeStart: StartState = { ...start, party: [character.id] };
-  const grid = roomGrid(runtime, start.roomId);
+  const grid = roomGrid(runtime, scopeStart.roomId);
   const world = createWorld(runtime, scopeStart);
-  const feel = currentFeel(world, runtime);
-  const footholds = new FootholdIndex(grid, [character]);
-  const rise = measureRise(runtime, character, start.feelProfile);
+  const switching = scope.kind === 'party';
+  const plans: MemberPlan[] = members.map((character) => {
+    const profile = runtime.feel[scopeStart.feelProfile];
+    if (profile === undefined) {
+      throw new RangeError(`feel profile "${scopeStart.feelProfile}" is not defined`);
+    }
+    const feel = resolveFeel(profile, character.feelOverrides);
+    const rise = measureRise(runtime, character, scopeStart.feelProfile);
+    const holds = jumpHolds(feel, rise.ticks, limits.jumpHoldSamples);
+    return { character, feel, holds, ground: groundMacros(feel, holds, switching) };
+  });
+  const footholds = new FootholdIndex(grid, members);
+  const { runs, runOf } = mergeFootholds(
+    footholds,
+    members.map((member) => member.id),
+  );
+  const runsOf = (indexes: readonly number[]) =>
+    [...new Set(indexes.map((index) => runOf[index] as number))].sort((a, b) => a - b);
   const context: SearchContext = {
     runtime,
     grid,
-    character,
     footholds,
-    holds: jumpHolds(feel, rise.ticks, limits.jumpHoldSamples),
+    members: plans,
     xQuantum: limits.xQuantum,
-    vQuantum: options.vQuantum ?? Math.max(1, Math.floor(feel.runSpeed / 2)),
+    vQuantum:
+      options.vQuantum ??
+      Math.max(1, Math.min(...plans.map((plan) => Math.floor(plan.feel.runSpeed / 2)))),
     maxMacroTicks: limits.maxMacroTicks,
     maxNodes: limits.maxNodes,
   };
 
-  const riseBound = measureRiseBound(runtime, character, start.feelProfile);
-  const proofs = Proofs.of(grid, character, world, riseBound);
+  const rules = proofRules(runtime, members, scopeStart.feelProfile, switching);
+  const riseBound = rules.riseBound;
+  const proofs = rules.region ? Proofs.of(grid, members, world, riseBound) : undefined;
+  const activeAt = (state: World) => activeCharacter(state, runtime);
 
   const stepsBefore = budget.steps;
   const search = explore(context, { world, held: 0 }, budget);
-  const startFootholds: readonly number[] = search.nodes[0]?.footholds ?? [];
-  const startFoothold = footholds.all[startFootholds[0] ?? -1];
+  const startRuns = runsOf(search.nodes[0]?.footholds ?? []);
+  const startRun = runs[startRuns[0] ?? -1];
   let complete = search.complete;
   let returnSearches = 0;
 
-  // The first node found on a foothold is the one with the fewest macros (breadth-first).
+  // The first node found on a run is the one with the fewest macros (breadth-first).
   const firstNode = new Map<number, SearchNode>();
   for (const node of search.nodes) {
-    for (const foothold of node.footholds) {
-      if (!firstNode.has(foothold)) {
-        firstNode.set(foothold, node);
+    for (const run of runsOf(node.footholds)) {
+      if (!firstNode.has(run)) {
+        firstNode.set(run, node);
       }
     }
   }
@@ -90,21 +142,21 @@ function solveCharacter(
   let replaysVerified = 0;
 
   /**
-   * The way back from the first state found on a foothold to the start foothold. "It can" is
-   * only said with a replay of the whole trip that passed the gate.
+   * The way back from the first state found on a run to the start run. "It can" is only said
+   * with a replay of the whole trip that passed the gate.
    */
-  const returnFrom = (foothold: Foothold, node: SearchNode, there: number[]): ReturnReport => {
-    if (startFoothold !== undefined) {
-      const proof = proofs?.cannotClimb(foothold, startFoothold);
+  const returnFrom = (run: Foothold, node: SearchNode, there: number[]): ReturnReport => {
+    if (startRun !== undefined) {
+      const proof = proofs?.cannotClimb(run, startRun);
       if (proof !== undefined) {
         return { status: 'provenNo', ...proof };
       }
     }
-    if (startFootholds.length === 0) {
+    if (startRuns.length === 0) {
       return { status: 'notFound' };
     }
     const isStart = (landedOn: readonly number[]) =>
-      landedOn.some((index) => startFootholds.includes(index));
+      landedOn.some((index) => startRuns.includes(runOf[index] as number));
     const back = explore(context, { world: node.world, held: node.held, goal: isStart }, budget);
     if (back.macros > 0) {
       returnSearches++;
@@ -113,54 +165,58 @@ function solveCharacter(
       complete &&= back.complete;
       return { status: 'notFound' };
     }
-    const target = back.goal.footholds.find((index) => startFootholds.includes(index)) as number;
+    const target = back.goal.footholds.find((index) =>
+      startRuns.includes(runOf[index] as number),
+    ) as number;
+    const end = back.goal.world;
     const replay = replayFromHelds(runtime, scopeStart, [...there, ...back.goal.helds]);
-    verifyWitness(runtime, grid, footholds, character, replay, target, back.goal.world);
+    verifyWitness(runtime, grid, footholds, activeAt(end), replay, target, end);
     replaysVerified++;
     return {
       status: 'verified',
-      witness: { replay, ticks: back.goal.world.tick, macros: node.depth + back.goal.depth },
+      witness: { replay, ticks: end.tick, macros: node.depth + back.goal.depth },
     };
   };
 
-  const reports: FootholdReport[] = footholds.all.map((foothold, index) => {
+  const reports: FootholdReport[] = runs.map((run, index) => {
     const node = firstNode.get(index);
-    const blocker = proofs?.unreachable(foothold);
+    const blocker = proofs?.unreachable(run);
     if (node === undefined) {
       return blocker === undefined
-        ? { ...foothold, status: 'unreached' }
-        : { ...foothold, status: 'unreached', blocker };
+        ? { ...run, status: 'unreached' }
+        : { ...run, status: 'unreached', blocker };
     }
     const there = pathHelds(search.nodes, node.id);
     const replay = replayFromHelds(runtime, scopeStart, there);
-    verifyWitness(runtime, grid, footholds, character, replay, index, node.world);
+    const target = node.footholds.find((f) => runOf[f] === index) as number;
+    verifyWitness(runtime, grid, footholds, activeAt(node.world), replay, target, node.world);
     replaysVerified++;
     if (blocker !== undefined) {
       throw new ProofError(
-        `foothold ${foothold.id} is reached by a verified replay, but "${blocker.reason}" claims it cannot be`,
+        `foothold ${run.id} is reached by a verified replay, but "${blocker.reason}" claims it cannot be`,
       );
     }
     return {
-      ...foothold,
+      ...run,
       status: 'reached',
       witness: { replay, ticks: node.world.tick, macros: node.depth },
-      return: returnFrom(foothold, node, there),
+      return: returnFrom(run, node, there),
     };
   });
 
-  // Foothold graph: which macro kinds were seen to lead from one foothold to another.
+  // Foothold graph: which macro kinds were seen to lead from one run to another.
   const kindsByPair = new Map<string, Set<MacroKind>>();
   for (const edge of search.edges) {
-    for (const from of (search.nodes[edge.from] as SearchNode).footholds) {
-      for (const to of edge.landedOn) {
+    for (const from of runsOf((search.nodes[edge.from] as SearchNode).footholds)) {
+      for (const to of runsOf(edge.landedOn)) {
         if (from === to) continue;
         // Every edge is a transition the simulation made from an exact state. A proof that
         // denies one of them is wrong.
-        const fromFoothold = footholds.all[from] as Foothold;
-        const toFoothold = footholds.all[to] as Foothold;
-        if (proofs?.cannotClimb(fromFoothold, toFoothold) !== undefined) {
+        const fromRun = runs[from] as Foothold;
+        const toRun = runs[to] as Foothold;
+        if (proofs?.cannotClimb(fromRun, toRun) !== undefined) {
           throw new ProofError(
-            `the simulation went from ${fromFoothold.id} to ${toFoothold.id}, against a proof`,
+            `the simulation went from ${fromRun.id} to ${toRun.id}, against a proof`,
           );
         }
         const key = `${from}>${to}`;
@@ -170,7 +226,7 @@ function solveCharacter(
       }
     }
   }
-  const idOf = (index: number) => (footholds.all[index] as FootholdReport).id;
+  const idOf = (index: number) => (runs[index] as Foothold).id;
   const edges = [...kindsByPair.entries()]
     .map(([key, kinds]) => {
       const [from, to] = key.split('>').map(Number) as [number, number];
@@ -179,11 +235,13 @@ function solveCharacter(
     .sort((a, b) => a.from - b.from || a.to - b.to)
     .map((edge) => ({ from: idOf(edge.from), to: idOf(edge.to), kinds: edge.kinds }));
 
+  const height = proofs !== undefined && riseBound !== Number.POSITIVE_INFINITY;
   return {
-    scope: { kind: 'character', characterId: character.id },
+    scope,
     complete,
-    startFootholds: startFootholds.map(idOf),
-    riseBound: riseBound === Number.POSITIVE_INFINITY ? null : riseBound,
+    startFootholds: startRuns.map(idOf),
+    riseBound: height ? riseBound : null,
+    proofs: { region: proofs !== undefined, height },
     footholds: reports,
     edges,
     stats: {
@@ -199,9 +257,10 @@ function solveCharacter(
 }
 
 /**
- * Reachability of one room, one character at a time (ADR-0015). For each party member it lists
- * every foothold, whether a path to it was found, a replay that proves each path, whether the
- * character can get back to where it started, and the footholds proven to be out of reach.
+ * Reachability of one room (ADR-0015): each party member alone, then the whole party with
+ * switching when the party can switch. For each scope it lists every foothold, whether a path
+ * to it was found, a replay that proves each path, whether the party can get back to where it
+ * started, and the footholds proven to be out of reach.
  *
  * Sound, not complete: "reached" and "can return" always come with a replay that was run and
  * checked; "proven" holds for every input sequence. Anything else means "not found within the
@@ -223,13 +282,39 @@ export function solveRoom(
   const budget: Budget = { steps: 0, maxSteps: limits.maxSteps, exhausted: false };
 
   const memberIds = [...new Set(start.party ?? runtime.rules.party.members)];
-  const scopes = memberIds.map((id) => {
+  const members = memberIds.map((id) => {
     const character = runtime.characters[id];
     if (character === undefined) {
       throw new RangeError(`party member "${id}" is not a defined character`);
     }
-    return solveCharacter(runtime, start, character, options, limits, budget);
+    return character;
   });
+  const scopes = members.map((character) =>
+    solveScope(
+      runtime,
+      { ...start, party: [character.id] },
+      { kind: 'character', characterId: character.id },
+      [character],
+      options,
+      limits,
+      budget,
+    ),
+  );
+  // The party scope exists only when switching does: decided from the pack data.
+  const partyStart: StartState = { ...start, party: memberIds };
+  if (canSwitch(createWorld(runtime, partyStart), runtime)) {
+    scopes.push(
+      solveScope(
+        runtime,
+        partyStart,
+        { kind: 'party', members: memberIds },
+        members,
+        options,
+        limits,
+        budget,
+      ),
+    );
+  }
 
   const elapsed =
     startedAt === undefined || options.now === undefined

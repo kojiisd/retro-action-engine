@@ -33,10 +33,13 @@ export type Macro =
       readonly after: Dir;
     }
   /** Down + jump on a oneway floor, then fall while steering. */
-  | { readonly kind: 'drop'; readonly steer: Dir };
+  | { readonly kind: 'drop'; readonly steer: Dir }
+  /** Wait until the switch cooldown is over, switch to the next member, then land. */
+  | { readonly kind: 'switch' };
 
 const JUMP = actionMask('jump');
 const DOWN = actionMask('down');
+const SWITCH = actionMask('switch');
 const DIR_MASK: Record<Dir, number> = {
   [-1]: actionMask('left'),
   0: 0,
@@ -194,6 +197,21 @@ export function runMacro(sim: Sim, macro: Macro, bucketOf: (x: number) => number
         tick(sim, DOWN | JUMP | DIR_MASK[macro.steer]);
         fall(sim, macro.steer);
         break;
+      case 'switch': {
+        const before = sim.world.party.activeIndex;
+        // Let go of everything while the cooldown runs (it ends on its own), and of a switch
+        // button still down, so that the press is a fresh one.
+        while (sim.world.party.cooldownTicks > 0 || (sim.held & SWITCH) !== 0) {
+          tick(sim, 0);
+        }
+        tick(sim, SWITCH);
+        if (sim.world.party.activeIndex === before) {
+          // The rules refused (for example, not on the ground any more).
+          return { status: 'skipped' };
+        }
+        fall(sim, 0);
+        break;
+      }
     }
     return sim.helds.length === startTicks
       ? { status: 'skipped' }
@@ -242,8 +260,15 @@ export function jumpHolds(feel: FeelProfile, riseTicks: number, samples: number)
   return [...holds].sort((a, b) => a - b);
 }
 
-/** The macros tried from every standing state, in a fixed order. */
-export function groundMacros(feel: FeelProfile, holds: readonly number[]): Macro[] {
+/**
+ * The macros tried from every standing state, in a fixed order. `switching`: the party can
+ * switch, so the switch macro is tried too (last).
+ */
+export function groundMacros(
+  feel: FeelProfile,
+  holds: readonly number[],
+  switching = false,
+): Macro[] {
   const macros: Macro[] = [{ kind: 'walk', dir: -1 }, { kind: 'walk', dir: 1 }, { kind: 'stop' }];
   for (const hold of holds) {
     for (const [before, after] of steerings(feel)) {
@@ -252,6 +277,9 @@ export function groundMacros(feel: FeelProfile, holds: readonly number[]): Macro
   }
   for (const steer of DIRS) {
     macros.push({ kind: 'drop', steer });
+  }
+  if (switching) {
+    macros.push({ kind: 'switch' });
   }
   return macros;
 }

@@ -18,8 +18,15 @@ import { solveRoom } from './solve';
 import { emptyRows, fill, roomRuntime, START } from './test-support';
 import type { FootholdReport, ScopeReport, SolveReport } from './types';
 
-const scopeOf = (report: SolveReport, characterId: string): ScopeReport =>
-  report.scopes.find((scope) => scope.scope.characterId === characterId) as ScopeReport;
+/** The report of one character alone, or of the whole party with `'party'`. */
+const scopeOf = (report: SolveReport, who: string): ScopeReport =>
+  report.scopes.find((scope) =>
+    who === 'party'
+      ? scope.scope.kind === 'party'
+      : scope.scope.kind === 'character' && scope.scope.characterId === who,
+  ) as ScopeReport;
+const nameOf = (scope: ScopeReport): string =>
+  scope.scope.kind === 'party' ? 'party' : scope.scope.characterId;
 
 /** The foothold of a scope that covers the given tile. */
 function footholdAt(scope: ScopeReport, col: number, row: number): FootholdReport {
@@ -519,7 +526,7 @@ describe('solveRoom: limits, statistics and determinism', () => {
     expect(report.complete).toBe(false);
     for (const scope of report.scopes) {
       expect(scope.complete).toBe(false);
-      expect(scope.stats.nodes).toBeLessThan(scopeOf(full, scope.scope.characterId).stats.nodes);
+      expect(scope.stats.nodes).toBeLessThan(scopeOf(full, nameOf(scope)).stats.nodes);
       // What was found before the cut is still verified.
       for (const foothold of scope.footholds.filter((f) => f.status === 'reached')) {
         expectWitnessEndsOn(runtime, foothold);

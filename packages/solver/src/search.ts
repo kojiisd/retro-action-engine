@@ -2,7 +2,6 @@ import {
   type CharacterDef,
   type CollisionGrid,
   cloneWorld,
-  currentFeel,
   type FeelProfile,
   type PackRuntime,
   type World,
@@ -11,7 +10,6 @@ import { type FootholdIndex, standingOn } from './footholds';
 import {
   type Budget,
   edgeMacros,
-  groundMacros,
   isGrounded,
   type Macro,
   runMacro,
@@ -22,13 +20,23 @@ import {
 } from './macros';
 import type { MacroKind } from './types';
 
-/** Everything the search needs to know about one character in one room. */
+/** What one party member does in the search: its feel and the macros tried for it. */
+export interface MemberPlan {
+  readonly character: CharacterDef;
+  /** The active feel profile with the character's overrides. */
+  readonly feel: FeelProfile;
+  readonly holds: readonly number[];
+  readonly ground: readonly Macro[];
+}
+
+/** Everything the search needs to know about the party (one member or more) in one room. */
 export interface SearchContext {
   readonly runtime: PackRuntime;
   readonly grid: CollisionGrid;
-  readonly character: CharacterDef;
+  /** Footholds of every member. */
   readonly footholds: FootholdIndex;
-  readonly holds: readonly number[];
+  /** One plan per party member, in party order (index = `world.party.activeIndex`). */
+  readonly members: readonly MemberPlan[];
   readonly xQuantum: number;
   readonly vQuantum: number;
   readonly maxMacroTicks: number;
@@ -92,8 +100,17 @@ function keyOf(context: SearchContext, world: World): string {
   // Velocity buckets are symmetric around 0, so that left and right merge alike.
   const vx = vxOf(world);
   const vBucket = Math.sign(vx) * Math.floor(Math.abs(vx) / context.vQuantum);
-  return `${yOf(world)}|${bucket(xOf(world), context.xQuantum)}|${vBucket}`;
+  // Who is active, and whether a switch is still cooling down, change what can happen next.
+  const party = `${world.party.activeIndex}|${world.party.cooldownTicks > 0 ? 1 : 0}`;
+  return `${party}|${yOf(world)}|${bucket(xOf(world), context.xQuantum)}|${vBucket}`;
 }
+
+const planOf = (context: SearchContext, world: World): MemberPlan =>
+  context.members[world.party.activeIndex] as MemberPlan;
+
+/** Footholds the active member stands on. */
+const footholdsOf = (context: SearchContext, world: World): number[] =>
+  standingOn(context.grid, context.footholds, world, planOf(context, world).character);
 
 /**
  * Breadth-first search over landing states (ADR-0015). Each edge is a macro run with the real
@@ -102,8 +119,6 @@ function keyOf(context: SearchContext, world: World): string {
  */
 export function explore(context: SearchContext, from: SearchStart, budget: Budget): SearchResult {
   const start = from.world;
-  const feel: FeelProfile = currentFeel(start, context.runtime);
-  const baseMacros = groundMacros(feel, context.holds);
   const bucketOf = (x: number) => bucket(x, context.xQuantum);
 
   const nodes: SearchNode[] = [];
@@ -137,7 +152,7 @@ export function explore(context: SearchContext, from: SearchStart, budget: Budge
       parent,
       helds: sim.helds,
       depth,
-      footholds: standingOn(context.grid, context.footholds, sim.world, context.character),
+      footholds: footholdsOf(context, sim.world),
     });
     byKey.set(key, id);
     return id;
@@ -172,7 +187,7 @@ export function explore(context: SearchContext, from: SearchStart, budget: Budge
     if (outcome.status !== 'landed') {
       return { go: true, leftGround: false };
     }
-    const landedOn = standingOn(context.grid, context.footholds, sim.world, context.character);
+    const landedOn = footholdsOf(context, sim.world);
     const to = addNode(sim, node.id, node.depth + 1);
     edges.push({ from: node.id, to, kind: macro.kind, landedOn });
     if (from.goal?.(landedOn) === true) {
@@ -195,8 +210,9 @@ export function explore(context: SearchContext, from: SearchStart, budget: Budge
       break;
     }
     const node = nodes[next] as SearchNode;
+    const plan = planOf(context, node.world);
     let stopped = false;
-    for (const macro of baseMacros) {
+    for (const macro of plan.ground) {
       const { go, leftGround } = tryMacro(node, macro);
       if (!go) {
         stopped = true;
@@ -204,7 +220,7 @@ export function explore(context: SearchContext, from: SearchStart, budget: Budge
       }
       // Only a walk that reached an edge opens the edge macros (other falls, coyote jumps).
       if (macro.kind === 'walk' && leftGround) {
-        for (const extra of edgeMacros(feel, context.holds, macro.dir)) {
+        for (const extra of edgeMacros(plan.feel, plan.holds, macro.dir)) {
           if (!tryMacro(node, extra).go) {
             stopped = true;
             break;

@@ -20,7 +20,7 @@ function setup(fixture: RoomFixture, riseBoundPx: number, character = WALKER) {
     return found;
   };
   const bound = riseBoundPx === Number.POSITIVE_INFINITY ? riseBoundPx : px(riseBoundPx);
-  return { proofs: Proofs.of(grid, character, world, bound), at, footholds };
+  return { proofs: Proofs.of(grid, [character], world, bound), at, footholds };
 }
 
 describe('Proofs: enclosed', () => {

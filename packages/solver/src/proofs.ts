@@ -20,6 +20,10 @@ function cellOf(v: number, tileSize: number): number {
  * where the character can go, so "outside the estimate" is certain. Nothing here simulates and
  * nothing here is used to report that a place can be reached.
  *
+ * For a party, a cell is closed only when it is full for every member, and a row is a level
+ * when any member can stand on it ("パーティでの証明"). The caller decides whether the party
+ * rules allow these proofs at all.
+ *
  * - The open region: the box never overlaps a full tile, and it moves one axis at a time in
  *   steps of at most a tile, so the cells it overlaps always stay in the 4-connected set of
  *   non-full cells it started in. Oneway tiles count as open.
@@ -28,7 +32,7 @@ function cellOf(v: number, tileSize: number): number {
  *   to be reachable when it is low enough, whatever lies in between.
  */
 export class Proofs {
-  private readonly context: CollisionContext;
+  private readonly contexts: readonly CollisionContext[];
   /** 1 for every cell of the open region, row-major. */
   private readonly region: Uint8Array;
   /** Levels (Fx, y down) of the rows the feet could rest on, lowest level (largest y) first. */
@@ -38,20 +42,20 @@ export class Proofs {
 
   private constructor(
     private readonly grid: CollisionGrid,
-    character: CharacterDef,
+    contexts: readonly CollisionContext[],
     startCells: ReadonlyArray<readonly [col: number, row: number]>,
     startBottom: Fx,
     /** Upper bound of the rise between two moments of standing. May be Infinity. */
     readonly riseBound: Fx,
   ) {
-    this.context = { abilityTags: effectiveTags(character) };
+    this.contexts = contexts;
     this.region = this.flood(startCells);
     const size = grid.tileSize * FX_ONE;
     // The room border below the last row is a floor too, but it is the lowest level there is,
     // and only levels above the feet matter for climbing.
     for (let row = grid.heightTiles - 1; row >= 1; row--) {
       for (let col = 0; col < grid.widthTiles; col++) {
-        if (this.inRegion(col, row - 1) && solidAt(grid, col, row, this.context) !== 'none') {
+        if (this.inRegion(col, row - 1) && this.supports(col, row)) {
           this.levels.push(row * size);
           break;
         }
@@ -61,12 +65,13 @@ export class Proofs {
   }
 
   /**
-   * Builds the proofs for the character at the start of `world` (before any tick). Returns
-   * undefined when the box starts inside a full tile: the arguments above do not cover that.
+   * Builds the proofs for the party (one member or more) at the start of `world` (before any
+   * tick). Returns undefined when the box starts in a closed cell: the arguments above do not
+   * cover that.
    */
   static of(
     grid: CollisionGrid,
-    character: CharacterDef,
+    members: readonly CharacterDef[],
     world: World,
     riseBound: Fx,
   ): Proofs | undefined {
@@ -80,17 +85,32 @@ export class Proofs {
     if (width <= 0 || height <= 0) {
       return undefined;
     }
-    const context: CollisionContext = { abilityTags: effectiveTags(character) };
+    if (members.length === 0) {
+      return undefined;
+    }
+    const contexts = members.map((member) => ({ abilityTags: effectiveTags(member) }));
+    const closed = (col: number, row: number) =>
+      contexts.every((context) => solidAt(grid, col, row, context) === 'full');
     const cells: Array<readonly [number, number]> = [];
     for (let row = cellOf(top, T); row <= cellOf(top + height - 1, T); row++) {
       for (let col = cellOf(left, T); col <= cellOf(left + width - 1, T); col++) {
-        if (solidAt(grid, col, row, context) === 'full') {
+        if (closed(col, row)) {
           return undefined;
         }
         cells.push([col, row]);
       }
     }
-    return new Proofs(grid, character, cells, top + height, riseBound);
+    return new Proofs(grid, contexts, cells, top + height, riseBound);
+  }
+
+  /** Full for every member: no member's box can ever enter it. */
+  private closed(col: number, row: number): boolean {
+    return this.contexts.every((context) => solidAt(this.grid, col, row, context) === 'full');
+  }
+
+  /** Some member could stand on top of this tile. */
+  private supports(col: number, row: number): boolean {
+    return this.contexts.some((context) => solidAt(this.grid, col, row, context) !== 'none');
   }
 
   private inRegion(col: number, row: number): boolean {
@@ -108,7 +128,7 @@ export class Proofs {
     const visit = (col: number, row: number) => {
       if (col < 0 || row < 0 || col >= widthTiles || row >= heightTiles) return;
       const index = row * widthTiles + col;
-      if (region[index] === 1 || solidAt(this.grid, col, row, this.context) === 'full') return;
+      if (region[index] === 1 || this.closed(col, row)) return;
       region[index] = 1;
       stack.push(index);
     };

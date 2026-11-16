@@ -18,12 +18,23 @@ export interface SolverOptions {
   readonly now?: () => number;
 }
 
-export type MacroKind = 'walk' | 'stop' | 'jump' | 'walkOffFall' | 'walkOffJump' | 'drop';
+export type MacroKind =
+  | 'walk'
+  | 'stop'
+  | 'jump'
+  | 'walkOffFall'
+  | 'walkOffJump'
+  | 'drop'
+  | 'switch';
 
-/** A run of adjacent tiles one character can stand on. Columns are inclusive. */
+/**
+ * A run of adjacent tiles to stand on. Columns are inclusive. For one character, the tiles it
+ * can stand on; for a party, the runs of its members merged where they overlap.
+ */
 export interface Foothold {
   readonly id: string;
-  readonly characterId: string;
+  /** Who can stand on (some of) it, in party order. */
+  readonly characterIds: readonly string[];
   readonly row: number;
   readonly colFrom: number;
   readonly colTo: number;
@@ -89,11 +100,13 @@ export interface FootholdReport extends Foothold {
   readonly blocker?: Blocker;
 }
 
-/** Who the analysis is for. Stage 1 solves one character at a time (ADR-0015). */
-export interface Scope {
-  readonly kind: 'character';
-  readonly characterId: string;
-}
+/**
+ * Who the analysis is for (ADR-0015): one character alone, or the whole party with switching.
+ * A party scope is only reported when switching exists (two or more members, `mode: 'anywhere'`).
+ */
+export type Scope =
+  | { readonly kind: 'character'; readonly characterId: string }
+  | { readonly kind: 'party'; readonly members: readonly string[] };
 
 export interface SolveStats {
   /** Search nodes: distinct landing states after quantization. */
@@ -119,9 +132,14 @@ export interface ScopeReport {
   readonly startFootholds: readonly string[];
   /**
    * Upper bound of the rise between two moments of standing, for any inputs (Fx). null when no
-   * bound could be given; then nothing is reported as too high.
+   * bound could be given; then nothing is reported as too high and `provenNo` is never used.
    */
   readonly riseBound: Fx | null;
+  /**
+   * Which proofs this scope could use (ADR-0015, "パーティでの証明"). Without `region` nothing
+   * is proven at all; without `height` nothing is proven too high or impossible to return from.
+   */
+  readonly proofs: { readonly region: boolean; readonly height: boolean };
   readonly footholds: readonly FootholdReport[];
   /** Transitions seen between footholds, with the kinds of macro that made them. */
   readonly edges: ReadonlyArray<{

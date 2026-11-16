@@ -1,4 +1,11 @@
-import { actionMask, createWorld, FX_ONE, roomGrid, step } from '@retro-action-engine/core';
+import {
+  actionMask,
+  CONTACT_GROUNDED,
+  createWorld,
+  FX_ONE,
+  roomGrid,
+  step,
+} from '@retro-action-engine/core';
 import { SWIMMER, WALKER } from '@retro-action-engine/core/testing';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
@@ -60,7 +67,9 @@ describe('solveRoom: proofs against plain play in random rooms', () => {
         const grid = roomGrid(runtime, 'room');
 
         for (const character of [WALKER, SWIMMER]) {
-          const scope = report.scopes.find((s) => s.scope.characterId === character.id);
+          const scope = report.scopes.find(
+            (s) => s.scope.kind === 'character' && s.scope.characterId === character.id,
+          );
           if (scope === undefined) return false;
           const index = new FootholdIndex(grid, [character]);
           const reportOf = (i: number) => scope.footholds[i] as (typeof scope.footholds)[number];
@@ -98,5 +107,107 @@ describe('solveRoom: proofs against plain play in random rooms', () => {
     );
     // The rooms must actually contain proven claims, or the property says nothing.
     expect(proven).toBeGreaterThan(20);
+  });
+});
+
+describe('solveRoom: party proofs against plain play in random rooms', () => {
+  const SWITCH = actionMask('switch');
+  const partyArb = fc.record({
+    room: roomArb,
+    requireGrounded: fc.boolean(),
+    cooldownTicks: fc.integer({ min: 0, max: 30 }),
+    // In 1/256 px: the walker's own jump, so that the members differ in height.
+    walkerJump: fc.integer({ min: 512, max: 1536 }),
+  });
+
+  it('never contradicts itself, and random play with switching never does what is proven', () => {
+    let proven = 0;
+    let switches = 0;
+    fc.assert(
+      fc.property(partyArb, ({ room, requireGrounded, cooldownTicks, walkerJump }) => {
+        const { segments, spawnCol, jumpVelocity, inputs } = room;
+        const rows = emptyRows(WIDTH, HEIGHT);
+        fill(rows, '#', 0, WIDTH - 1, HEIGHT - 1);
+        for (const segment of segments) {
+          if (segment.vertical) {
+            const rowTo = Math.min(HEIGHT - 2, segment.row + segment.length - 1);
+            fill(rows, segment.tile, segment.col, segment.col, segment.row, rowTo);
+          } else {
+            const colTo = Math.min(WIDTH - 1, segment.col + segment.length - 1);
+            fill(rows, segment.tile, segment.col, colTo, segment.row);
+          }
+        }
+        fill(rows, '.', spawnCol - 1, spawnCol, HEIGHT - 3, HEIGHT - 2);
+        const runtime = roomRuntime({
+          rows,
+          tileSize: 8,
+          spawn: [spawnCol, HEIGHT - 2],
+          members: ['walker', 'swimmer'],
+          feel: { jumpVelocity },
+          switching: { requireGrounded, cooldownTicks },
+          walker: { feelOverrides: { jumpVelocity: walkerJump } },
+        });
+        const start = { ...START, feelProfile: 'retro' };
+        // A ProofError or WitnessError here fails the property.
+        const report = solveRoom(runtime, start, { maxNodes: 400 });
+        const party = report.scopes.find((s) => s.scope.kind === 'party');
+        if (party === undefined) return false;
+        proven += party.footholds.filter(
+          (f) => f.blocker !== undefined || f.return?.status === 'provenNo',
+        ).length;
+
+        const world = createWorld(runtime, { ...start, party: ['walker', 'swimmer'] });
+        const s = world.entities;
+        const T = runtime.tileSize;
+        /** Runs of the party report the active character stands on. */
+        const standingRuns = () => {
+          if (((s.contact[0] as number) & CONTACT_GROUNDED) === 0) return [];
+          const left = (s.x[0] as number) + (s.colOx[0] as number);
+          const right = left + (s.colW[0] as number);
+          const bottom = (s.y[0] as number) + (s.colOy[0] as number) + (s.colH[0] as number);
+          return party.footholds.filter(
+            (run) =>
+              run.topPx * FX_ONE === bottom &&
+              right > run.colFrom * T * FX_ONE &&
+              left < (run.colTo + 1) * T * FX_ONE,
+          );
+        };
+        let previous = 0;
+        let noWayBack = false;
+        let active = world.party.activeIndex;
+        for (const input of inputs) {
+          let held = 0;
+          ACTIONS.forEach((mask, bit) => {
+            if ((input.held & (1 << bit)) !== 0) held |= mask;
+          });
+          // Press switch at the start of every third segment.
+          if (input.ticks % 3 === 0) held |= SWITCH;
+          for (let i = 0; i < input.ticks; i++) {
+            const now = i === 0 ? held : held & ~SWITCH;
+            step(
+              world,
+              { held: now, pressed: now & ~previous, released: previous & ~now },
+              runtime,
+            );
+            previous = now;
+            if (world.party.activeIndex !== active) {
+              switches++;
+              active = world.party.activeIndex;
+            }
+            for (const run of standingRuns()) {
+              // The box of a member can stand on runs it has no foothold in; only the runs
+              // with a proof matter here.
+              if (run.blocker !== undefined) return false;
+              if (noWayBack && party.startFootholds.includes(run.id)) return false;
+              if (run.return?.status === 'provenNo') noWayBack = true;
+            }
+          }
+        }
+        return true;
+      }),
+      { numRuns: 20, seed: 20261117 },
+    );
+    expect(proven).toBeGreaterThan(10);
+    expect(switches).toBeGreaterThan(20);
   });
 });

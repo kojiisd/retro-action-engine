@@ -266,6 +266,20 @@ describe('solveRoom: limits, statistics and determinism', () => {
     expect(report.totals.elapsedMs).toBe(5);
   });
 
+  it('uses the default limits of ADR-0015 ("ソルバーの定数")', () => {
+    expect(solveRoom(runtime, start, { maxNodes: 1 }).limits).toEqual({
+      xQuantum: (16 * FX_ONE) / 8,
+      jumpHoldSamples: 4,
+      maxMacroTicks: 600,
+      maxNodes: 1,
+      maxSteps: 50_000_000,
+    });
+    // One px at least, for small tiles.
+    const fine = roomRuntime({ rows: ['...', '###'], tileSize: 4, spawn: [1, 0] });
+    expect(solveRoom(fine, start, { maxNodes: 1 }).limits.xQuantum).toBe(FX_ONE);
+    expect(solveRoom(fine, start, { maxSteps: 1 }).limits.maxNodes).toBe(20_000);
+  });
+
   it('rejects a party member that is not a character', () => {
     expect(() => solveRoom(runtime, { ...start, party: ['nobody'] })).toThrow(RangeError);
   });

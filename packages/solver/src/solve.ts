@@ -46,7 +46,7 @@ const DEFAULTS = {
   jumpHoldSamples: 4,
   maxMacroTicks: 600,
   maxNodes: 20_000,
-  maxSteps: 20_000_000,
+  maxSteps: 50_000_000,
 } as const;
 
 const sameCollider = (a: CharacterDef, b: CharacterDef) =>

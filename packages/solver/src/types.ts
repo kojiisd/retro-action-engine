@@ -12,7 +12,7 @@ export interface SolverOptions {
   readonly maxMacroTicks?: number;
   /** Search node limit per exploration. Default 20,000. */
   readonly maxNodes?: number;
-  /** Total `step` calls allowed for one `solveRoom`. Default 20,000,000. */
+  /** Total `step` calls allowed for one `solveRoom`. Default 50,000,000. */
   readonly maxSteps?: number;
   /** Clock for `stats.elapsedMs` (for example `performance.now`). Without it no time is reported. */
   readonly now?: () => number;

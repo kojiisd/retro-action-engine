@@ -38,6 +38,39 @@ describe('mergeFootholds', () => {
     });
   });
 
+  it('keeps runs that only touch apart: overlapping columns are needed', () => {
+    // Column 3 is water: a floor for the walker, open for the swimmer. Column 4 has water
+    // above it: the walker's box does not fit there. So the walker's run ends at 3 and the
+    // swimmer's starts at 4.
+    const touching = emptyRows(8, 6);
+    fill(touching, '#', 0, 2, 5);
+    fill(touching, '~', 3, 3, 5);
+    fill(touching, '#', 4, 7, 5);
+    fill(touching, '~', 4, 4, 4);
+    const touchingGrid = roomGrid(
+      roomRuntime({ rows: touching, tileSize: 16, spawn: [1, 4] }),
+      'room',
+    );
+    const index = new FootholdIndex(touchingGrid, [WALKER, SWIMMER]);
+    const row5 = (id: string) =>
+      index.all
+        .filter((f) => f.row === 5 && f.characterIds[0] === id)
+        .map((f) => [f.colFrom, f.colTo]);
+    expect(row5('walker')).toEqual([
+      [0, 3],
+      [5, 7],
+    ]);
+    expect(row5('swimmer')).toEqual([
+      [0, 2],
+      [4, 7],
+    ]);
+    const { runs } = mergeFootholds(index, ['walker', 'swimmer']);
+    expect(runs.filter((run) => run.row === 5).map((run) => run.id)).toEqual([
+      'party:r5c0-3',
+      'party:r5c4-7',
+    ]);
+  });
+
   it('names the members in party order, whatever order the footholds come in', () => {
     const index = new FootholdIndex(grid, [SWIMMER, WALKER]);
     const { runs } = mergeFootholds(index, ['swimmer', 'walker']);

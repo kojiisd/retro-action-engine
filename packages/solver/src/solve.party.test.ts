@@ -217,3 +217,43 @@ describe('solveRoom: party proofs only where the ADR has an argument', () => {
     });
   });
 });
+
+describe('solveRoom: switching without a cooldown', () => {
+  it('still tells the two members apart at the same place', () => {
+    // A switch that lands where it started is a new state only because someone else is active.
+    const runtime = roomRuntime({ ...fixture, switching: { cooldownTicks: 0 } });
+    const party = scopeOf(solveRoom(runtime, start), 'party');
+    const shelf = runAt(party, 9, 2);
+    expect(shelf.status).toBe('reached');
+    expectEndsOn(runtime, shelf.witness?.replay, shelf);
+  });
+});
+
+describe('solveRoom: a party that starts inside a tile only some members can pass', () => {
+  // The spawn is in the water: closed for the walker, open for the swimmer.
+  const wet = emptyRows(12, 6);
+  fill(wet, '#', 0, 11, 5);
+  fill(wet, '~', 1, 3, 3, 4);
+  fill(wet, '#', 8, 8, 0, 4);
+  const room: RoomFixture = {
+    ...fixture,
+    rows: wet,
+    spawn: [2, 4],
+    members: ['swimmer', 'walker'],
+  };
+
+  it('the party keeps its proofs: the cell is open for someone', () => {
+    const report = solveRoom(roomRuntime(room), start);
+    const party = scopeOf(report, 'party');
+    expect(party?.proofs.region).toBe(true);
+    expect(runAt(party, 10, 5).blocker).toEqual({ certainty: 'proven', reason: 'enclosed' });
+  });
+
+  it('the member that cannot be there alone has no proofs', () => {
+    const report = solveRoom(roomRuntime({ ...room, members: ['walker', 'swimmer'] }), start, {
+      maxNodes: 50,
+    });
+    expect(scopeOf(report, 'walker')?.proofs.region).toBe(false);
+    expect(scopeOf(report, 'swimmer')?.proofs.region).toBe(true);
+  });
+});

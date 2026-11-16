@@ -1,6 +1,12 @@
 export { type FootholdIndex, listFootholds, standingOn } from './footholds';
 export { type Dir, jumpHolds, type Macro } from './macros';
-export { measureRise, measureRiseBound, type Rise } from './probe';
+export {
+  type HighestJump,
+  measureHighestJump,
+  measureRise,
+  measureRiseBound,
+  type Rise,
+} from './probe';
 export { ProofError, solveRoom } from './solve';
 export type {
   Blocker,

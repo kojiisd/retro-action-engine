@@ -141,6 +141,30 @@ export function measureRiseBound(
   character: CharacterDef,
   feelProfileId: string,
 ): Fx {
+  return measureHighestJump(runtime, character, feelProfileId).height;
+}
+
+/** The highest jump in open air, and the hold that gives it. */
+export interface HighestJump {
+  /** The rise bound (`measureRiseBound`), in Fx. Infinity when there is none. */
+  readonly height: Fx;
+  /**
+   * Ticks the button stays down, from the take-off tick, for that height. 0 means the jump
+   * starts with the button already up (a buffered press), which a jump from the ground cannot
+   * do. The full hold is given as the length of the full-hold rise. Undefined with no bound.
+   */
+  readonly hold?: number;
+}
+
+/**
+ * `measureRiseBound`, together with the hold that reaches it. Ties go to the full hold, then
+ * to the shorter hold.
+ */
+export function measureHighestJump(
+  runtime: PackRuntime,
+  character: CharacterDef,
+  feelProfileId: string,
+): HighestJump {
   const profile = runtime.feel[feelProfileId];
   if (profile === undefined) {
     throw new RangeError(`feel profile "${feelProfileId}" is not defined`);
@@ -155,13 +179,24 @@ export function measureRiseBound(
     feel.apexGravityScale < 0 ||
     feel.maxFallSpeed < 0
   ) {
-    return Number.POSITIVE_INFINITY;
+    return { height: Number.POSITIVE_INFINITY };
   }
   const full = probeJump(runtime, character, feelProfileId, Number.POSITIVE_INFINITY);
-  let bound = full.height;
-  // A cut needs vy < 0, so no cut tick lies beyond the end of the full-hold rise.
-  for (let hold = 0; hold <= full.ticks && bound !== Number.POSITIVE_INFINITY; hold++) {
-    bound = Math.max(bound, probeJump(runtime, character, feelProfileId, hold).height);
+  if (full.height === Number.POSITIVE_INFINITY) {
+    return { height: full.height };
   }
-  return bound;
+  let bound = full.height;
+  let best = full.ticks;
+  // A cut needs vy < 0, so no cut tick lies beyond the end of the full-hold rise.
+  for (let hold = 0; hold <= full.ticks; hold++) {
+    const height = probeJump(runtime, character, feelProfileId, hold).height;
+    if (height === Number.POSITIVE_INFINITY) {
+      return { height };
+    }
+    if (height > bound) {
+      bound = height;
+      best = hold;
+    }
+  }
+  return { height: bound, hold: best };
 }

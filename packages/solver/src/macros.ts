@@ -243,16 +243,26 @@ function steerings(feel: FeelProfile): Array<readonly [Dir, Dir]> {
 
 /**
  * Jump hold lengths to try. Without a variable jump the length does not matter, so one is
- * enough. Otherwise: evenly spaced from the shortest effective hold to the full rise, and the
- * full rise is always included.
+ * enough. Otherwise: evenly spaced from the shortest effective hold to the full rise. The full
+ * rise is always included, and so is `highest`, the hold that rises highest (from
+ * `measureHighestJump`; it is not always the full one). A hold of 0 cannot be made from the
+ * ground and is left out.
  */
-export function jumpHolds(feel: FeelProfile, riseTicks: number, samples: number): number[] {
+export function jumpHolds(
+  feel: FeelProfile,
+  riseTicks: number,
+  samples: number,
+  highest?: number,
+): number[] {
   if (feel.jumpCutScale >= FX_ONE) {
     return [1];
   }
   const shortest = Math.max(1, feel.minJumpTicks);
   const longest = Math.max(shortest, riseTicks);
   const holds = new Set<number>([longest]);
+  if (highest !== undefined && highest >= 1) {
+    holds.add(highest);
+  }
   const count = Math.max(2, samples);
   for (let i = 0; i < count; i++) {
     holds.add(shortest + Math.floor(((longest - shortest) * i) / (count - 1)));

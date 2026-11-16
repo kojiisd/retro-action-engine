@@ -2,6 +2,7 @@ import {
   actionMask,
   CONTACT_GROUNDED,
   createWorld,
+  type FeelProfile,
   FX_ONE,
   type InputFrame,
   type PackRuntime,
@@ -10,7 +11,8 @@ import {
 import { type FeelInPx, MODERN_PX, RETRO_PX, WALKER } from '@retro-action-engine/core/testing';
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
-import { measureRise, measureRiseBound } from './probe';
+import { jumpHolds } from './macros';
+import { measureHighestJump, measureRise, measureRiseBound } from './probe';
 import { emptyRows, fill, roomRuntime, START } from './test-support';
 
 const JUMP = actionMask('jump');
@@ -266,5 +268,57 @@ describe('measureRiseBound: no input sequence goes higher', () => {
       ),
       { numRuns: 150, seed: 20261116 },
     );
+  });
+});
+
+describe('measureHighestJump and the jump macros', () => {
+  const highestOf = (feel: Partial<FeelInPx>, profile = 'modern') =>
+    measureHighestJump(roomRuntime({ ...OPEN, feel }), WALKER, profile);
+  const earlyRelease = {
+    jumpCutScale: 0.95,
+    minJumpTicks: 0,
+    apexThreshold: 1,
+    apexGravityScale: 0.1,
+  };
+
+  it('gives the hold of the highest jump', () => {
+    // The standard profiles: the full hold is the highest.
+    const retroRise = measureRise(roomRuntime(OPEN), WALKER, 'retro');
+    expect(highestOf({}, 'retro')).toEqual({ height: retroRise.height, hold: retroRise.ticks });
+    const modernRise = measureRise(roomRuntime(OPEN), WALKER, 'modern');
+    expect(highestOf({})).toEqual({ height: modernRise.height, hold: modernRise.ticks });
+    // Letting go early goes higher.
+    const early = highestOf(earlyRelease);
+    expect(early.height).toBe(boundOf(earlyRelease));
+    expect(early.hold).toBeGreaterThan(0);
+    expect(early.hold).toBeLessThan(
+      measureRise(roomRuntime({ ...OPEN, feel: earlyRelease }), WALKER, 'modern').ticks,
+    );
+    // The hold given does reach the height.
+    expect(riseOf(tallRoom(earlyRelease), holdFrames(early.hold as number))).toBe(early.height);
+    // No bound, no hold.
+    expect(highestOf({ gravity: 0 })).toEqual({ height: Number.POSITIVE_INFINITY });
+    // Here only a cut jump never stops: cut to -1.2 px, then -0.2 px, inside the apex range
+    // where gravity is 0. The full hold stops normally.
+    const endlessCut = {
+      jumpVelocity: 4,
+      gravity: 1,
+      apexThreshold: 0.5,
+      apexGravityScale: 0,
+      jumpCutScale: 0.6,
+      minJumpTicks: 0,
+    };
+    expect(fullHoldOf(endlessCut)).toBeLessThan(Number.POSITIVE_INFINITY);
+    expect(highestOf(endlessCut)).toEqual({ height: Number.POSITIVE_INFINITY });
+  });
+
+  it('the jump macros always include that hold, but never a hold of 0', () => {
+    const runtime = roomRuntime({ ...OPEN, feel: earlyRelease });
+    const feel = { ...(runtime.feel.modern as FeelProfile) };
+    const rise = measureRise(runtime, WALKER, 'modern');
+    const early = highestOf(earlyRelease).hold as number;
+    expect(jumpHolds(feel, rise.ticks, 4)).not.toContain(early);
+    expect(jumpHolds(feel, rise.ticks, 4, early)).toContain(early);
+    expect(jumpHolds(feel, rise.ticks, 4, 0)).toEqual(jumpHolds(feel, rise.ticks, 4));
   });
 });

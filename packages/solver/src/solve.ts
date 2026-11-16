@@ -15,7 +15,7 @@ import {
 } from '@retro-action-engine/core';
 import { FootholdIndex, mergeFootholds } from './footholds';
 import { type Budget, groundMacros, jumpHolds } from './macros';
-import { measureRise, measureRiseBound } from './probe';
+import { measureHighestJump, measureRise, measureRiseBound } from './probe';
 import { Proofs } from './proofs';
 import { explore, type MemberPlan, pathHelds, type SearchContext, type SearchNode } from './search';
 import type {
@@ -97,7 +97,8 @@ function prepare(
     const feel = resolveFeel(profile, character.feelOverrides);
     const rise = measureRise(runtime, character, scopeStart.feelProfile);
     highest = Math.max(highest, rise.height);
-    const holds = jumpHolds(feel, rise.ticks, limits.jumpHoldSamples);
+    const best = measureHighestJump(runtime, character, scopeStart.feelProfile).hold;
+    const holds = jumpHolds(feel, rise.ticks, limits.jumpHoldSamples, best);
     return { character, feel, holds, ground: groundMacros(feel, holds, switching) };
   });
   const footholds = new FootholdIndex(grid, members);

@@ -68,10 +68,33 @@ export type ProvenBlocker =
     };
 
 /**
- * Why an unreached foothold was not reached. Only proofs exist so far; estimates (A-2, later)
- * are to be added as members with `certainty: 'estimated'`, never as proven ones.
+ * A hint at why the search did not reach a foothold (ADR-0015, "到達できない理由の推定"). Not a
+ * claim that it cannot be reached: a different type from `ProvenBlocker`, told apart by
+ * `certainty`, even where the reason has the same name.
  */
-export type Blocker = ProvenBlocker;
+export type EstimatedBlocker =
+  /** The search was cut short by a limit before it got there. */
+  | { readonly certainty: 'estimated'; readonly reason: 'budget' }
+  /** With this ability tag added (to every member), the search gets there. */
+  | { readonly certainty: 'estimated'; readonly reason: 'needsTag'; readonly tag: string }
+  /**
+   * Every reached foothold is lower, and the smallest rise from them (`riseNeeded`) is more
+   * than a full-hold jump in open air (`rise`, measured; both Fx). Not proven: some other
+   * input sequence may rise higher (see `riseBound`).
+   */
+  | {
+      readonly certainty: 'estimated';
+      readonly reason: 'tooHigh';
+      readonly riseNeeded: Fx;
+      readonly rise: Fx;
+    }
+  /** A reached foothold is high enough, but the search found no way across. */
+  | { readonly certainty: 'estimated'; readonly reason: 'tooFar' }
+  /** None of the above. */
+  | { readonly certainty: 'estimated'; readonly reason: 'unknown' };
+
+/** Why an unreached foothold was not reached: a proof, or else an estimate. */
+export type Blocker = ProvenBlocker | EstimatedBlocker;
 
 /**
  * Whether the character can get back to the start foothold from a reached foothold (ADR-0015,
@@ -96,7 +119,10 @@ export interface FootholdReport extends Foothold {
   readonly witness?: Witness;
   /** Reached only: the way back to the start foothold. */
   readonly return?: ReturnReport;
-  /** Unreached only, and only when there is one: why it cannot be reached. */
+  /**
+   * Unreached only: why. A proven blocker when there is one (it cannot be reached at all),
+   * otherwise an estimate (why the search did not get there).
+   */
   readonly blocker?: Blocker;
 }
 
@@ -122,6 +148,8 @@ export interface SolveStats {
   readonly replaysVerified: number;
   /** Searches for a way back to the start foothold (one per foothold that needed one). */
   readonly returnSearches: number;
+  /** Searches with a hypothetical ability tag, for the `needsTag` estimate. */
+  readonly tagSearches: number;
 }
 
 export interface ScopeReport {

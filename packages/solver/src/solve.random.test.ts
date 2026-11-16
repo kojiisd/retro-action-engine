@@ -74,7 +74,7 @@ describe('solveRoom: proofs against plain play in random rooms', () => {
           const index = new FootholdIndex(grid, [character]);
           const reportOf = (i: number) => scope.footholds[i] as (typeof scope.footholds)[number];
           proven += scope.footholds.filter(
-            (f) => f.blocker !== undefined || f.return?.status === 'provenNo',
+            (f) => f.blocker?.certainty === 'proven' || f.return?.status === 'provenNo',
           ).length;
 
           const world = createWorld(runtime, { ...start, party: [character.id] });
@@ -91,7 +91,7 @@ describe('solveRoom: proofs against plain play in random rooms', () => {
               for (const foothold of standingOn(grid, index, world, character)) {
                 const entry = reportOf(foothold);
                 // Standing on a foothold that is proven to be out of reach.
-                if (entry.blocker !== undefined) return false;
+                if (entry.blocker?.certainty === 'proven') return false;
                 // Back on the start foothold after standing where no way back is proven.
                 if (noWayBack && scope.startFootholds.includes(entry.id)) return false;
               }
@@ -153,7 +153,7 @@ describe('solveRoom: party proofs against plain play in random rooms', () => {
         const party = report.scopes.find((s) => s.scope.kind === 'party');
         if (party === undefined) return false;
         proven += party.footholds.filter(
-          (f) => f.blocker !== undefined || f.return?.status === 'provenNo',
+          (f) => f.blocker?.certainty === 'proven' || f.return?.status === 'provenNo',
         ).length;
 
         const world = createWorld(runtime, { ...start, party: ['walker', 'swimmer'] });
@@ -197,7 +197,7 @@ describe('solveRoom: party proofs against plain play in random rooms', () => {
             for (const run of standingRuns()) {
               // The box of a member can stand on runs it has no foothold in; only the runs
               // with a proof matter here.
-              if (run.blocker !== undefined) return false;
+              if (run.blocker?.certainty === 'proven') return false;
               if (noWayBack && party.startFootholds.includes(run.id)) return false;
               if (run.return?.status === 'provenNo') noWayBack = true;
             }

@@ -389,8 +389,8 @@ describe('solveRoom: a foothold that needs coyote time', () => {
     expect(report.complete).toBe(true);
     expect(footholdAt(scope, 24, 15).status).toBe('unreached');
     // "Not found", not "impossible": the target is within the rise and not walled off, so
-    // there is no proof either way.
-    expect(footholdAt(scope, 24, 15).blocker).toBeUndefined();
+    // there is no proof either way. The estimate says the height is not the problem.
+    expect(footholdAt(scope, 24, 15).blocker).toEqual({ certainty: 'estimated', reason: 'tooFar' });
     // The pit is still reached, by falling.
     expect(footholdAt(scope, 24, 35).status).toBe('reached');
   });

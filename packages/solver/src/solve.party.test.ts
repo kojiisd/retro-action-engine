@@ -176,7 +176,11 @@ describe('solveRoom: party proofs only where the ADR has an argument', () => {
     const party = partyOf({ switching: { requireGrounded: false } });
     expect(party?.proofs).toEqual({ region: true, height: false });
     expect(party?.riseBound).toBeNull();
-    expect(party?.footholds.some((f) => f.blocker?.reason === 'tooHigh')).toBe(false);
+    expect(
+      party?.footholds.some(
+        (f) => f.blocker?.certainty === 'proven' && f.blocker.reason === 'tooHigh',
+      ),
+    ).toBe(false);
     expect(party?.footholds.some((f) => f.return?.status === 'provenNo')).toBe(false);
   });
 
@@ -191,7 +195,7 @@ describe('solveRoom: party proofs only where the ADR has an argument', () => {
     const party = partyOf({ swimmer: { collider: tall } });
     expect(party?.proofs).toEqual({ region: false, height: false });
     expect(party?.riseBound).toBeNull();
-    expect(party?.footholds.some((f) => f.blocker !== undefined)).toBe(false);
+    expect(party?.footholds.some((f) => f.blocker?.certainty === 'proven')).toBe(false);
     // The members alone still use their own proofs.
     const report = solveRoom(roomRuntime({ ...fixture, swimmer: { collider: tall } }), start);
     expect(scopeOf(report, 'walker')?.proofs).toEqual({ region: true, height: true });

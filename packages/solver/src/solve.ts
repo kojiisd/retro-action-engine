@@ -1,8 +1,10 @@
 import {
   activeCharacter,
   type CharacterDef,
+  type CollisionGrid,
   canSwitch,
   createWorld,
+  effectiveTags,
   FX_ONE,
   type Fx,
   type PackRuntime,
@@ -17,6 +19,7 @@ import { measureRise, measureRiseBound } from './probe';
 import { Proofs } from './proofs';
 import { explore, type MemberPlan, pathHelds, type SearchContext, type SearchNode } from './search';
 import type {
+  EstimatedBlocker,
   Foothold,
   FootholdReport,
   MacroKind,
@@ -75,35 +78,29 @@ function proofRules(
   return { region, riseBound: height ? riseBound : Number.POSITIVE_INFINITY };
 }
 
-function solveScope(
+/** Search plans and footholds for the members, as `explore` needs them. */
+function prepare(
   runtime: PackRuntime,
-  scopeStart: StartState,
-  scope: Scope,
   members: readonly CharacterDef[],
+  scopeStart: StartState,
+  switching: boolean,
   options: SolverOptions,
   limits: SolveReport['limits'],
-  budget: Budget,
-): ScopeReport {
+): { context: SearchContext; footholds: FootholdIndex; rise: Fx } {
   const grid = roomGrid(runtime, scopeStart.roomId);
-  const world = createWorld(runtime, scopeStart);
-  const switching = scope.kind === 'party';
+  const profile = runtime.feel[scopeStart.feelProfile];
+  if (profile === undefined) {
+    throw new RangeError(`feel profile "${scopeStart.feelProfile}" is not defined`);
+  }
+  let highest = 0;
   const plans: MemberPlan[] = members.map((character) => {
-    const profile = runtime.feel[scopeStart.feelProfile];
-    if (profile === undefined) {
-      throw new RangeError(`feel profile "${scopeStart.feelProfile}" is not defined`);
-    }
     const feel = resolveFeel(profile, character.feelOverrides);
     const rise = measureRise(runtime, character, scopeStart.feelProfile);
+    highest = Math.max(highest, rise.height);
     const holds = jumpHolds(feel, rise.ticks, limits.jumpHoldSamples);
     return { character, feel, holds, ground: groundMacros(feel, holds, switching) };
   });
   const footholds = new FootholdIndex(grid, members);
-  const { runs, runOf } = mergeFootholds(
-    footholds,
-    members.map((member) => member.id),
-  );
-  const runsOf = (indexes: readonly number[]) =>
-    [...new Set(indexes.map((index) => runOf[index] as number))].sort((a, b) => a - b);
   const context: SearchContext = {
     runtime,
     grid,
@@ -116,6 +113,142 @@ function solveScope(
     maxMacroTicks: limits.maxMacroTicks,
     maxNodes: limits.maxNodes,
   };
+  return { context, footholds, rise: highest };
+}
+
+/** Ability tags the room's tiles ask for, in name order. */
+function roomTags(grid: CollisionGrid): string[] {
+  const tags = new Set<string>();
+  const seen = new Set<number>();
+  for (const id of grid.collision) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    for (const tag of grid.classById[id]?.requiresAnyTag ?? []) {
+      tags.add(tag);
+    }
+  }
+  return [...tags].sort();
+}
+
+/** True when a foothold of the hypothetical search lies on the same row, over the same columns. */
+const overlaps = (a: Foothold, b: Foothold) =>
+  a.row === b.row && a.colFrom <= b.colTo && b.colFrom <= a.colTo;
+
+/**
+ * The estimates for unreached footholds that have no proof (ADR-0015, in the order given
+ * there). Hypothetical searches use the shared step budget, but never change `complete`: the
+ * real search is what it is.
+ */
+function estimator(
+  runtime: PackRuntime,
+  grid: CollisionGrid,
+  members: readonly CharacterDef[],
+  scopeStart: StartState,
+  switching: boolean,
+  options: SolverOptions,
+  limits: SolveReport['limits'],
+  budget: Budget,
+  complete: boolean,
+  reached: readonly Foothold[],
+  rise: Fx,
+): ((targets: readonly Foothold[]) => EstimatedBlocker[]) & { tagSearches: () => number } {
+  let searches = 0;
+  const estimate = (targets: readonly Foothold[]): EstimatedBlocker[] => {
+    if (!complete) {
+      return targets.map(() => ({ certainty: 'estimated', reason: 'budget' }));
+    }
+    const result: Array<EstimatedBlocker | undefined> = targets.map(() => undefined);
+
+    // needsTag: the first tag (by name) that, given to everyone, lets the search get there.
+    const missing = roomTags(grid).filter(
+      (tag) => !members.every((member) => effectiveTags(member).has(tag)),
+    );
+    for (const tag of missing) {
+      const open = result.flatMap((blocker, i) => (blocker === undefined ? [i] : []));
+      if (open.length === 0) break;
+      const tagged = members.map((member) =>
+        effectiveTags(member).has(tag)
+          ? member
+          : { ...member, abilityTags: [...member.abilityTags, tag] },
+      );
+      const taggedRuntime: PackRuntime = {
+        ...runtime,
+        characters: {
+          ...runtime.characters,
+          ...Object.fromEntries(tagged.map((member) => [member.id, member])),
+        },
+      };
+      // No filter by the open region: a target without a proof is not walled off, and a tag
+      // only opens more cells, so it would never skip anything.
+      const world = createWorld(taggedRuntime, scopeStart);
+      const { context, footholds } = prepare(
+        taggedRuntime,
+        tagged,
+        scopeStart,
+        switching,
+        options,
+        limits,
+      );
+      searches++;
+      const search = explore(context, { world, held: 0 }, budget);
+      const stood = new Set<number>();
+      for (const node of search.nodes) {
+        for (const index of node.footholds) stood.add(index);
+      }
+      const standing = [...stood].map((index) => footholds.all[index] as Foothold);
+      for (const i of open) {
+        if (standing.some((foothold) => overlaps(foothold, targets[i] as Foothold))) {
+          result[i] = { certainty: 'estimated', reason: 'needsTag', tag };
+        }
+      }
+    }
+
+    return result.map((blocker, i) => {
+      if (blocker !== undefined) return blocker;
+      const target = targets[i] as Foothold;
+      if (reached.length === 0) {
+        return { certainty: 'estimated', reason: 'unknown' };
+      }
+      // y grows downward: a reached foothold is lower when its top is larger.
+      if (reached.some((foothold) => foothold.topPx <= target.topPx)) {
+        return { certainty: 'estimated', reason: 'tooFar' };
+      }
+      const riseNeeded =
+        Math.min(...reached.map((foothold) => foothold.topPx - target.topPx)) * FX_ONE;
+      return riseNeeded > rise
+        ? { certainty: 'estimated', reason: 'tooHigh', riseNeeded, rise }
+        : { certainty: 'estimated', reason: 'tooFar' };
+    });
+  };
+  return Object.assign(estimate, { tagSearches: () => searches });
+}
+
+function solveScope(
+  runtime: PackRuntime,
+  scopeStart: StartState,
+  scope: Scope,
+  members: readonly CharacterDef[],
+  options: SolverOptions,
+  limits: SolveReport['limits'],
+  budget: Budget,
+): ScopeReport {
+  const grid = roomGrid(runtime, scopeStart.roomId);
+  const world = createWorld(runtime, scopeStart);
+  const switching = scope.kind === 'party';
+  const { context, footholds, rise } = prepare(
+    runtime,
+    members,
+    scopeStart,
+    switching,
+    options,
+    limits,
+  );
+  const { runs, runOf } = mergeFootholds(
+    footholds,
+    members.map((member) => member.id),
+  );
+  const runsOf = (indexes: readonly number[]) =>
+    [...new Set(indexes.map((index) => runOf[index] as number))].sort((a, b) => a - b);
 
   const rules = proofRules(runtime, members, scopeStart.feelProfile, switching);
   const riseBound = rules.riseBound;
@@ -178,13 +311,16 @@ function solveScope(
     };
   };
 
+  const unproven: number[] = [];
   const reports: FootholdReport[] = runs.map((run, index) => {
     const node = firstNode.get(index);
     const blocker = proofs?.unreachable(run);
     if (node === undefined) {
-      return blocker === undefined
-        ? { ...run, status: 'unreached' }
-        : { ...run, status: 'unreached', blocker };
+      if (blocker === undefined) {
+        unproven.push(index);
+        return { ...run, status: 'unreached' };
+      }
+      return { ...run, status: 'unreached', blocker };
     }
     const there = pathHelds(search.nodes, node.id);
     const replay = replayFromHelds(runtime, scopeStart, there);
@@ -203,6 +339,29 @@ function solveScope(
       return: returnFrom(run, node, there),
     };
   });
+
+  // Estimates for what is neither reached nor proven out of reach. Proven runs keep their proof.
+  let tagSearches = 0;
+  if (unproven.length > 0) {
+    const estimate = estimator(
+      runtime,
+      grid,
+      members,
+      scopeStart,
+      switching,
+      options,
+      limits,
+      budget,
+      search.complete,
+      runs.filter((_, index) => firstNode.has(index)),
+      rise,
+    );
+    const estimates = estimate(unproven.map((index) => runs[index] as Foothold));
+    tagSearches = estimate.tagSearches();
+    unproven.forEach((index, i) => {
+      reports[index] = { ...(reports[index] as FootholdReport), blocker: estimates[i] };
+    });
+  }
 
   // Foothold graph: which macro kinds were seen to lead from one run to another.
   const kindsByPair = new Map<string, Set<MacroKind>>();
@@ -252,6 +411,7 @@ function solveScope(
       timeouts: search.timeouts,
       replaysVerified,
       returnSearches,
+      tagSearches,
     },
   };
 }

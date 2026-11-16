@@ -4,6 +4,7 @@ export { measureRise, measureRiseBound, type Rise } from './probe';
 export { ProofError, solveRoom } from './solve';
 export type {
   Blocker,
+  EstimatedBlocker,
   Foothold,
   FootholdReport,
   MacroKind,

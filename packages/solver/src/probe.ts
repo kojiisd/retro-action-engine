@@ -147,6 +147,8 @@ export function measureRiseBound(
   }
   const feel = resolveFeel(profile, character.feelOverrides);
   // Step 1 of the argument: gravity is never negative at any speed, and neither is the clamp.
+  // A measured jump cannot stand in for these checks: when the jump itself does not go up, it
+  // ends at once, although the standing body would drift up on its own.
   if (
     feel.gravity < 0 ||
     feel.fallGravityScale < 0 ||

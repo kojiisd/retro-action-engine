@@ -87,6 +87,28 @@ describe('measureRiseBound', () => {
     expect(riseOf(runtime, holdFrames(599))).toBeLessThan(bound);
   });
 
+  it('tries every cut tick up to the end of the rise', () => {
+    // Here the highest jump is released late: 9 ticks into a rise of 11.
+    const lateRelease = {
+      jumpCutScale: 0.5,
+      minJumpTicks: 0,
+      apexThreshold: 0.25,
+      apexGravityScale: 0.1,
+      gravity: 0.4,
+    };
+    const bound = boundOf(lateRelease);
+    const runtime = tallRoom(lateRelease);
+    const fullTicks = measureRise(runtime, WALKER, 'modern').ticks;
+    const rises = Array.from({ length: fullTicks + 2 }, (_, i) =>
+      riseOf(runtime, holdFrames(i + 1)),
+    );
+    const best = rises.indexOf(Math.max(...rises)) + 1;
+    expect(best).toBeGreaterThan(fullTicks / 2 + 1);
+    expect(best).toBeLessThan(fullTicks);
+    expect(bound).toBe(Math.max(...rises));
+    expect(bound).toBeGreaterThan(fullHoldOf(lateRelease));
+  });
+
   it('covers a jump that starts with the button already up (a buffered press)', () => {
     // Here the highest jump is the one cut on its very first tick.
     const feel = { ...earlyRelease, apexThreshold: 2, jumpVelocity: 2.1 };
@@ -127,6 +149,26 @@ describe('measureRiseBound', () => {
     expect(boundOf({ fallGravityScale: -1 })).toBe(Number.POSITIVE_INFINITY);
     expect(boundOf({ apexGravityScale: -1 })).toBe(Number.POSITIVE_INFINITY);
     expect(boundOf({ maxFallSpeed: -1 })).toBe(Number.POSITIVE_INFINITY);
+    // The measured jump says nothing in these cases: with a jump that goes down, it ends at
+    // once with no rise at all, while the standing body drifts up on its own.
+    const downwardJump = { jumpVelocity: -1 };
+    expect(boundOf({ ...downwardJump })).toBe(0);
+    expect(boundOf({ ...downwardJump, gravity: -0.1 })).toBe(Number.POSITIVE_INFINITY);
+    expect(boundOf({ ...downwardJump, apexGravityScale: -1 })).toBe(Number.POSITIVE_INFINITY);
+    expect(boundOf({ ...downwardJump, fallGravityScale: -1 })).toBe(Number.POSITIVE_INFINITY);
+    // The same through the overrides of the character.
+    const floating = {
+      ...WALKER,
+      feelOverrides: { jumpVelocity: -FX_ONE, gravity: -26 },
+    };
+    const runtime = roomRuntime(OPEN);
+    expect(measureRiseBound(runtime, floating, 'modern')).toBe(Number.POSITIVE_INFINITY);
+  });
+
+  it('the standing body really rises without a jump when gravity is negative', () => {
+    // What the checks above guard against, shown with the simulation itself.
+    const runtime = tallRoom({ jumpVelocity: -1, gravity: -0.1 });
+    expect(riseOf(runtime, [], 60)).toBeGreaterThan(0);
   });
 
   it('gives no bound when nothing ends the rise', () => {

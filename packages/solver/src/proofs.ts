@@ -47,8 +47,9 @@ export class Proofs {
     this.context = { abilityTags: effectiveTags(character) };
     this.region = this.flood(startCells);
     const size = grid.tileSize * FX_ONE;
-    // Row `heightTiles` is the room border below the last row: also a floor.
-    for (let row = grid.heightTiles; row >= 1; row--) {
+    // The room border below the last row is a floor too, but it is the lowest level there is,
+    // and only levels above the feet matter for climbing.
+    for (let row = grid.heightTiles - 1; row >= 1; row--) {
       for (let col = 0; col < grid.widthTiles; col++) {
         if (this.inRegion(col, row - 1) && solidAt(grid, col, row, this.context) !== 'none') {
           this.levels.push(row * size);

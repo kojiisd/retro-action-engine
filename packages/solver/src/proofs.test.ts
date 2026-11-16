@@ -175,7 +175,7 @@ describe('Proofs: cannotClimb', () => {
     expect(proofs?.cannotClimb(top, top)).toBeUndefined();
   });
 
-  it('counts the room border below the last row as a place to stand', () => {
+  it('climbs from the room border below the last row as from any floor', () => {
     // No floor tiles at all: the character rests on the border.
     const bare = emptyRows(20, 60);
     fill(bare, '=', 0, 19, 60 - 30);

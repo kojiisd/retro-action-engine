@@ -1,5 +1,7 @@
 import {
+  ACTIONS,
   type ActionId,
+  actionBit,
   EdgeBuffer,
   type InputFrame,
   type ResyncReason,
@@ -33,6 +35,8 @@ export interface FocusTargets {
 export class InputBuffer {
   private readonly sources: PhysicalSource[] = [];
   private readonly edges: EdgeBuffer;
+  /** The union last reported through `sourceChanged` (or forced by a focus-loss resync). */
+  private reported = 0;
 
   constructor(options: InputBufferOptions = {}) {
     this.edges = new EdgeBuffer({
@@ -66,9 +70,25 @@ export class InputBuffer {
     return mask;
   }
 
-  /** A device saw an action go down or up. */
+  /** A device saw an action go down or up. Prefer `sourceChanged` for devices that are sources. */
   transition(action: ActionId, down: boolean): void {
     this.edges.push(action, down);
+  }
+
+  /**
+   * A registered source changed its state. Queues one transition for each action whose union
+   * over all sources changed, in action order. An action held by two devices stays held until
+   * both let go.
+   */
+  sourceChanged(): void {
+    const now = this.physical();
+    const changed = now ^ this.reported;
+    this.reported = now;
+    if (changed === 0) return;
+    for (const action of ACTIONS) {
+      const bit = actionBit(action);
+      if ((changed & bit) !== 0) this.edges.push(action, (now & bit) !== 0);
+    }
   }
 
   /** The frame for the next tick. Call right before `step`. */
@@ -83,6 +103,7 @@ export class InputBuffer {
 
   /** Resync trigger (d): focus lost; every action counts as released. */
   focusLost(): void {
+    this.reported = 0;
     this.edges.resync('focusLost', 0);
   }
 

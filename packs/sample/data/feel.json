@@ -1,0 +1,53 @@
+{
+  "default": "modern",
+  "profiles": {
+    "retro": {
+      "name": "Retro",
+      "interpolation": "none",
+      "socd": "neutral",
+      "runSpeed": 1.5,
+      "groundAccel": 1.5,
+      "groundDecel": 1.5,
+      "turnDecel": 0,
+      "airAccel": 0,
+      "airDecel": 0,
+      "airControl": 0,
+      "jumpVelocity": 4.5,
+      "gravity": 0.25,
+      "fallGravityScale": 1,
+      "maxFallSpeed": 4,
+      "jumpCutScale": 1,
+      "minJumpTicks": 0,
+      "apexGravityScale": 1,
+      "apexThreshold": 0,
+      "coyoteTicks": 0,
+      "jumpBufferTicks": 0,
+      "dropThroughTicks": 8,
+      "landingLagTicks": 0
+    },
+    "modern": {
+      "name": "Modern",
+      "interpolation": "linear",
+      "socd": "lastWins",
+      "runSpeed": 1.5,
+      "groundAccel": 0.25,
+      "groundDecel": 0.3,
+      "turnDecel": 0.5,
+      "airAccel": 0.2,
+      "airDecel": 0.05,
+      "airControl": 1,
+      "jumpVelocity": 4,
+      "gravity": 0.21,
+      "fallGravityScale": 1.5,
+      "maxFallSpeed": 5,
+      "jumpCutScale": 0.4,
+      "minJumpTicks": 4,
+      "apexGravityScale": 0.6,
+      "apexThreshold": 0.5,
+      "coyoteTicks": 6,
+      "jumpBufferTicks": 6,
+      "dropThroughTicks": 8,
+      "landingLagTicks": 0
+    }
+  }
+}

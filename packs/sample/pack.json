@@ -1,0 +1,41 @@
+{
+  "formatVersion": "1.0",
+  "id": "sample",
+  "name": "Sample Pack",
+  "version": "0.1.0",
+  "engine": {
+    "formatVersion": "^1.0"
+  },
+  "display": {
+    "width": 320,
+    "height": 180,
+    "hudReserve": {
+      "top": 20,
+      "bottom": 0
+    },
+    "orientation": "landscape"
+  },
+  "tileSize": 16,
+  "entry": {
+    "roomId": "hub",
+    "spawnId": "start"
+  },
+  "files": {
+    "rooms": ["rooms/hub.tmj"],
+    "tilesets": ["tilesets/main.json"],
+    "atlases": {
+      "characters": "atlases/characters.json"
+    },
+    "characters": "data/characters.json",
+    "rules": "data/rules.json",
+    "feel": "data/feel.json",
+    "input": "data/input.json",
+    "camera": "data/camera.json"
+  },
+  "saveCompat": ">=0.1.0 <0.2.0",
+  "licenses": {
+    "code": "MIT",
+    "assets": "CC0-1.0"
+  },
+  "credits": "credits.json"
+}

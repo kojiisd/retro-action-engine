@@ -7,7 +7,6 @@
     { "path": "packages/renderer-phaser" },
     { "path": "packages/solver" },
     { "path": "apps/player" },
-    { "path": "packs/sample" },
     { "path": "infra" },
     { "path": "apps/gallery" },
     { "path": "scripts/site" }

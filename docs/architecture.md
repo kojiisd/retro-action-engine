@@ -61,7 +61,7 @@ graph BT
 | `input` | `core`（`InputFrame`、`ActionId`） | `pack`、`renderer-phaser` | キーボード、ゲームパッド、タッチの各デバイス、Action マップ、InputBuffer（エッジ規則、再同期） |
 | `renderer-phaser` | `core`、`pack`（アセット記述型）、`phaser` | `input` | Phaser Scene、ループドライバ、補間描画、タイル描画、音の再生、HUD |
 | `apps/player` | 上記すべて | なし | 配線、設定 UI、PWA、`window.__engine` テストフック、サンプルパックを使う統合テスト |
-| `packs/sample` | なし（データのみ） | なし | サンプルパック。`apps/player` の `public/packs/sample` にコピーされ、`pack` と `apps/player` のテスト fixture になる |
+| `packs/sample` | なし（データのみ） | コードを置かない | サンプルパック。ワークスペースのパッケージではなく、JSON と画像だけのディレクトリ（M1-5）。`apps/player` のビルドで `dist/packs/sample/` にコピーされ（開発サーバでも同じ URL で配信）、`pack` と `apps/player` のテスト fixture になる。データ以外のファイルが無いことは `pack` のテストで検査する。dependency-cruiser の `LAYERS` には含めない |
 | `solver` | `core` | `pack`、`input`、`renderer-phaser`、DOM。どのパッケージからも import されない | 到達可能性の解析（どの足場に行けるか、どこから戻れないか）。物理は core の `step` だけを使い、報告する経路は `runReplayHeadless` で検証する。[ADR-0015](decisions/ADR-0015-reachability-solver.md) |
 | `apps/gallery` | `scripts/site`（`vite.config.ts` からのみ） | エンジンの全パッケージ | サイトのトップ（`/`）のゲーム一覧。`site.json` からカードを作る。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
 | `scripts/site` | なし | エンジンと各アプリ（パッケージ名で呼ぶだけ） | `site.json` の検証と、サイト全体の組み立て（`pnpm site:build`。一覧をルートに、各ゲームを `play/<slug>/` に） |

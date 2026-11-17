@@ -30,8 +30,6 @@ const LAYERS = {
     name: '@retro-action-engine/player',
     allowed: ['core', 'pack', 'input', 'renderer-phaser'],
   },
-  // Data only. The sample pack is copied statically; it never imports engine code.
-  sample: { dir: 'packs/sample', name: '@retro-action-engine/sample-pack', allowed: [] },
   // The game list at the top of the site. Its build config reads site.json through site-tools.
   gallery: {
     dir: 'apps/gallery',

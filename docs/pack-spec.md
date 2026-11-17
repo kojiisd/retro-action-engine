@@ -62,7 +62,7 @@ pack-root/
 | `display.orientation` | `"landscape" \| "portrait" \| "any"` | ○ | 推奨する画面向き |
 | `tileSize` | int | ○ | タイルの一辺（px）。全部屋で共通 |
 | `entry.roomId` / `entry.spawnId` | string | ○ | 新規ゲームの開始位置 |
-| `files.*` | path | ○ | 各データファイルのパス（下記） |
+| `files.*` | path | ○ | 各データファイルのパス（下記）。`rooms`、`tilesets`、`atlases`、`characters`、`rules`、`feel`、`input` は必須。`camera`、`enemies`、`items`、`gimmicks`、`audio`、`strings` は任意（敵やアイテムの無いパックもある。M1-5 の時点で読むのは必須のものだけで、`camera` は形だけ検査する） |
 | `saveCompat` | semver range | ○ | この版が読み込めるセーブの `packVersion` の範囲 |
 | `licenses.code` / `licenses.assets` | SPDX | ○ | パック自体のライセンス |
 | `credits` | path | ○ | `credits.json` |
@@ -103,6 +103,8 @@ pack-root/
 }
 ```
 
+パス（`files.*`、`credits`、タイルセットとアトラスの `image`、マップの `tilesets[].source`）は、それを書いたファイルからの相対パス。`..` でパックのルートの外に出るもの、絶対パス、URL は読み込み時にエラーにする。
+
 プレイ領域は 320×160 px（20×10 タイル）。`display.height` がタイルサイズの倍数でなくても、プレイ領域をタイルの倍数に合わせることで screenFlip の端数問題を避けられる。
 
 ## 4. データファイル
@@ -112,9 +114,9 @@ pack-root/
 ```ts
 interface CharacterDef {
   id: string;
-  name: string;                       // "@strings:key" 可
+  name: string;                       // "@strings:key" 可（M3。M1-5 は文字を表示しない）
   abilityTags: string[];              // 基本の能力タグ
-  hp: { max: number };
+  hp?: { max: number };               // M3 で使う
   collider: { w: number; h: number; ox: number; oy: number }; // px。位置（足元中央）からの相対
   sprite: { atlas: string; animations: Record<string, AnimationDef> };
   feelOverrides?: Partial<FeelMotion>; // 操作感プロファイルの一部をキャラ別に上書き
@@ -487,6 +489,14 @@ Tiled の外部タイルセット形式をそのまま使う。`image` はタイ
 4. Tiled JSON を `RoomData` に変換する。規約違反は行番号ではなくオブジェクト名とレイヤ名で報告する。
 5. すべて通ったら `PackRuntime` を返す。1 つでもエラーがあれば読み込まない（警告のみなら読み込む）。
 
+補足（M1-5 の実装）:
+
+- 1 回の読み込みで、見つかったエラーをまとめて報告する。壊れたファイルに依存する検査（そのタイルセットを使う部屋など）は飛ばし、二次的なエラーを出さない。
+- 部屋の ID は `.tmj` のファイル名（拡張子を除く）。
+- タイルとオブジェクトのクラスは、Tiled 1.10 以降が書く `type` と、1.9 が書く `class` のどちらでも読む。
+- px から Fx への変換は `Math.round(v × 256)`。tick 数はそのまま整数で持つ。
+- ファイルの到着順に依存せず、`pack.json` に並べた順に処理する（同じパックからは常に同じ `PackRuntime` とエラー一覧になる）。
+
 ## 9. バージョニングと互換
 
 - `formatVersion` の minor 更新は後方互換の追加のみ（新しい任意フィールド、新しい Primitive）。major 更新では `pack/src/migrate/` に変換関数を置く。
@@ -497,7 +507,7 @@ Tiled の外部タイルセット形式をそのまま使う。`image` はタイ
 
 | ソース | 指定方法 | 備考 |
 | --- | --- | --- |
-| `builtin` | 既定 | `apps/player/public/packs/sample/` |
+| `builtin` | 既定 | リポジトリの `packs/sample/`。`apps/player` のビルドで `packs/sample/` として配信する（M1-5） |
 | `url` | `?pack=https://example.net/my-pack/` | 末尾 `/` のディレクトリ URL。CORS（`Access-Control-Allow-Origin`）が必要。http は拒否 |
 | `localDirectory` | 設定画面の「フォルダを開く」 | File System Access API。未対応ブラウザは `<input webkitdirectory>`。iOS は zip を選択 |
 | `cached` | 設定画面の一覧 | 読み込み済みパックを IndexedDB から復元 |

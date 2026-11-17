@@ -224,7 +224,7 @@ export interface TileClass {
 }
 
 // ---- core/world ----
-// M1-3 時点は tick, rng, roomId, party, controller, flags, entities。残りは使うシステムと同じ PR で追加する（ADR-0002 の hash 順に挿入）。
+// M1-5 時点は tick, rng, roomId, party, controller, animation, flags, entities。残りは使うシステムと同じ PR で追加する（ADR-0002 の hash 順に挿入）。
 // controller は操作中キャラクターの状態機械の記憶（接地 tick、ジャンプバッファ、SOCD の押下 tick など）。
 export interface World {
   tick: number;
@@ -232,6 +232,8 @@ export interface World {
   roomId: string;
   camera: CameraState;
   party: PartyState;         // members, activeIndex, cooldownTicks, perCharacter HP など
+  controller: ControllerState;
+  animation: AnimationState; // 操作中キャラクターのスプライトの name, frame, ticks（M1-5）
   inventory: InventoryState; // scope に応じて shared または characterId ごと
   flags: Record<string, number | boolean>;
   entities: EntityStore;     // id 昇順で走査できるコンポーネント表
@@ -258,7 +260,7 @@ export interface Simulation {
 
 export type WorldHash = readonly [number, number];
 
-// M1-3 時点の StepOutput は ui（activeCharacterId と canSwitch）のみ。render は M1-5、audio と transition は M3。
+// M1-5 時点の StepOutput は ui（activeCharacterId と canSwitch）と render。audio と transition は M3。
 export interface StepOutput {
   render: RenderSnapshot;
   audio: AudioCue[];
@@ -276,11 +278,12 @@ export interface RenderSprite {
   id: number;
   atlas: string;
   frame: string;
-  x: number;        // px
+  x: number;        // px（足元中央、床関数済み）
   y: number;        // px
   flipX: boolean;
   depth: number;
   visible: boolean;
+  teleported: boolean; // この tick で移動せずに位置が変わった（補間しない。ADR-0003）
 }
 
 export interface AudioCue {

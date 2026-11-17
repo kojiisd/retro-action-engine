@@ -71,16 +71,25 @@ export {
 } from './replay/replay';
 export { Script, script } from './replay/script';
 export { type FeelMotion, type FeelProfile, resolveFeel } from './runtime/feel';
+export type { GamepadInputId, InputDefaults } from './runtime/input-bindings';
 export type {
+  AnimationDef,
+  AssetManifest,
   CharacterDef,
+  DisplayDef,
   PackRuntime,
   PartyRules,
+  RenderLayerData,
   RoomData,
   RulesDef,
+  SpriteDef,
   StartState,
 } from './runtime/pack';
 export type { SolidKind, TileClass } from './runtime/tile';
+export { type FrameView, GameSession, type InputSource } from './session/session';
+export { animationStep, movementAnimation, resolveAnimation } from './sim/anim';
 export { type Intent, inputIntent } from './sim/intent';
+export { type RenderSnapshot, type RenderSprite, renderSnapshot } from './sim/output';
 export { activeCharacter, canSwitch } from './sim/party';
 export {
   createWorld,
@@ -94,6 +103,7 @@ export {
 export { effectiveTags } from './sim/tags';
 export { type ColliderFx, type EntityInit, EntityStore } from './world/entity-store';
 export {
+  type AnimationState,
   type ControllerState,
   cloneWorld,
   NEVER,

@@ -60,7 +60,8 @@ const FLAG_NUMBER = 0;
 const FLAG_BOOLEAN = 1;
 
 /**
- * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, party, controller, flags
+ * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, party, controller,
+ * animation, flags
  * (keys sorted by UTF-16 code units), entities (live ones in ascending id order, columns in
  * `COLUMNS` order).
  * Tombstones and slot positions do not affect the result, so `compact` keeps the hash.
@@ -88,6 +89,9 @@ export function hashWorld(world: World): WorldHash {
     .int32(c.landingLagUntilTick)
     .int32(c.leftPressedTick)
     .int32(c.rightPressedTick);
+
+  const a = world.animation;
+  h.string(a.name).int32(a.frame).int32(a.ticks);
 
   const keys = Object.keys(world.flags).sort();
   h.int32(keys.length);

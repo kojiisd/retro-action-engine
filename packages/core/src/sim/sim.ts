@@ -4,8 +4,10 @@ import type { InputFrame } from '../input/frame';
 import { type FeelProfile, resolveFeel } from '../runtime/feel';
 import type { PackRuntime, RoomData, StartState } from '../runtime/pack';
 import { newControllerState, newWorld, type World } from '../world/world';
+import { animationStep } from './anim';
 import { controllerStep } from './controller';
 import { inputIntent } from './intent';
+import { type RenderSnapshot, renderSnapshot } from './output';
 import { activeCharacter, canSwitch, partyStep } from './party';
 import { effectiveTags } from './tags';
 
@@ -16,9 +18,10 @@ export interface UiState {
   readonly canSwitch: boolean;
 }
 
-/** The part of `StepOutput` available as of M1-3. Render, audio and transitions come later. */
+/** The part of `StepOutput` available as of M1-5. Audio and transitions come with M3. */
 export interface StepOutput {
   readonly ui: UiState;
+  readonly render: RenderSnapshot;
 }
 
 const grids = new WeakMap<RoomData, CollisionGrid>();
@@ -104,7 +107,10 @@ export function setFeelProfile(world: World, runtime: PackRuntime, profileId: st
  */
 export function step(world: World, input: InputFrame, runtime: PackRuntime): StepOutput {
   const intent = inputIntent(world, input, currentFeel(world, runtime));
+  const activeBefore = world.party.activeIndex;
   partyStep(world, intent, runtime);
+  const teleported =
+    world.party.activeIndex !== activeBefore && runtime.rules.party.switch.placement === 'spawn';
   const feel = currentFeel(world, runtime);
   controllerStep(world, intent, feel);
 
@@ -135,7 +141,12 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   if (world.party.cooldownTicks > 0) {
     world.party.cooldownTicks--;
   }
+  animationStep(world, character);
 
   world.tick++;
-  return { ui: { activeCharacterId: character.id, canSwitch: canSwitch(world, runtime) } };
+  // output
+  return {
+    ui: { activeCharacterId: character.id, canSwitch: canSwitch(world, runtime) },
+    render: renderSnapshot(world, runtime, teleported),
+  };
 }

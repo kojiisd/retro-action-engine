@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build"
+    "build": "vite build",
+    "golden:update": "vitest run src/golden --update"
   },
   "dependencies": {
     "@retro-action-engine/core": "workspace:*",

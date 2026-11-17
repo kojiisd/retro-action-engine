@@ -1,0 +1,123 @@
+import { ACTIONS, type ActionId } from '@retro-action-engine/core';
+import { z } from 'zod';
+
+const px = z.number().finite();
+const ticks = z.int().nonnegative();
+const name = z.string().min(1);
+
+/** Animation (docs/pack-spec.md 4.1). */
+export const animationSchema = z.object({
+  frames: z.array(z.object({ frame: name, ticks: z.int().positive() })).min(1),
+  loop: z.boolean(),
+});
+
+/** The motion values of a feel profile, in px (docs/input-and-feel.md 8.2). */
+export const feelMotionShape = {
+  runSpeed: px,
+  groundAccel: px,
+  groundDecel: px,
+  turnDecel: px,
+  airAccel: px,
+  airDecel: px,
+  airControl: px,
+  jumpVelocity: px,
+  gravity: px,
+  fallGravityScale: px,
+  maxFallSpeed: px,
+  jumpCutScale: px,
+  minJumpTicks: ticks,
+  apexGravityScale: px,
+  apexThreshold: px,
+  coyoteTicks: ticks,
+  jumpBufferTicks: ticks,
+  dropThroughTicks: ticks,
+  landingLagTicks: ticks,
+};
+
+/** `characters.json`. Enemies-only fields (hitboxes) come with M3. */
+export const charactersSchema = z.object({
+  characters: z
+    .array(
+      z.object({
+        id: z.string().regex(/^[a-z0-9-]+$/, 'use lowercase letters, digits and "-"'),
+        name,
+        abilityTags: z.array(name),
+        hp: z.object({ max: z.int().positive() }).optional(),
+        collider: z.object({ w: px.positive(), h: px.positive(), ox: px, oy: px }),
+        sprite: z.object({ atlas: name, animations: z.record(name, animationSchema) }),
+        feelOverrides: z.object(feelMotionShape).partial().optional(),
+      }),
+    )
+    .min(1),
+});
+
+/** `rules.json`. Only `party` is used as of M1-5; the rest is kept for later milestones. */
+export const rulesSchema = z.looseObject({
+  party: z.object({
+    members: z.array(name).min(1),
+    switch: z.object({
+      mode: z.enum(['anywhere', 'atPoints', 'never']),
+      cooldownTicks: ticks,
+      requireGrounded: z.boolean(),
+      placement: z.enum(['same', 'spawn']),
+    }),
+  }),
+});
+
+/** `feel.json` (docs/pack-spec.md 4.6). */
+export const feelSchema = z.object({
+  default: name,
+  profiles: z.record(
+    name,
+    z.object({
+      name: name.optional(),
+      interpolation: z.enum(['linear', 'none']),
+      socd: z.enum(['neutral', 'lastWins', 'leftWins']),
+      ...feelMotionShape,
+    }),
+  ),
+});
+
+const actionId = z.enum(ACTIONS as unknown as [ActionId, ...ActionId[]]);
+const gamepadInput = z.union([
+  z.custom<`button${number}`>((v) => typeof v === 'string' && /^button\d+$/.test(v), {
+    message: 'expected "button<number>"',
+  }),
+  z.enum([
+    'dpadUp',
+    'dpadDown',
+    'dpadLeft',
+    'dpadRight',
+    'leftStickUp',
+    'leftStickDown',
+    'leftStickLeft',
+    'leftStickRight',
+  ]),
+]);
+
+/** `input.json` (docs/pack-spec.md 4.7). */
+export const inputSchema = z
+  .object({
+    keyboard: z.partialRecord(actionId, z.array(name)),
+    gamepad: z.object({ standard: z.partialRecord(actionId, z.array(gamepadInput)) }),
+    analog: z.object({ deadzone: z.number().min(0).max(1), release: z.number().min(0).max(1) }),
+    touch: z.object({ layout: name }),
+  })
+  .refine((v) => v.analog.release < v.analog.deadzone, {
+    message: 'analog.release must be smaller than analog.deadzone (hysteresis)',
+    path: ['analog', 'release'],
+  });
+
+/** `camera.json`. Not used before M3 (one screen per room); checked only for its shape. */
+export const cameraSchema = z.looseObject({ mode: z.enum(['scroll', 'screenFlip']) });
+
+/** A JSON Hash atlas (TexturePacker, free-tex-packer, Aseprite). */
+export const atlasSchema = z.object({
+  frames: z.record(
+    name,
+    z.looseObject({
+      frame: z.object({ x: z.int(), y: z.int(), w: z.int().positive(), h: z.int().positive() }),
+    }),
+  ),
+  meta: z.looseObject({ image: name }),
+});

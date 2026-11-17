@@ -58,7 +58,7 @@ export class GamepadDevice implements PhysicalSource {
   poll(): void {
     const seen = new Set<number>();
     const list = Array.from(this.getGamepads()).filter(
-      (pad): pad is GamepadLike => pad !== null && pad.connected && pad.mapping === 'standard',
+      (pad): pad is GamepadLike => pad?.connected === true && pad.mapping === 'standard',
     );
     // Lowest index first, so that two pads pressed in the same frame resolve the same way.
     list.sort((a, b) => a.index - b.index);

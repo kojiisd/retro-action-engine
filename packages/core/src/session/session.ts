@@ -43,6 +43,8 @@ export class GameSession {
   private prev: RenderSnapshot;
   private curr: RenderSnapshot;
   private ui: UiState;
+  private observer: ((tick: number, hash: WorldHash) => void) | undefined;
+  private dropped = 0;
 
   constructor(
     private readonly runtime: PackRuntime,
@@ -98,6 +100,24 @@ export class GameSession {
     return this.world.tick;
   }
 
+  /** Frames whose time the loop clamped (ADR-0003), since the session was created. */
+  get droppedFrames(): number {
+    return this.dropped;
+  }
+
+  /** The start of the current run (live or replay). */
+  get startState(): StartState {
+    return this.start;
+  }
+
+  /**
+   * Calls `observer` after every tick with the tick number and the World hash (test hooks:
+   * Determinism (c)). Hashing every tick costs time, so pass `undefined` to stop.
+   */
+  observeTicks(observer: ((tick: number, hash: WorldHash) => void) | undefined): void {
+    this.observer = observer;
+  }
+
   hash(): WorldHash {
     return hashWorld(this.world);
   }
@@ -122,6 +142,7 @@ export class GameSession {
       {
         tick: () => this.tick1(),
         dropped: () => {
+          this.dropped++;
           if (this.player === undefined) this.input.droppedTime?.();
         },
       },
@@ -142,6 +163,7 @@ export class GameSession {
     this.prev = this.curr;
     this.curr = out.render;
     this.ui = out.ui;
+    this.observer?.(this.world.tick, hashWorld(this.world));
   }
 
   private initialUi(): UiState {

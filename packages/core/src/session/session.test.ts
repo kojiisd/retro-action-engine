@@ -116,6 +116,29 @@ describe('GameSession', () => {
     session.replay(session.recording());
     session.frame(1000);
     expect(input.drops).toBe(1);
+    expect(session.droppedFrames).toBe(2);
+  });
+
+  it('reports every tick and its hash to an observer, the same as runReplayHeadless', () => {
+    const live = new GameSession(runtime, start, source(frames));
+    while (live.tick < frames.length) live.frame(TICK_MS);
+    const file = live.recording();
+    const headless = runReplayHeadless(file, runtime, { checkpointEvery: 1 });
+
+    const seen: Array<{ tick: number; hash: readonly [number, number] }> = [];
+    const replay = new GameSession(runtime, start, source([]));
+    replay.observeTicks((tick, hash) => seen.push({ tick, hash }));
+    replay.replay(file);
+    // Uneven frame times: several ticks in some frames, none in others.
+    const times = [5, 40, 16, 0, 70, 3];
+    for (let i = 0; !replay.replayDone; i++) replay.frame(times[i % times.length] as number);
+    replay.frame(100); // past the end: no more ticks, no more reports
+    expect(seen).toEqual(headless.checkpoints);
+    replay.observeTicks(undefined);
+    replay.restart();
+    replay.frame(TICK_MS);
+    expect(seen.length).toBe(headless.checkpoints.length);
+    expect(replay.startState).toEqual(start);
   });
 
   it('restart starts a new game and a new recording', () => {

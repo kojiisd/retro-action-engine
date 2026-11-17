@@ -25,7 +25,7 @@ describe('listFootholds', () => {
     fill(rows, '#', 0, 3, 2);
     const runtime = roomRuntime({ rows, tileSize: 8, spawn: [0, 0] });
     expect(listFootholds(roomGrid(runtime, 'room'), WALKER)).toEqual([
-      { id: 'walker:r2c0-3', characterId: 'walker', row: 2, colFrom: 0, colTo: 3, topPx: 16 },
+      { id: 'walker:r2c0-3', characterIds: ['walker'], row: 2, colFrom: 0, colTo: 3, topPx: 16 },
     ]);
   });
 

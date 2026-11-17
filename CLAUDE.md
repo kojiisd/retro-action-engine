@@ -132,7 +132,9 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 - M1-2（Fx / World / タイル衝突）は `core` に実装済み: `fx`（値域チェック付き）、xorshift32、`World` と `EntityStore`、`hash`、衝突グリッドと `movement`。core のテストの fixture は `packages/core/src/test-support.ts`（`buildRoom` など）。
 - M1-3（キャラクター制御、2 人切替、能力タグ通行）は `core` に実装済み: `createWorld` と `step`、`inputIntent`、`controller`、`party`、シナリオ DSL `script()`。Feel scenario は `packages/core/src/sim/feel.test.ts`（retro と modern、320×180 と 256×192）。
 - M1-4（InputBuffer、エッジ規則、リプレイ、Determinism）は実装済み: `core` の `loop`（`advance`、`LoopDriver`）、`EdgeBuffer`、`replay`（`Recorder`、`Player`、`runReplayHeadless`）。`input` の `InputBuffer`（物理状態の集約とフォーカス喪失の再同期）。
-- A-1（到達可能性ソルバー、キャラクター 1 人ずつ）は `solver` に実装済み: `solveRoom`（足場の列挙、着地状態の幅優先探索、マクロ入力、証拠リプレイの再生による検証、上限と統計）。設計は ADR-0015。A-2（切替とパーティ全体、戻れない領域、到達できない理由、Property テスト）は未着手で、引き継ぎは `docs/solver-handoff.md`。
+- A-1（到達可能性ソルバー、キャラクター 1 人ずつ）は `solver` に実装済み: `solveRoom`（足場の列挙、着地状態の幅優先探索、マクロ入力、証拠リプレイの再生による検証、上限と統計）。設計は ADR-0015。
+- A-2 も実装済み: 切替とパーティ全体の探索、上昇量の上限（`measureRiseBound`）、証明つきの到達できない理由（`enclosed`、`tooHigh`）と推定の理由（`EstimatedBlocker`）、戻れるかどうか（`verified`、`provenNo`、`notFound`）、操作感の Property テスト。M3 への拡張設計は ADR-0015 にある。次の A-3（鍵と扉のグラフ、M3-3 の後）への引き継ぎは `docs/solver-handoff.md`。
+  - 証明（`packages/solver/src/proofs.ts`）は、行ける範囲を広く見積もる側にだけ倒す。根拠を ADR に書けない規則では証明を出さない。推定を証明の型（`ProvenBlocker`、`provenNo`）に混ぜない。
   - solver のテストの fixture は `packages/solver/src/test-support.ts`（`roomRuntime` など）。core の fixture は `@retro-action-engine/core/testing` から使う（テスト専用）。
 - `pack` と `renderer-phaser` は、まだ空の `src/index.ts` だけ。
-- 次は `docs/roadmap.md` の M1-5（Phaser 描画、サンプルパック、キーボードとゲームパッド、Playwright smoke）と、A-2。どちらも互いに独立している。
+- 次は `docs/roadmap.md` の M1-5（Phaser 描画、サンプルパック、キーボードとゲームパッド、Playwright smoke）。解析ツールの次（A-3）は M3-3 の後。

@@ -33,10 +33,13 @@ export type Macro =
       readonly after: Dir;
     }
   /** Down + jump on a oneway floor, then fall while steering. */
-  | { readonly kind: 'drop'; readonly steer: Dir };
+  | { readonly kind: 'drop'; readonly steer: Dir }
+  /** Wait until the switch cooldown is over, switch to the next member, then land. */
+  | { readonly kind: 'switch' };
 
 const JUMP = actionMask('jump');
 const DOWN = actionMask('down');
+const SWITCH = actionMask('switch');
 const DIR_MASK: Record<Dir, number> = {
   [-1]: actionMask('left'),
   0: 0,
@@ -194,6 +197,21 @@ export function runMacro(sim: Sim, macro: Macro, bucketOf: (x: number) => number
         tick(sim, DOWN | JUMP | DIR_MASK[macro.steer]);
         fall(sim, macro.steer);
         break;
+      case 'switch': {
+        const before = sim.world.party.activeIndex;
+        // Let go of everything while the cooldown runs (it ends on its own), and of a switch
+        // button still down, so that the press is a fresh one.
+        while (sim.world.party.cooldownTicks > 0 || (sim.held & SWITCH) !== 0) {
+          tick(sim, 0);
+        }
+        tick(sim, SWITCH);
+        if (sim.world.party.activeIndex === before) {
+          // The rules refused (for example, not on the ground any more).
+          return { status: 'skipped' };
+        }
+        fall(sim, 0);
+        break;
+      }
     }
     return sim.helds.length === startTicks
       ? { status: 'skipped' }
@@ -225,16 +243,26 @@ function steerings(feel: FeelProfile): Array<readonly [Dir, Dir]> {
 
 /**
  * Jump hold lengths to try. Without a variable jump the length does not matter, so one is
- * enough. Otherwise: evenly spaced from the shortest effective hold to the full rise, and the
- * full rise is always included.
+ * enough. Otherwise: evenly spaced from the shortest effective hold to the full rise. The full
+ * rise is always included, and so is `highest`, the hold that rises highest (from
+ * `measureHighestJump`; it is not always the full one). A hold of 0 cannot be made from the
+ * ground and is left out.
  */
-export function jumpHolds(feel: FeelProfile, riseTicks: number, samples: number): number[] {
+export function jumpHolds(
+  feel: FeelProfile,
+  riseTicks: number,
+  samples: number,
+  highest?: number,
+): number[] {
   if (feel.jumpCutScale >= FX_ONE) {
     return [1];
   }
   const shortest = Math.max(1, feel.minJumpTicks);
   const longest = Math.max(shortest, riseTicks);
   const holds = new Set<number>([longest]);
+  if (highest !== undefined && highest >= 1) {
+    holds.add(highest);
+  }
   const count = Math.max(2, samples);
   for (let i = 0; i < count; i++) {
     holds.add(shortest + Math.floor(((longest - shortest) * i) / (count - 1)));
@@ -242,8 +270,15 @@ export function jumpHolds(feel: FeelProfile, riseTicks: number, samples: number)
   return [...holds].sort((a, b) => a - b);
 }
 
-/** The macros tried from every standing state, in a fixed order. */
-export function groundMacros(feel: FeelProfile, holds: readonly number[]): Macro[] {
+/**
+ * The macros tried from every standing state, in a fixed order. `switching`: the party can
+ * switch, so the switch macro is tried too (last).
+ */
+export function groundMacros(
+  feel: FeelProfile,
+  holds: readonly number[],
+  switching = false,
+): Macro[] {
   const macros: Macro[] = [{ kind: 'walk', dir: -1 }, { kind: 'walk', dir: 1 }, { kind: 'stop' }];
   for (const hold of holds) {
     for (const [before, after] of steerings(feel)) {
@@ -252,6 +287,9 @@ export function groundMacros(feel: FeelProfile, holds: readonly number[]): Macro
   }
   for (const steer of DIRS) {
     macros.push({ kind: 'drop', steer });
+  }
+  if (switching) {
+    macros.push({ kind: 'switch' });
   }
   return macros;
 }

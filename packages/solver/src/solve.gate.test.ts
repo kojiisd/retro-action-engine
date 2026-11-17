@@ -22,13 +22,41 @@ describe('solveRoom: nothing is reported as reached without passing the gate', (
     gate.mockClear();
   });
 
-  it('sends every reached foothold through the gate, with its own replay', () => {
+  it('sends every reached foothold and every way back through the gate, with its own replay', () => {
     const report = solveRoom(runtime, start);
     const reached = report.scopes.flatMap((s) => s.footholds.filter((f) => f.status === 'reached'));
     expect(reached.length).toBeGreaterThan(1);
-    expect(gate).toHaveBeenCalledTimes(reached.length);
-    const checked = gate.mock.calls.map(([, , , , replay]) => replay);
-    expect(checked).toEqual(reached.map((foothold) => foothold.witness?.replay));
+    const reported = reached.flatMap((foothold) => [
+      foothold.witness?.replay,
+      ...(foothold.return?.status === 'verified' ? [foothold.return.witness.replay] : []),
+    ]);
+    // The shelf is reached and left again, so there is at least one real way back.
+    expect(reported.length).toBeGreaterThan(reached.length);
+    expect(gate).toHaveBeenCalledTimes(reported.length);
+    expect(gate.mock.calls.map(([, , , , replay]) => replay)).toEqual(reported);
+  });
+
+  it('fails instead of reporting when the gate refuses a way back', () => {
+    // Footholds are checked from the top row down: the first replay goes to the shelf, the
+    // second one goes there and back to the floor. Refuse the second.
+    const reach = gate.getMockImplementation();
+    let calls = 0;
+    gate.mockImplementation((...args) => {
+      calls++;
+      if (calls === 2) {
+        throw new WitnessError('refused by the test');
+      }
+      return reach?.(...args);
+    });
+    try {
+      expect(() => solveRoom(runtime, start)).toThrow(WitnessError);
+      expect(calls).toBe(2);
+      // Same replay start, another target foothold, and more ticks.
+      const [first, second] = gate.mock.calls.slice(-2);
+      expect(second?.[5]).not.toBe(first?.[5]);
+    } finally {
+      gate.mockImplementation(reach as NonNullable<typeof reach>);
+    }
   });
 
   it('fails instead of reporting when the gate refuses a replay', () => {

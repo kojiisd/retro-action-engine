@@ -8,6 +8,7 @@ import {
   type InputFrame,
   type PackRuntime,
   type RoomData,
+  resolveFeel,
   step,
 } from '@retro-action-engine/core';
 
@@ -42,18 +43,25 @@ function openRoom(runtime: PackRuntime, character: CharacterDef, rows: number): 
   };
 }
 
+/** One jump in an empty room: the rise above the take-off height and how long it took. */
+interface ProbeResult {
+  readonly height: Fx;
+  readonly ticks: number;
+}
+
 /**
- * Measures a full-hold jump by running the real simulation in an empty room, so the result
- * follows whatever the controller does (apex gravity, clamps) without a second physics model.
+ * Runs one jump with the real simulation in an empty room and returns how far the feet rose.
+ * `hold` is the number of ticks the button stays down, counted from the take-off tick; 0 means
+ * the jump starts with the button already up (as a buffered press does). The run ends when the
+ * body stops rising. A rise that nothing stops gives an infinite height.
  */
-export function measureRise(
+function probeJump(
   runtime: PackRuntime,
   character: CharacterDef,
   feelProfileId: string,
-): Rise {
+  hold: number,
+): ProbeResult {
   const jump = actionMask('jump');
-  const first: InputFrame = { held: jump, pressed: jump, released: 0 };
-  const hold: InputFrame = { held: jump, pressed: 0, released: 0 };
   for (let rows = 64; rows <= MAX_PROBE_ROWS; rows *= 2) {
     const probeRuntime: PackRuntime = {
       ...runtime,
@@ -75,7 +83,9 @@ export function measureRise(
     let hitCeiling = false;
     // The body rises while vy < 0. A profile without gravity never stops: bail out by height.
     for (;;) {
-      step(world, ticks === 0 ? first : hold, probeRuntime);
+      const held = ticks < hold ? jump : 0;
+      const frame: InputFrame = { held, pressed: ticks === 0 ? jump : 0, released: 0 };
+      step(world, frame, probeRuntime);
       ticks++;
       const y = s.y[0] as number;
       minY = Math.min(minY, y);
@@ -92,4 +102,101 @@ export function measureRise(
     }
   }
   return { height: Number.POSITIVE_INFINITY, ticks: MAX_PROBE_ROWS };
+}
+
+/**
+ * Measures a full-hold jump by running the real simulation in an empty room, so the result
+ * follows whatever the controller does (apex gravity, clamps) without a second physics model.
+ * This is what the jump macros use; it is not an upper bound (see `measureRiseBound`).
+ */
+export function measureRise(
+  runtime: PackRuntime,
+  character: CharacterDef,
+  feelProfileId: string,
+): Rise {
+  return probeJump(runtime, character, feelProfileId, Number.POSITIVE_INFINITY);
+}
+
+/**
+ * An upper bound of the rise (ADR-0015, "上昇量の上限"): between two moments of standing, no
+ * input sequence lifts the feet of this character higher than this above where they last stood.
+ * Infinity when no bound can be given.
+ *
+ * Why it holds, for one character alone in a room of static tiles:
+ * 1. Without a jump the body never moves up: gravity only adds to vy, and the fall speed clamp
+ *    is not negative. This needs the four checks below; otherwise the answer is Infinity.
+ * 2. A jump needs to stand first, or to have stood within the coyote window. In that window the
+ *    body has only fallen (1), so the jump starts at or below where the feet last stood.
+ * 3. After the take-off tick the vertical speed depends on the inputs in one way only: the tick
+ *    on which the jump is cut (the first tick with the button up, not before minJumpTicks), and
+ *    a jump is cut at most once. Steering changes vx only.
+ * 4. So the highest rise in open air is the largest over all cut ticks, and every one of them is
+ *    run here with the real `step`. The full hold is not always the highest: with a weaker
+ *    gravity near the apex, a cut can slow the body into that range a tick earlier.
+ * 5. Tiles only take height away: a ceiling stops the rise and sets vy to 0, after which (1)
+ *    applies again; walls change vx only.
+ */
+export function measureRiseBound(
+  runtime: PackRuntime,
+  character: CharacterDef,
+  feelProfileId: string,
+): Fx {
+  return measureHighestJump(runtime, character, feelProfileId).height;
+}
+
+/** The highest jump in open air, and the hold that gives it. */
+export interface HighestJump {
+  /** The rise bound (`measureRiseBound`), in Fx. Infinity when there is none. */
+  readonly height: Fx;
+  /**
+   * Ticks the button stays down, from the take-off tick, for that height. 0 means the jump
+   * starts with the button already up (a buffered press), which a jump from the ground cannot
+   * do. The full hold is given as the length of the full-hold rise. Undefined with no bound.
+   */
+  readonly hold?: number;
+}
+
+/**
+ * `measureRiseBound`, together with the hold that reaches it. Ties go to the full hold, then
+ * to the shorter hold.
+ */
+export function measureHighestJump(
+  runtime: PackRuntime,
+  character: CharacterDef,
+  feelProfileId: string,
+): HighestJump {
+  const profile = runtime.feel[feelProfileId];
+  if (profile === undefined) {
+    throw new RangeError(`feel profile "${feelProfileId}" is not defined`);
+  }
+  const feel = resolveFeel(profile, character.feelOverrides);
+  // Step 1 of the argument: gravity is never negative at any speed, and neither is the clamp.
+  // A measured jump cannot stand in for these checks: when the jump itself does not go up, it
+  // ends at once, although the standing body would drift up on its own.
+  if (
+    feel.gravity < 0 ||
+    feel.fallGravityScale < 0 ||
+    feel.apexGravityScale < 0 ||
+    feel.maxFallSpeed < 0
+  ) {
+    return { height: Number.POSITIVE_INFINITY };
+  }
+  const full = probeJump(runtime, character, feelProfileId, Number.POSITIVE_INFINITY);
+  if (full.height === Number.POSITIVE_INFINITY) {
+    return { height: full.height };
+  }
+  let bound = full.height;
+  let best = full.ticks;
+  // A cut needs vy < 0, so no cut tick lies beyond the end of the full-hold rise.
+  for (let hold = 0; hold <= full.ticks; hold++) {
+    const height = probeJump(runtime, character, feelProfileId, hold).height;
+    if (height === Number.POSITIVE_INFINITY) {
+      return { height };
+    }
+    if (height > bound) {
+      bound = height;
+      best = hold;
+    }
+  }
+  return { height: bound, hold: best };
 }

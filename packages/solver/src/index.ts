@@ -1,15 +1,26 @@
 export { type FootholdIndex, listFootholds, standingOn } from './footholds';
 export { type Dir, jumpHolds, type Macro } from './macros';
-export { measureRise, type Rise } from './probe';
-export { solveRoom } from './solve';
+export {
+  type HighestJump,
+  measureHighestJump,
+  measureRise,
+  measureRiseBound,
+  type Rise,
+} from './probe';
+export { ProofError, solveRoom } from './solve';
 export type {
+  Blocker,
+  EstimatedBlocker,
   Foothold,
   FootholdReport,
   MacroKind,
+  ProvenBlocker,
+  ReturnReport,
   Scope,
   ScopeReport,
   SolveReport,
   SolverOptions,
   SolveStats,
+  Witness,
 } from './types';
 export { replayFromHelds, verifyWitness, WitnessError } from './witness';

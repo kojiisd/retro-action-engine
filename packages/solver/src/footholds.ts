@@ -76,7 +76,7 @@ export function listFootholds(grid: CollisionGrid, character: CharacterDef): Foo
       } else if (!standable && runStart >= 0) {
         footholds.push({
           id: `${character.id}:r${row}c${runStart}-${col - 1}`,
-          characterId: character.id,
+          characterIds: [character.id],
           row,
           colFrom: runStart,
           colTo: col - 1,
@@ -153,4 +153,66 @@ export function standingOn(
     }
   }
   return found.sort((a, b) => a - b);
+}
+
+/**
+ * Merges the footholds of the party members into runs of the room: footholds on the same row
+ * whose columns overlap become one. Returns the merged runs and, for each foothold of `index`,
+ * the run it belongs to. Every foothold of one character is a run of its own when the party has
+ * one member, with the same id.
+ */
+export function mergeFootholds(
+  index: FootholdIndex,
+  memberIds: readonly string[],
+): { runs: Foothold[]; runOf: number[] } {
+  const all = index.all;
+  if (memberIds.length === 1) {
+    return { runs: [...all], runOf: all.map((_, i) => i) };
+  }
+  // Sort by row, then by first column, then by party order: a fixed order for the ids.
+  const order = all
+    .map((_, i) => i)
+    .sort((a, b) => {
+      const fa = all[a] as Foothold;
+      const fb = all[b] as Foothold;
+      return fa.row - fb.row || fa.colFrom - fb.colFrom || fa.colTo - fb.colTo || a - b;
+    });
+  const runs: Foothold[] = [];
+  const runOf: number[] = new Array<number>(all.length).fill(-1);
+  let open:
+    | { row: number; colFrom: number; colTo: number; members: Set<string>; parts: number[] }
+    | undefined;
+  const close = () => {
+    if (open === undefined) return;
+    const run = runs.length;
+    runs.push({
+      id: `party:r${open.row}c${open.colFrom}-${open.colTo}`,
+      characterIds: memberIds.filter((id) => open?.members.has(id)),
+      row: open.row,
+      colFrom: open.colFrom,
+      colTo: open.colTo,
+      topPx: (all[open.parts[0] as number] as Foothold).topPx,
+    });
+    for (const part of open.parts) runOf[part] = run;
+    open = undefined;
+  };
+  for (const i of order) {
+    const f = all[i] as Foothold;
+    if (open !== undefined && open.row === f.row && f.colFrom <= open.colTo) {
+      open.colTo = Math.max(open.colTo, f.colTo);
+      for (const id of f.characterIds) open.members.add(id);
+      open.parts.push(i);
+      continue;
+    }
+    close();
+    open = {
+      row: f.row,
+      colFrom: f.colFrom,
+      colTo: f.colTo,
+      members: new Set(f.characterIds),
+      parts: [i],
+    };
+  }
+  close();
+  return { runs, runOf };
 }

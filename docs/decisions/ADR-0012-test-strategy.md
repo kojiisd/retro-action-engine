@@ -27,7 +27,7 @@
 | Determinism | 決定論 | 同一リプレイを (a) 同プロセスで 2 回、(b) 60 / 120 / 144Hz とスパイクを含むフレーム時間列でドライバ経由、(c) Node とブラウザ（Playwright で `window.__engine.runReplay()`）で実行し、tick 毎の hash が一致する。保存済み hash とは比較しない | Vitest + Playwright | 毎 PR |
 | Feel scenario | 操作感の仕様 | 小さな fixture 部屋 + 合成 `InputFrame` 列で結果を検証する。例: 「N tick 以内に足場 P に到達」「壁を貫通しない」「崖から `coyoteTicks` 以内のジャンプは成功し、+1 tick では失敗」「着地 `jumpBufferTicks` 前の押下で着地時にジャンプ」「最高到達高さがプロファイルから計算した範囲内」「タグが無いと通れず、あれば通れる」 | Vitest（node） | 毎 PR。プロファイル 2 種 × 解像度 2 種（320×180、256×192） |
 | Golden | 意図しない変化の検知 | サンプル部屋 × プロファイル 2 種 × 代表リプレイ 1 本の終端 hash（計 2〜3 本） | Vitest | 毎 PR |
-| Browser smoke | 統合 | 起動、パック読込、リプレイ hash が Node と一致、console error なし、M4 以降は manifest と SW | Playwright（Chromium） | 毎 PR |
+| Browser smoke | 統合 | 起動、パック読込、リプレイ hash が Node と一致（遅いフレームと時間の切り捨てがある状態でも）、console error なし、M4 以降は manifest と SW | Playwright（Chromium） | 毎 PR |
 | Visual | 描画回帰 | 少数のスクリーンショット（許容差あり） | Playwright | nightly / 手動 |
 | 実機 | モバイル固有 | 音解錠、サイレントスイッチ、向き、セーフエリア、音声フォーマット | 手動チェックリスト | M4、リリース前 |
 
@@ -41,6 +41,8 @@
 
 - 更新は `pnpm golden:update`。PR 本文に更新理由と、対応する feel / rules / 物理 / システム順の変更を書く。それらを伴わない golden 更新は差し戻す（CLAUDE.md に記載）。
 - golden が変わり、かつ Feel scenario が通っている状態が「意図した調整」。golden が変わり Feel scenario も落ちる場合は仕様違反の疑い。
+- 置き場所と実体（M1-5）: `apps/player/src/golden/`。代表リプレイは `replays.ts` に `script()` DSL で定義し、retro と modern の 2 本の終端 hash を Vitest のスナップショット（`__snapshots__/golden.test.ts.snap`）に保存する。`pnpm golden:update` は `apps/player` の `vitest run src/golden --update`。Determinism (c) の e2e も同じ代表リプレイを使う。
+- golden の隣に、代表リプレイが意図した経路を通っていること（どの能力でどこまで行けたか）を、データから導いた値で確かめるテストを置く。パックの変更でリプレイが「何もしない入力」になっても気付けるようにするため。
 
 ### ゲームパッド
 

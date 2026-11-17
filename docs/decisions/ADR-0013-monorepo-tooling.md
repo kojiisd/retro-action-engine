@@ -34,7 +34,8 @@
 - root スクリプト（M0 で確定）: `pnpm lint`（`biome check .`）, `pnpm format`, `pnpm typecheck`（`tsc -b` に続けて `tsc -p tsconfig.test.json`）, `pnpm test`（`vitest run`）, `pnpm depcruise`, `pnpm build`, `pnpm golden:update`, `pnpm e2e`。`build`、`golden:update`、`e2e` は各パッケージの同名スクリプトを `pnpm -r --if-present run` で実行する。
 - `.nvmrc` = 22。`engines.node >= 22.12`。
 - コミットは Conventional Commits。リリースは当面 git tag。npm 公開することになったら changesets を検討する。
-- CI の基本ジョブ（`ci.yml`）: `pnpm install --frozen-lockfile` → `lint` → `typecheck` → `test` → `depcruise` → `build` → `site:build`（サイト全体の組み立て）→ `cdk synth`（infra、プレースホルダー、認証情報なし。M1-1 から）。Playwright は M1-5 から追加。
+- CI の基本ジョブ（`ci.yml`）: `pnpm install --frozen-lockfile` → `lint` → `typecheck` → `test` → `depcruise` → `build` → `site:build`（サイト全体の組み立て）→ Chromium の導入（`playwright install --with-deps chromium`）→ `e2e`（M1-5 から）→ `cdk synth`（infra、プレースホルダー、認証情報なし。M1-1 から）。ジョブの timeout は 20 分（M1-5 で 15 分から延長）。
+- Playwright（M1-5）: `@playwright/test` は `apps/player` の devDependency で、版を固定する（1.63.0）。パッケージの導入時にはブラウザを落とさず、CI では上の手順で Chromium を入れる。e2e は `VITE_E2E_HOOKS=1` で `apps/player/dist-e2e/` にビルドし、`vite preview` で配信する（デプロイ用の `dist/` とは分ける）。失敗時のトレースを残す `actions/upload-artifact` は使っていない（新しい Action の追加になるため、必要になったら確認する）。
 
 ## 結果
 

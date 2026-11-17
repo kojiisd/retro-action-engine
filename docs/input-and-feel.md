@@ -412,9 +412,10 @@ interface ReplayFile {
 | メソッド | 用途 |
 | --- | --- |
 | `hash()` | 現在の `World` の hash |
-| `runReplay(file, opts)` | リプレイ実行と hash 取得（Determinism (c)） |
-| `getStats()` | `resyncCount`、`droppedFrames`、tick 数 |
-| `setFeelProfile(id)` | プロファイル切替 |
-| `loadPack(source)` | パック切替 |
+| `runReplay(file)` | 実際の描画ループでリプレイを再生し、全 tick の hash を返す（Determinism (c)）。再生中と再生後はライブ入力を無視する |
+| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル |
+| `setFeelProfile(id)` | プロファイルを切り替えて最初からやり直す |
+| `restart()` | ライブ入力で最初からやり直す |
+| `loadPack(source)` | パック切替（M4。外部パックの読み込みと合わせて追加） |
 
-本番ビルドでは `window.__engine` を公開しない（Vite の `import.meta.env.DEV` と e2e 用フラグで制御）。
+`window.__engine` を公開するのは、開発サーバ（`import.meta.env.DEV`）と、`VITE_E2E_HOOKS=1` を付けたビルドだけ（M1-5）。後者は e2e が `apps/player/dist-e2e/` に作るもので、デプロイ用のビルド（preview と deploy のワークフロー）は付けない。

@@ -112,7 +112,8 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 | `pnpm build` | 各パッケージの `build` スクリプト（現状は `apps/player` の `vite build` のみ） |
 | `pnpm site:build` | サイト全体を `dist-site/` に組み立てる（ルートに一覧、`play/<slug>/` に各ゲーム）。`SITE_BASE` で base を指定（既定 `/`、プレビューは `/pr-<n>/`） |
 | `pnpm --filter @retro-action-engine/infra synth` | CDK の 2 スタックをプレースホルダー設定で synth（認証情報不要、CI と同じ） |
-| `pnpm golden:update` / `pnpm e2e` | 各パッケージの同名スクリプトを実行（M1 以降で追加。無ければ何もしない） |
+| `pnpm golden:update` | golden の再生成（`apps/player` の `vitest run src/golden --update`）。更新の手順は上の「テスト」 |
+| `pnpm e2e` | Playwright（`apps/player`）。`VITE_E2E_HOOKS=1` で `dist-e2e/` にビルドし、`vite preview` で配信して Chromium で実行する。この環境では Chromium が入っているので、そのまま動く |
 
 - ワークスペースのパッケージは `package.json` の `exports` で TypeScript のソース（`src/index.ts`）を直接公開する。パッケージ間の import にビルドは要らない。
 - テストは各パッケージの `src/**/*.test.ts`。パッケージ用の tsconfig からは除外し、`tsconfig.test.json` がまとめて検査する。
@@ -125,7 +126,7 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 ## 現在の状態
 
 - M1-1（infra とプレビュー配備）は完了。AWS に適用済みで、受け入れ確認も済んでいる（2026-11-14）。
-  - 本番は `https://arcade.kojiisd.jp/`。トップは一覧（`apps/gallery`）、ゲームは `/play/2dsample/`（`apps/player` のプレースホルダーページ）。
+  - 本番は `https://arcade.kojiisd.jp/`。トップは一覧（`apps/gallery`）、ゲームは `/play/2dsample/`（`apps/player`。M1-5 のマージ前はプレースホルダーページ、マージ後はサンプルパックのゲーム）。
   - PR を作ると `/pr-<番号>/` にプレビューが出て、PR に URL がコメントされる。close で消え、reopen で戻る。`main` へのマージで本番に配信される。
   - `main` はルールセットで保護されている（PR 必須、`ci` 必須、force push と削除を禁止）。
   - infra（`infra/`）を変えたときだけ、所有者が手元で `cdk deploy` する。CloudFront Function を変えたら、手順書 9-0 の `test-function` で確認する。
@@ -136,5 +137,12 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 - A-2 も実装済み: 切替とパーティ全体の探索、上昇量の上限（`measureRiseBound`）、証明つきの到達できない理由（`enclosed`、`tooHigh`）と推定の理由（`EstimatedBlocker`）、戻れるかどうか（`verified`、`provenNo`、`notFound`）、操作感の Property テスト。M3 への拡張設計は ADR-0015 にある。次の A-3（鍵と扉のグラフ、M3-3 の後）への引き継ぎは `docs/solver-handoff.md`。
   - 証明（`packages/solver/src/proofs.ts`）は、行ける範囲を広く見積もる側にだけ倒す。根拠を ADR に書けない規則では証明を出さない。推定を証明の型（`ProvenBlocker`、`provenNo`）に混ぜない。
   - solver のテストの fixture は `packages/solver/src/test-support.ts`（`roomRuntime` など）。core の fixture は `@retro-action-engine/core/testing` から使う（テスト専用）。
-- `pack` と `renderer-phaser` は、まだ空の `src/index.ts` だけ。
-- 次は `docs/roadmap.md` の M1-5（Phaser 描画、サンプルパック、キーボードとゲームパッド、Playwright smoke）。解析ツールの次（A-3）は M3-3 の後。
+- M1-5（Phaser 描画、サンプルパック、キーボードとゲームパッド、Playwright smoke）は実装済み:
+  - `pack`: zod のスキーマ、Tiled の取り込み、`loadPack(fetchLike, baseUrl)`（エラーは `file#/pointer: message` でまとめて報告、パック外のパスは拒否）。
+  - `packs/sample`: データだけのディレクトリ（ワークスペースのパッケージではない）。部屋 `hub`、キャラクター `explorer`（タグなし）と `diver`（`move:swim`）。画像は所有者の確認済み（作者 `kojiisd`、CC0-1.0。生成に使ったプロンプトや下絵はリポジトリに置かない）。
+  - `input`: `ActionMap`、`KeyboardDevice`、`GamepadDevice`、`InputBuffer.sourceChanged()`。
+  - `renderer-phaser`: `startRenderer`。Phaser に触れない部分（補間、タイルレイヤ、HUD）は別モジュールでテストする。
+  - `apps/player`: 配線（`boot.ts`）、`window.__engine`（開発時と `VITE_E2E_HOOKS=1` のビルドだけ）、golden 2 本（`src/golden/`）、e2e（`e2e/`）。
+  - core の追加: スプライトのアニメーション（`World.animation`）、`RenderSnapshot`（`output` システム）、`GameSession`。
+- 次は `docs/roadmap.md` の M2-1（タッチ操作）。解析ツールの次（A-3）は M3-3 の後。
+- M1-5 のマージ後に、一覧のカード画像をプレイ画面のキャプチャに差し替え、`site.json` の説明文（「準備中のページ」）を直す。どちらも公開情報なので、案を出して所有者の確認を取る。

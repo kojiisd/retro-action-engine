@@ -91,31 +91,38 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-  participant RAF as Phaser Scene.update(time, delta)
-  participant Drv as LoopDriver (renderer-phaser)
-  participant Acc as loop.advance (core, pure)
+  participant RAF as Phaser Scene.update(time, delta)<br/>(renderer-phaser)
+  participant App as apps/player の frame 関数
+  participant Pad as GamepadDevice (input)
+  participant Ses as GameSession (core)
+  participant Drv as LoopDriver / advance (core, pure)
   participant Buf as InputBuffer (input)
   participant Rec as replay.Recorder (core)
   participant Sim as sim.step (core)
   participant Rnd as Phaser 表示
 
-  RAF->>Drv: frameMs
-  Drv->>Acc: advance(state, frameMs)
-  Acc-->>Drv: ticks (0..5), alpha, dropped
-  alt dropped == true
-    Drv->>Buf: resync()
+  RAF->>App: frame(delta)
+  App->>Pad: poll()（差分を InputBuffer へ）
+  App->>Ses: frame(delta)
+  Ses->>Drv: frame(delta)
+  Drv-->>Ses: ticks (0..5), alpha, dropped
+  alt dropped == true（リプレイ中は除く）
+    Ses->>Buf: droppedTime()（再同期）
   end
   loop ticks 回
-    Drv->>Buf: nextFrame()
-    Buf-->>Drv: InputFrame
-    Drv->>Rec: push(InputFrame)
-    Drv->>Sim: step(world, InputFrame, runtime)
-    Sim-->>Drv: StepOutput (render, audio, ui, transition)
+    Ses->>Buf: nextFrame()（リプレイ中は replay.Player）
+    Buf-->>Ses: InputFrame
+    Ses->>Rec: push(InputFrame)
+    Ses->>Sim: step(world, InputFrame, runtime)
+    Sim-->>Ses: StepOutput (render, ui)
   end
-  Drv->>Rnd: present(prevRender, currRender, alpha)
-  Drv->>Rnd: play(audio cues), update HUD(ui)
+  Ses-->>App: FrameView (prev, curr, alpha, ui)
+  App-->>RAF: FrameView
+  RAF->>Rnd: 補間して Sprite に書く、HUD を更新
 ```
 
+- tick を回すのは core の `GameSession`（M1-5）。`renderer-phaser` は `input` を import できないため、Scene の `update` は `apps/player` が渡す `frame` 関数を呼ぶだけで、返った `FrameView`（スナップショット 2 つと `alpha` と `ui`）を描く。描画側は `World` に触れない。
+- `StepOutput` の `audio` と `transition` は M3 で追加する。
 - `ticks == 0` のフレーム（120Hz 以上の表示で起こる）は `alpha` だけが進み、前回と今回の `RenderSnapshot` の間を補間して描く。
 - `dropped == true` はフレーム時間をクランプして時間を捨てたことを意味し、InputBuffer の再同期トリガになる（[input-and-feel.md](input-and-feel.md) のエッジ規則 7）。
 

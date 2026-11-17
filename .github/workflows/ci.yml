@@ -15,7 +15,7 @@ concurrency:
 jobs:
   ci:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -48,6 +48,15 @@ jobs:
       # Assembles the whole site (gallery at the root, games under play/<slug>/) as deploys do.
       - name: Site build
         run: pnpm site:build
+
+      # Chromium and the OS libraries it needs, from Playwright's download server.
+      - name: Install Chromium for Playwright
+        run: pnpm --filter @retro-action-engine/player exec playwright install --with-deps chromium
+
+      # Browser smoke and Determinism (c). Builds the app with the test hooks (VITE_E2E_HOOKS=1)
+      # for the test only; deploy builds never set it.
+      - name: E2E
+        run: pnpm e2e
 
       # Synthesizes both CDK stacks with the placeholder config. No AWS credentials are used.
       - name: CDK synth

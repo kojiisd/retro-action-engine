@@ -8,3 +8,6 @@ dist-site/
 infra/config/deploy.json
 .DS_Store
 *.log
+test-results/
+dist-e2e/
+playwright-report/

@@ -1,5 +1,12 @@
 import type { GameSession, ReplayFile, WorldHash } from '@retro-action-engine/core';
 
+declare global {
+  interface Window {
+    /** Test hooks; present only in dev and e2e builds. */
+    __engine?: EngineHooks;
+  }
+}
+
 export interface TickHash {
   readonly tick: number;
   readonly hash: WorldHash;

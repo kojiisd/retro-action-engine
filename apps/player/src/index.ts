@@ -1,13 +1,6 @@
 import { PackLoadError } from '@retro-action-engine/pack';
 import { bootGame } from './boot';
 import { readBuildInfo, summarizeBuild } from './build-info';
-import type { EngineHooks } from './engine-hooks';
-
-declare global {
-  interface Window {
-    __engine?: EngineHooks;
-  }
-}
 
 const summary = summarizeBuild(readBuildInfo(import.meta.env));
 document.title = `retro-action-engine · ${summary.heading}`;

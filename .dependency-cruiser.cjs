@@ -42,10 +42,11 @@ const LAYERS = {
   infra: { dir: 'infra', name: '@retro-action-engine/infra', allowed: [] },
 };
 
-const TEST_FILE = '\\.test\\.ts$';
+// Vitest tests (*.test.ts) and Playwright tests (*.e2e.ts).
+const TEST_FILE = '\\.(test|e2e)\\.ts$';
 // Files that are never part of a runtime bundle: tests, tool configs (vite.config.ts,
 // vitest.config.ts) and type declarations. They may use devDependencies and root tooling.
-const BUILD_TIME_FILE = '(\\.test\\.ts|\\.config\\.ts|\\.d\\.ts)$';
+const BUILD_TIME_FILE = '(\\.test\\.ts|\\.e2e\\.ts|\\.config\\.ts|\\.d\\.ts)$';
 // Any module that belongs to this repository, in resolved or unresolved form.
 const REPO_INTERNAL = '^(packages|apps|packs|infra|scripts)/|^@retro-action-engine/';
 
@@ -168,7 +169,7 @@ module.exports = {
     // node_modules/<pkg>/dist/*, which is where packages like vitest resolve to.
     exclude: {
       path: [
-        '^(packages|apps|packs|scripts)/[^/]+/dist/',
+        '^(packages|apps|packs|scripts)/[^/]+/dist(-e2e)?/',
         '^infra/(dist|cdk\\.out)/',
         '^dist-site/',
       ],

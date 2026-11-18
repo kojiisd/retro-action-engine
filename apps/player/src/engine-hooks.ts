@@ -39,6 +39,8 @@ export interface EngineHooks {
   setFeelProfile(id: string): void;
   /** Starts over with live input. */
   restart(): void;
+  /** The live input since the last start, as a replay (what the devices produced). */
+  recording(): ReplayFile;
 }
 
 export interface HookTargets {
@@ -108,5 +110,7 @@ export function createEngineHooks({
       cancelPending('the game was restarted');
       session.restart();
     },
+
+    recording: () => session.recording(),
   };
 }

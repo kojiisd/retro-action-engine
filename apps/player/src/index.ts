@@ -12,7 +12,11 @@ info.textContent = [summary.heading, ...summary.details.map(([, value]) => value
 
 const stage = document.createElement('main');
 stage.className = 'stage';
-document.body.append(stage, info);
+// The virtual pad: over the game screen in landscape, below it in portrait (see index.html).
+const touchArea = document.createElement('div');
+touchArea.className = 'touch-area';
+document.body.append(stage, touchArea, info);
+const coarse = window.matchMedia('(pointer: coarse)');
 document.body.dataset.state = 'loading';
 
 const exposeHooks = import.meta.env.DEV || import.meta.env.VITE_E2E_HOOKS === '1';
@@ -25,6 +29,15 @@ bootGame({
   getGamepads: () => navigator.getGamepads(),
   onReady: () => {
     document.body.dataset.state = 'ready';
+  },
+  onDisplay: ({ width, height }) => {
+    document.documentElement.style.setProperty('--game-ratio', String(height / width));
+  },
+  touch: {
+    area: touchArea,
+    document,
+    coarsePointer: () => coarse.matches,
+    onVisibleChange: (visible) => document.body.classList.toggle('touch', visible),
   },
 })
   .then((game) => {

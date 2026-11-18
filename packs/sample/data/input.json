@@ -34,6 +34,33 @@
     "release": 0.25
   },
   "touch": {
-    "layout": "default"
+    "layout": "default",
+    "layouts": {
+      "default": {
+        "handedness": "right",
+        "opacity": 0.5,
+        "dpad": {
+          "cx": 0.13,
+          "cy": 0.72,
+          "radius": 0.22,
+          "deadzoneRatio": 0.25,
+          "floating": false
+        },
+        "buttons": [
+          {
+            "action": "jump",
+            "cx": 0.9,
+            "cy": 0.76,
+            "radius": 0.12
+          },
+          {
+            "action": "switch",
+            "cx": 0.76,
+            "cy": 0.56,
+            "radius": 0.09
+          }
+        ]
+      }
+    }
   }
 }

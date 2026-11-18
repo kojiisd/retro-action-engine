@@ -46,6 +46,11 @@ export class GamepadDevice implements PhysicalSource {
     private readonly getGamepads: () => ArrayLike<GamepadLike | null>,
   ) {}
 
+  /** True while a standard-mapping pad is connected (seen at the last poll). */
+  get connected(): boolean {
+    return this.pads.size > 0;
+  }
+
   /** Index of the pad being read, if any. */
   get activeIndex(): number | undefined {
     return this.active;

@@ -71,7 +71,12 @@ export {
 } from './replay/replay';
 export { Script, script } from './replay/script';
 export { type FeelMotion, type FeelProfile, resolveFeel } from './runtime/feel';
-export type { GamepadInputId, InputDefaults } from './runtime/input-bindings';
+export type {
+  GamepadInputId,
+  InputDefaults,
+  TouchDefaults,
+  TouchLayout,
+} from './runtime/input-bindings';
 export type {
   AnimationDef,
   AssetManifest,

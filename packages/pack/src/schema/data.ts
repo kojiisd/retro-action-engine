@@ -83,6 +83,10 @@ const gamepadInput = z.union([
   z.custom<`button${number}`>((v) => typeof v === 'string' && /^button\d+$/.test(v), {
     message: 'expected "button<number>"',
   }),
+  z.custom<`axis${number}+` | `axis${number}-`>(
+    (v) => typeof v === 'string' && /^axis\d+[+-]$/.test(v),
+    { message: 'expected "axis<number>+" or "axis<number>-"' },
+  ),
   z.enum([
     'dpadUp',
     'dpadDown',

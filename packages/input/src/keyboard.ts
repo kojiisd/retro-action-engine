@@ -23,6 +23,8 @@ export interface SourceSink {
 export class KeyboardDevice implements PhysicalSource {
   /** Bound keys that are down. */
   private readonly down = new Set<string>();
+  private suspended = false;
+  private capture: ((code: string) => void) | undefined;
 
   constructor(
     private readonly map: ActionMap,
@@ -36,9 +38,31 @@ export class KeyboardDevice implements PhysicalSource {
     return mask;
   }
 
+  /**
+   * While suspended (a menu is open), keys are left to the page: nothing is held, nothing is
+   * prevented. Suspending forgets the keys that were down, without reporting.
+   */
+  setSuspended(suspended: boolean): void {
+    this.suspended = suspended;
+    if (suspended) this.down.clear();
+  }
+
+  /**
+   * While set, the next key downs (any key, bound or not, not auto repeat) go to `capture`
+   * instead of the game, with their default action prevented (docs/input-and-feel.md 4.3).
+   */
+  setCapture(capture: ((code: string) => void) | undefined): void {
+    this.capture = capture;
+  }
+
   keyDown(event: KeyEventLike): void {
     if (event.isComposing) return;
-    if (this.map.key(event.code) === 0) return;
+    if (this.capture !== undefined) {
+      event.preventDefault();
+      if (!event.repeat) this.capture(event.code);
+      return;
+    }
+    if (this.suspended || this.map.key(event.code) === 0) return;
     event.preventDefault();
     if (event.repeat || this.down.has(event.code)) return;
     this.down.add(event.code);
@@ -46,8 +70,9 @@ export class KeyboardDevice implements PhysicalSource {
   }
 
   keyUp(event: KeyEventLike): void {
-    if (this.map.key(event.code) === 0) return;
-    event.preventDefault();
+    if (this.suspended) return;
+    if (this.map.key(event.code) !== 0) event.preventDefault();
+    // Also for a key whose binding was removed while it was down.
     if (!this.down.delete(event.code)) return;
     this.sink.sourceChanged();
   }

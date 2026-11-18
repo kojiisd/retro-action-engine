@@ -1,8 +1,9 @@
 import type { ActionId } from '../input/frame';
 
 /**
- * A gamepad control in the standard mapping (docs/pack-spec.md 4.7). Buttons by index, the
- * d-pad, and the four directions of the left stick.
+ * A gamepad control (docs/pack-spec.md 4.7). Buttons by index; in the standard mapping also the
+ * d-pad and the four directions of the left stick; and the direction of any axis (M2-2, for
+ * non-standard pads and the other axes).
  */
 export type GamepadInputId =
   | `button${number}`
@@ -13,7 +14,9 @@ export type GamepadInputId =
   | 'leftStickUp'
   | 'leftStickDown'
   | 'leftStickLeft'
-  | 'leftStickRight';
+  | 'leftStickRight'
+  | `axis${number}+`
+  | `axis${number}-`;
 
 /**
  * Default bindings of a pack (`data/input.json`). They live in core so that `input` and the app

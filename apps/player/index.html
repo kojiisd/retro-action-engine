@@ -68,6 +68,11 @@
         opacity: 0.45;
         pointer-events: none;
         z-index: 2;
+        /* One line, cut short on narrow screens so it never covers the HUD icons on the left. */
+        max-width: 55vw;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .error {
         margin: 16px;

@@ -115,7 +115,17 @@ function packFiles(): Files {
       keyboard: { left: ['ArrowLeft'], right: ['ArrowRight'], jump: ['KeyZ'] },
       gamepad: { standard: { jump: ['button0'], left: ['dpadLeft', 'leftStickLeft'] } },
       analog: { deadzone: 0.5, release: 0.35 },
-      touch: { layout: 'default' },
+      touch: {
+        layout: 'default',
+        layouts: {
+          default: {
+            handedness: 'right',
+            opacity: 0.5,
+            dpad: { cx: 0.15, cy: 0.7, radius: 0.2, deadzoneRatio: 0.25, floating: false },
+            buttons: [{ action: 'jump', cx: 0.9, cy: 0.75, radius: 0.1 }],
+          },
+        },
+      },
     },
     'atlases/people.json': {
       frames: {
@@ -348,6 +358,37 @@ describe('loadPack errors', () => {
     expect(await issuesOf(files)).toEqual([
       'data/input.json#/analog/release: analog.release must be smaller than analog.deadzone (hysteresis)',
     ]);
+  });
+
+  it('checks the virtual pad layouts', async () => {
+    const missing = edit(packFiles(), 'data/input.json', (i) => {
+      i.touch.layout = 'compact';
+    });
+    expect(await issuesOf(missing)).toEqual([
+      'data/input.json#/touch/layout: touch.layout must name one of touch.layouts',
+    ]);
+    const bad = edit(packFiles(), 'data/input.json', (i) => {
+      i.touch.layouts.default.buttons[0].action = 'dash';
+      i.touch.layouts.default.dpad.radius = 0.6;
+      i.touch.layouts.default.dpad.deadzoneRatio = 1;
+    });
+    const issues = await issuesOf(bad);
+    expect(issues.map((m) => m.split(':')[0])).toEqual([
+      'data/input.json#/touch/layouts/default/dpad/radius',
+      'data/input.json#/touch/layouts/default/dpad/deadzoneRatio',
+      'data/input.json#/touch/layouts/default/buttons/0/action',
+    ]);
+  });
+
+  it('keeps the virtual pad layout as it is (ratios, not px)', async () => {
+    const { runtime } = await loadPack(memoryFetch(packFiles()), BASE);
+    expect(runtime.input.touch.layouts.default?.dpad).toEqual({
+      cx: 0.15,
+      cy: 0.7,
+      radius: 0.2,
+      deadzoneRatio: 0.25,
+      floating: false,
+    });
   });
 
   it('skips rooms whose tileset is broken instead of reporting follow-on errors', async () => {

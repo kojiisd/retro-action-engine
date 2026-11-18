@@ -26,7 +26,7 @@ const DEFAULTS: InputDefaults = {
     },
   },
   analog: { deadzone: 0.5, release: 0.3 },
-  touch: { layout: 'default' },
+  touch: { layout: 'default', layouts: {} },
 };
 
 const m = actionMask;

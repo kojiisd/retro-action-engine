@@ -27,5 +27,38 @@ export interface InputDefaults {
   };
   /** Stick thresholds, 0..1. `release` < `deadzone` (hysteresis). */
   readonly analog: { readonly deadzone: number; readonly release: number };
-  readonly touch: { readonly layout: string };
+  /** The virtual pad (docs/input-and-feel.md 9). */
+  readonly touch: TouchDefaults;
+}
+
+export interface TouchDefaults {
+  /** Name of the layout used by default (a key of `layouts`). */
+  readonly layout: string;
+  readonly layouts: Readonly<Record<string, TouchLayout>>;
+}
+
+/**
+ * One virtual pad layout (docs/pack-spec.md 4.7). `cx`, `cy` are 0..1 inside the pad area;
+ * `radius` is a ratio of the pad area's shorter side. Button icons follow from the action.
+ */
+export interface TouchLayout {
+  /** `left` mirrors every `cx`. */
+  readonly handedness: 'right' | 'left';
+  /** 0..1, used where the pad sits over the game screen (landscape). */
+  readonly opacity: number;
+  readonly dpad: {
+    readonly cx: number;
+    readonly cy: number;
+    readonly radius: number;
+    /** Below `radius * deadzoneRatio` from the center there is no direction. */
+    readonly deadzoneRatio: number;
+    /** The first touch inside the d-pad becomes its center. */
+    readonly floating: boolean;
+  };
+  readonly buttons: ReadonlyArray<{
+    readonly action: ActionId;
+    readonly cx: number;
+    readonly cy: number;
+    readonly radius: number;
+  }>;
 }

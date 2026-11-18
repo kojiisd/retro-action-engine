@@ -95,13 +95,35 @@ const gamepadInput = z.union([
   ]),
 ]);
 
+const unit = z.number().min(0).max(1);
+const touchRadius = z.number().positive().max(0.5);
+
+/** One virtual pad layout (docs/pack-spec.md 4.7, docs/input-and-feel.md 9). */
+const touchLayoutSchema = z.object({
+  handedness: z.enum(['right', 'left']),
+  opacity: unit,
+  dpad: z.object({
+    cx: unit,
+    cy: unit,
+    radius: touchRadius,
+    deadzoneRatio: z.number().min(0).lt(1),
+    floating: z.boolean(),
+  }),
+  buttons: z.array(z.object({ action: actionId, cx: unit, cy: unit, radius: touchRadius })),
+});
+
 /** `input.json` (docs/pack-spec.md 4.7). */
 export const inputSchema = z
   .object({
     keyboard: z.partialRecord(actionId, z.array(name)),
     gamepad: z.object({ standard: z.partialRecord(actionId, z.array(gamepadInput)) }),
     analog: z.object({ deadzone: z.number().min(0).max(1), release: z.number().min(0).max(1) }),
-    touch: z.object({ layout: name }),
+    touch: z
+      .object({ layout: name, layouts: z.record(name, touchLayoutSchema) })
+      .refine((t) => t.layouts[t.layout] !== undefined, {
+        message: 'touch.layout must name one of touch.layouts',
+        path: ['layout'],
+      }),
   })
   .refine((v) => v.analog.release < v.analog.deadzone, {
     message: 'analog.release must be smaller than analog.deadzone (hysteresis)',

@@ -1,4 +1,4 @@
-import { actionMask, type TouchLayout } from '@retro-action-engine/core';
+import { type ActionId, actionMask, type TouchLayout } from '@retro-action-engine/core';
 import { describe, expect, it } from 'vitest';
 import { InputBuffer } from './input-buffer';
 import {
@@ -80,7 +80,7 @@ describe('dpadSector', () => {
     [315, 'right+up'],
   ])('%i degrees is %s', (degrees, name) => {
     const [x, y] = at(0, 0, degrees, 50);
-    const actions = name.split('+') as Parameters<typeof m>;
+    const actions = name.split('+') as ActionId[];
     expect(sectorMask(dpadSector(x, y, dz, undefined))).toBe(m(...actions));
   });
 
@@ -152,7 +152,10 @@ describe('TouchPadDevice', () => {
 
   it('presses the button under a finger and slides from one button to another', () => {
     const { buffer, pad, placed } = rig();
-    const [jump, swap] = placed.buttons as [{ x: number; y: number }, { x: number; y: number }];
+    const [jump, swap] = placed.buttons as unknown as [
+      { x: number; y: number },
+      { x: number; y: number },
+    ];
     pad.pointerDown(7, jump.x, jump.y);
     expect(buffer.nextFrame().held).toBe(m('jump'));
     pad.pointerMove(7, swap.x, swap.y);

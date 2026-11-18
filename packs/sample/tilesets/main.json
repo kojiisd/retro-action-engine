@@ -1,0 +1,59 @@
+{
+  "type": "tileset",
+  "version": "1.10",
+  "tiledversion": "1.11.2",
+  "name": "main",
+  "tilewidth": 16,
+  "tileheight": 16,
+  "tilecount": 8,
+  "columns": 8,
+  "image": "main.png",
+  "imagewidth": 128,
+  "imageheight": 16,
+  "margin": 0,
+  "spacing": 0,
+  "tiles": [
+    {
+      "id": 0,
+      "type": "solid"
+    },
+    {
+      "id": 1,
+      "type": "solid"
+    },
+    {
+      "id": 2,
+      "type": "solid"
+    },
+    {
+      "id": 3,
+      "type": "solid"
+    },
+    {
+      "id": 4,
+      "type": "oneway"
+    },
+    {
+      "id": 5,
+      "type": "solid",
+      "properties": [
+        {
+          "name": "requiresAnyTag",
+          "type": "string",
+          "value": "move:swim"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "solid",
+      "properties": [
+        {
+          "name": "requiresAnyTag",
+          "type": "string",
+          "value": "move:swim"
+        }
+      ]
+    }
+  ]
+}

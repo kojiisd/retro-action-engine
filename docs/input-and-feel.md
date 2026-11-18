@@ -40,15 +40,17 @@ flowchart LR
 
 - `window` の `keydown` / `keyup` を監視し、`KeyboardEvent.code` でバインドを引く。`repeat === true` は無視する。
 - バインド済みのキーだけ `preventDefault()`（ブラウザのスクロールやスペースの既定動作を抑止）。未バインドのキーは素通し。
-- IME 合成中（`isComposing`）は無視する。
-- `blur` と `visibilitychange(hidden)` で再同期トリガ (d)（全 action 解放）。
+- IME 合成中（`isComposing`）の keydown は無視する。keyup は合成中でも受け取る（解放を取りこぼして押しっぱなしになるのを防ぐ）。
+- `blur` と `visibilitychange(hidden)` で再同期トリガ (d)（全 action 解放）。デバイスは押下中のキーの集合も空にする（ほかのウィンドウで離したキーの keyup は届かないため）。
+- 複数のデバイスや複数のキーが同じ action に割り当てられているとき、action はそのどれかが押されている間 held になる。デバイスは自分の状態が変わったら `InputBuffer.sourceChanged()` を呼び、InputBuffer が全デバイスの和の変化だけを遷移としてキューに積む（M1-5）。
 
 ### 3.2 GamepadDevice
 
 - RAF 毎（ループドライバのフレーム先頭、tick 消化の前）に `navigator.getGamepads()` を読み、前回のスナップショットとの差分を遷移としてキューに積む。120Hz の表示では 1 tick に 2 回ポーリングされ、短いタップも差分として残る。
 - `mapping === "standard"` のパッドは `input.json` の `gamepad.standard` を使う（M1）。非標準は M2 の割当 UI で `gamepad.<id>` を作るまで未割当。
 - 複数パッド: 最後に入力があったパッドを「アクティブ」とし、他は無視する（設定で固定も可）。
-- 接続・切断は `gamepadconnected` / `gamepaddisconnected` で検知し、切断時はそのパッド由来の held をすべて up にする。
+- 接続・切断は `getGamepads()` の結果（`null` または `connected: false`）で検知し、切断時はそのパッド由来の held をすべて up にする（M1-5。イベントはポーリングと同じ情報なので使わない）。
+- アクティブなパッドは、新しく押された入力（割当の有無を問わない）があったパッド。同じフレームに複数あれば index の大きい方。
 - アナログ軸のデジタル化: 軸値の絶対値が `deadzone`（既定 0.35）以上で down、`release`（既定 0.25）以下で up（ヒステリシス）。方向は符号。左スティックのみ方向に使う。
 - 振動は `gamepad.vibrationActuator` があれば任意で使う（設定で切替）。
 
@@ -410,9 +412,10 @@ interface ReplayFile {
 | メソッド | 用途 |
 | --- | --- |
 | `hash()` | 現在の `World` の hash |
-| `runReplay(file, opts)` | リプレイ実行と hash 取得（Determinism (c)） |
-| `getStats()` | `resyncCount`、`droppedFrames`、tick 数 |
-| `setFeelProfile(id)` | プロファイル切替 |
-| `loadPack(source)` | パック切替 |
+| `runReplay(file)` | 実際の描画ループでリプレイを再生し、全 tick の hash を返す（Determinism (c)）。再生中と再生後はライブ入力を無視する |
+| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル |
+| `setFeelProfile(id)` | プロファイルを切り替えて最初からやり直す |
+| `restart()` | ライブ入力で最初からやり直す |
+| `loadPack(source)` | パック切替（M4。外部パックの読み込みと合わせて追加） |
 
-本番ビルドでは `window.__engine` を公開しない（Vite の `import.meta.env.DEV` と e2e 用フラグで制御）。
+`window.__engine` を公開するのは、開発サーバ（`import.meta.env.DEV`）と、`VITE_E2E_HOOKS=1` を付けたビルドだけ（M1-5）。後者は e2e が `apps/player/dist-e2e/` に作るもので、デプロイ用のビルド（preview と deploy のワークフロー）は付けない。

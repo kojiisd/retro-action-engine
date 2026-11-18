@@ -1,0 +1,143 @@
+{
+  "characters": [
+    {
+      "id": "explorer",
+      "name": "Explorer",
+      "abilityTags": [],
+      "collider": {
+        "w": 10,
+        "h": 20,
+        "ox": -5,
+        "oy": -20
+      },
+      "sprite": {
+        "atlas": "characters",
+        "animations": {
+          "idle": {
+            "frames": [
+              {
+                "frame": "explorer/idle-0",
+                "ticks": 30
+              },
+              {
+                "frame": "explorer/idle-1",
+                "ticks": 30
+              }
+            ],
+            "loop": true
+          },
+          "run": {
+            "frames": [
+              {
+                "frame": "explorer/run-0",
+                "ticks": 6
+              },
+              {
+                "frame": "explorer/run-1",
+                "ticks": 6
+              },
+              {
+                "frame": "explorer/run-2",
+                "ticks": 6
+              },
+              {
+                "frame": "explorer/run-3",
+                "ticks": 6
+              }
+            ],
+            "loop": true
+          },
+          "jump": {
+            "frames": [
+              {
+                "frame": "explorer/jump-0",
+                "ticks": 1
+              }
+            ],
+            "loop": false
+          },
+          "fall": {
+            "frames": [
+              {
+                "frame": "explorer/fall-0",
+                "ticks": 1
+              }
+            ],
+            "loop": false
+          }
+        }
+      }
+    },
+    {
+      "id": "diver",
+      "name": "Diver",
+      "abilityTags": ["move:swim"],
+      "collider": {
+        "w": 10,
+        "h": 20,
+        "ox": -5,
+        "oy": -20
+      },
+      "sprite": {
+        "atlas": "characters",
+        "animations": {
+          "idle": {
+            "frames": [
+              {
+                "frame": "diver/idle-0",
+                "ticks": 30
+              },
+              {
+                "frame": "diver/idle-1",
+                "ticks": 30
+              }
+            ],
+            "loop": true
+          },
+          "run": {
+            "frames": [
+              {
+                "frame": "diver/run-0",
+                "ticks": 6
+              },
+              {
+                "frame": "diver/run-1",
+                "ticks": 6
+              },
+              {
+                "frame": "diver/run-2",
+                "ticks": 6
+              },
+              {
+                "frame": "diver/run-3",
+                "ticks": 6
+              }
+            ],
+            "loop": true
+          },
+          "jump": {
+            "frames": [
+              {
+                "frame": "diver/jump-0",
+                "ticks": 1
+              }
+            ],
+            "loop": false
+          },
+          "fall": {
+            "frames": [
+              {
+                "frame": "diver/fall-0",
+                "ticks": 1
+              }
+            ],
+            "loop": false
+          }
+        }
+      },
+      "feelOverrides": {
+        "runSpeed": 1.25
+      }
+    }
+  ]
+}

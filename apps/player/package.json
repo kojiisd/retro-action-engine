@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build"
+    "build": "vite build",
+    "golden:update": "vitest run src/golden --update",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@retro-action-engine/core": "workspace:*",
@@ -13,6 +15,7 @@
     "@retro-action-engine/renderer-phaser": "workspace:*"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "vite": "^8.3.2"
   }
 }

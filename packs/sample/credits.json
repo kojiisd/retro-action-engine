@@ -1,0 +1,18 @@
+{
+  "assets": [
+    {
+      "path": "atlases/characters.png",
+      "author": "kojiisd",
+      "license": "CC0-1.0",
+      "source": "original",
+      "notes": "Created with AI tools and edited by hand."
+    },
+    {
+      "path": "tilesets/main.png",
+      "author": "kojiisd",
+      "license": "CC0-1.0",
+      "source": "original",
+      "notes": "Created with AI tools and edited by hand."
+    }
+  ]
+}

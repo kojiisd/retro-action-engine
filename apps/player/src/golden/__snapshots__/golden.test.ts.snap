@@ -1,0 +1,21 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`golden: sample pack representative replay > modern: the end hash is unchanged 1`] = `
+{
+  "hash": [
+    2250734879,
+    2007989687,
+  ],
+  "tick": 417,
+}
+`;
+
+exports[`golden: sample pack representative replay > retro: the end hash is unchanged 1`] = `
+{
+  "hash": [
+    4217409835,
+    761742691,
+  ],
+  "tick": 417,
+}
+`;

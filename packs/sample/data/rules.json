@@ -1,0 +1,11 @@
+{
+  "party": {
+    "members": ["explorer", "diver"],
+    "switch": {
+      "mode": "anywhere",
+      "cooldownTicks": 20,
+      "requireGrounded": false,
+      "placement": "same"
+    }
+  }
+}

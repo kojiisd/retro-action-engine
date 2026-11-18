@@ -42,6 +42,16 @@ export interface ControllerState {
   rightPressedTick: number;
 }
 
+/** Animation of the party entity's sprite. Advanced by the `timers` system, one tick at a time. */
+export interface AnimationState {
+  /** Animation name in the active character's sprite ('' before the first tick). */
+  name: string;
+  /** Frame index in that animation. */
+  frame: number;
+  /** Ticks spent on the current frame so far. */
+  ticks: number;
+}
+
 /**
  * Mutable simulation state (docs/architecture.md). Fields are added together with the systems
  * that use them, and `hashWorld` covers each in the order ADR-0002 fixes. Camera and inventory
@@ -54,6 +64,7 @@ export interface World {
   roomId: string;
   party: PartyState;
   controller: ControllerState;
+  animation: AnimationState;
   flags: Record<string, number | boolean>;
   entities: EntityStore;
 }
@@ -87,6 +98,7 @@ export function newWorld(init: WorldInit): World {
     roomId: init.roomId,
     party: { members: [], activeIndex: 0, cooldownTicks: 0, entityId: 0, spawnX: 0, spawnY: 0 },
     controller: newControllerState(''),
+    animation: { name: '', frame: 0, ticks: 0 },
     flags: {},
     entities: new EntityStore(),
   };
@@ -100,6 +112,7 @@ export function cloneWorld(world: World): World {
     roomId: world.roomId,
     party: { ...world.party, members: [...world.party.members] },
     controller: { ...world.controller },
+    animation: { ...world.animation },
     flags: { ...world.flags },
     entities: world.entities.clone(),
   };

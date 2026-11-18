@@ -15,9 +15,11 @@
     "packages/*/src/test-setup.ts",
     "packages/*/vitest.config.ts",
     "apps/*/src/**/*.test.ts",
-    "packs/*/src/**/*.test.ts",
+    "apps/*/src/test-support.ts",
     "infra/src/**/*.test.ts",
     "scripts/*/src/**/*.test.ts",
-    "apps/*/vite.config.ts"
+    "apps/*/vite.config.ts",
+    "apps/*/playwright.config.ts",
+    "apps/*/e2e/**/*.ts"
   ]
 }

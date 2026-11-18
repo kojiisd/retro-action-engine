@@ -1,0 +1,39 @@
+{
+  "keyboard": {
+    "left": ["ArrowLeft", "KeyA"],
+    "right": ["ArrowRight", "KeyD"],
+    "up": ["ArrowUp", "KeyW"],
+    "down": ["ArrowDown", "KeyS"],
+    "jump": ["KeyZ", "Space"],
+    "attack": ["KeyX"],
+    "switch": ["KeyC", "ShiftLeft"],
+    "item": ["KeyV"],
+    "pause": ["Escape"],
+    "menu": ["Enter"],
+    "confirm": ["KeyZ", "Enter"],
+    "cancel": ["KeyX", "Escape"]
+  },
+  "gamepad": {
+    "standard": {
+      "left": ["dpadLeft", "leftStickLeft"],
+      "right": ["dpadRight", "leftStickRight"],
+      "up": ["dpadUp", "leftStickUp"],
+      "down": ["dpadDown", "leftStickDown"],
+      "jump": ["button0"],
+      "attack": ["button2"],
+      "switch": ["button1"],
+      "item": ["button3"],
+      "pause": ["button9"],
+      "menu": ["button8"],
+      "confirm": ["button0"],
+      "cancel": ["button1"]
+    }
+  },
+  "analog": {
+    "deadzone": 0.35,
+    "release": 0.25
+  },
+  "touch": {
+    "layout": "default"
+  }
+}

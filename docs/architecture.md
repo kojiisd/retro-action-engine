@@ -61,7 +61,7 @@ graph BT
 | `input` | `core`（`InputFrame`、`ActionId`） | `pack`、`renderer-phaser` | キーボード、ゲームパッド、タッチの各デバイス、Action マップ、InputBuffer（エッジ規則、再同期） |
 | `renderer-phaser` | `core`、`pack`（アセット記述型）、`phaser` | `input` | Phaser Scene、ループドライバ、補間描画、タイル描画、音の再生、HUD |
 | `apps/player` | 上記すべて | なし | 配線、設定 UI、PWA、`window.__engine` テストフック、サンプルパックを使う統合テスト |
-| `packs/sample` | なし（データのみ） | なし | サンプルパック。`apps/player` の `public/packs/sample` にコピーされ、`pack` と `apps/player` のテスト fixture になる |
+| `packs/sample` | なし（データのみ） | コードを置かない | サンプルパック。ワークスペースのパッケージではなく、JSON と画像だけのディレクトリ（M1-5）。`apps/player` のビルドで `dist/packs/sample/` にコピーされ（開発サーバでも同じ URL で配信）、`pack` と `apps/player` のテスト fixture になる。データ以外のファイルが無いことは `pack` のテストで検査する。dependency-cruiser の `LAYERS` には含めない |
 | `solver` | `core` | `pack`、`input`、`renderer-phaser`、DOM。どのパッケージからも import されない | 到達可能性の解析（どの足場に行けるか、どこから戻れないか）。物理は core の `step` だけを使い、報告する経路は `runReplayHeadless` で検証する。[ADR-0015](decisions/ADR-0015-reachability-solver.md) |
 | `apps/gallery` | `scripts/site`（`vite.config.ts` からのみ） | エンジンの全パッケージ | サイトのトップ（`/`）のゲーム一覧。`site.json` からカードを作る。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
 | `scripts/site` | なし | エンジンと各アプリ（パッケージ名で呼ぶだけ） | `site.json` の検証と、サイト全体の組み立て（`pnpm site:build`。一覧をルートに、各ゲームを `play/<slug>/` に） |
@@ -91,31 +91,38 @@ flowchart LR
 
 ```mermaid
 sequenceDiagram
-  participant RAF as Phaser Scene.update(time, delta)
-  participant Drv as LoopDriver (renderer-phaser)
-  participant Acc as loop.advance (core, pure)
+  participant RAF as Phaser Scene.update(time, delta)<br/>(renderer-phaser)
+  participant App as apps/player の frame 関数
+  participant Pad as GamepadDevice (input)
+  participant Ses as GameSession (core)
+  participant Drv as LoopDriver / advance (core, pure)
   participant Buf as InputBuffer (input)
   participant Rec as replay.Recorder (core)
   participant Sim as sim.step (core)
   participant Rnd as Phaser 表示
 
-  RAF->>Drv: frameMs
-  Drv->>Acc: advance(state, frameMs)
-  Acc-->>Drv: ticks (0..5), alpha, dropped
-  alt dropped == true
-    Drv->>Buf: resync()
+  RAF->>App: frame(delta)
+  App->>Pad: poll()（差分を InputBuffer へ）
+  App->>Ses: frame(delta)
+  Ses->>Drv: frame(delta)
+  Drv-->>Ses: ticks (0..5), alpha, dropped
+  alt dropped == true（リプレイ中は除く）
+    Ses->>Buf: droppedTime()（再同期）
   end
   loop ticks 回
-    Drv->>Buf: nextFrame()
-    Buf-->>Drv: InputFrame
-    Drv->>Rec: push(InputFrame)
-    Drv->>Sim: step(world, InputFrame, runtime)
-    Sim-->>Drv: StepOutput (render, audio, ui, transition)
+    Ses->>Buf: nextFrame()（リプレイ中は replay.Player）
+    Buf-->>Ses: InputFrame
+    Ses->>Rec: push(InputFrame)
+    Ses->>Sim: step(world, InputFrame, runtime)
+    Sim-->>Ses: StepOutput (render, ui)
   end
-  Drv->>Rnd: present(prevRender, currRender, alpha)
-  Drv->>Rnd: play(audio cues), update HUD(ui)
+  Ses-->>App: FrameView (prev, curr, alpha, ui)
+  App-->>RAF: FrameView
+  RAF->>Rnd: 補間して Sprite に書く、HUD を更新
 ```
 
+- tick を回すのは core の `GameSession`（M1-5）。`renderer-phaser` は `input` を import できないため、Scene の `update` は `apps/player` が渡す `frame` 関数を呼ぶだけで、返った `FrameView`（スナップショット 2 つと `alpha` と `ui`）を描く。描画側は `World` に触れない。
+- `StepOutput` の `audio` と `transition` は M3 で追加する。
 - `ticks == 0` のフレーム（120Hz 以上の表示で起こる）は `alpha` だけが進み、前回と今回の `RenderSnapshot` の間を補間して描く。
 - `dropped == true` はフレーム時間をクランプして時間を捨てたことを意味し、InputBuffer の再同期トリガになる（[input-and-feel.md](input-and-feel.md) のエッジ規則 7）。
 
@@ -224,7 +231,7 @@ export interface TileClass {
 }
 
 // ---- core/world ----
-// M1-3 時点は tick, rng, roomId, party, controller, flags, entities。残りは使うシステムと同じ PR で追加する（ADR-0002 の hash 順に挿入）。
+// M1-5 時点は tick, rng, roomId, party, controller, animation, flags, entities。残りは使うシステムと同じ PR で追加する（ADR-0002 の hash 順に挿入）。
 // controller は操作中キャラクターの状態機械の記憶（接地 tick、ジャンプバッファ、SOCD の押下 tick など）。
 export interface World {
   tick: number;
@@ -232,6 +239,8 @@ export interface World {
   roomId: string;
   camera: CameraState;
   party: PartyState;         // members, activeIndex, cooldownTicks, perCharacter HP など
+  controller: ControllerState;
+  animation: AnimationState; // 操作中キャラクターのスプライトの name, frame, ticks（M1-5）
   inventory: InventoryState; // scope に応じて shared または characterId ごと
   flags: Record<string, number | boolean>;
   entities: EntityStore;     // id 昇順で走査できるコンポーネント表
@@ -258,7 +267,7 @@ export interface Simulation {
 
 export type WorldHash = readonly [number, number];
 
-// M1-3 時点の StepOutput は ui（activeCharacterId と canSwitch）のみ。render は M1-5、audio と transition は M3。
+// M1-5 時点の StepOutput は ui（activeCharacterId と canSwitch）と render。audio と transition は M3。
 export interface StepOutput {
   render: RenderSnapshot;
   audio: AudioCue[];
@@ -276,11 +285,12 @@ export interface RenderSprite {
   id: number;
   atlas: string;
   frame: string;
-  x: number;        // px
+  x: number;        // px（足元中央、床関数済み）
   y: number;        // px
   flipX: boolean;
   depth: number;
   visible: boolean;
+  teleported: boolean; // この tick で移動せずに位置が変わった（補間しない。ADR-0003）
 }
 
 export interface AudioCue {

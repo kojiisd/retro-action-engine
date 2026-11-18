@@ -335,8 +335,20 @@ interface InputDefaults {
   keyboard: Partial<Record<ActionId, string[]>>;      // KeyboardEvent.code
   gamepad: { standard: Partial<Record<ActionId, GamepadInputId[]>> };
   analog: { deadzone: number; release: number };     // 0..1。release < deadzone（ヒステリシス）
-  touch: { layout: string };                          // 既定レイアウト名
+  touch: TouchDefaults;                               // 仮想パッド（M2-1）
 }
+interface TouchDefaults {
+  layout: string;                                     // 既定で使うレイアウトの名前（layouts のキー）
+  layouts: Record<string, TouchLayout>;
+}
+interface TouchLayout {
+  handedness: 'right' | 'left';                       // left は cx を左右反転して置く
+  opacity: number;                                    // 0..1。横向きでゲーム画面に重ねるときの不透明度
+  dpad: { cx: number; cy: number; radius: number; deadzoneRatio: number; floating: boolean };
+  buttons: Array<{ action: ActionId; cx: number; cy: number; radius: number }>;
+}
+// cx, cy はパッド領域内の相対座標（0..1）。radius はパッド領域の短辺に対する比率。
+// 円がパッド領域からはみ出す位置は、内側に寄せて置く。ボタンのアイコンは action からエンジンが決める。
 type GamepadInputId =
   | `button${number}`
   | 'dpadUp' | 'dpadDown' | 'dpadLeft' | 'dpadRight'
@@ -358,9 +370,25 @@ type GamepadInputId =
     }
   },
   "analog": { "deadzone": 0.35, "release": 0.25 },
-  "touch": { "layout": "default" }
+  "touch": {
+    "layout": "default",
+    "layouts": {
+      "default": {
+        "handedness": "right",
+        "opacity": 0.5,
+        "dpad": { "cx": 0.13, "cy": 0.72, "radius": 0.22, "deadzoneRatio": 0.25, "floating": false },
+        "buttons": [
+          { "action": "jump", "cx": 0.9, "cy": 0.76, "radius": 0.12 },
+          { "action": "switch", "cx": 0.76, "cy": 0.56, "radius": 0.09 }
+        ]
+      }
+    }
+  }
 }
 ```
+
+- `touch.layout` は `touch.layouts` にある名前でなければならない（読み込み時に検査する）。
+- パックで使わない action のボタンは置かない（例: 攻撃の無いパックに `attack` を置かない）。
 
 ### 4.8 `camera.json`
 

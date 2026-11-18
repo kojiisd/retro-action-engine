@@ -331,39 +331,48 @@ interface FeelMotion {
 
 ## 9. 仮想パッド（M2）
 
+M2-1 で実装。配置、見た目、画面との重なりは ADR-0008 の改訂履歴（2026-11-18）で決めた。
+
 ### 9.1 レイアウト
+
+配置はパックのデータ（`input.json` の `touch.layouts`。型は [pack-spec.md](pack-spec.md) 4.7）に置く。エンジンは UI の配置の固有値を持たない。
 
 ```ts
 interface TouchLayout {
-  id: string;
-  handedness: 'right' | 'left';           // 左右入替
-  opacity: number;                         // 0..1
+  handedness: 'right' | 'left';           // left は cx を左右反転して置く
+  opacity: number;                         // 0..1。横向きでゲーム画面に重ねるときの不透明度
   dpad: { cx: number; cy: number; radius: number; deadzoneRatio: number; floating: boolean };
-  buttons: Array<{ action: ActionId; cx: number; cy: number; radius: number; label: string }>;
+  buttons: Array<{ action: ActionId; cx: number; cy: number; radius: number }>;
 }
-// cx, cy はセーフエリア内の相対座標（0..1）。radius は短辺に対する比率
+// cx, cy はパッド領域内の相対座標（0..1）。radius はパッド領域の短辺に対する比率
 ```
 
-- 既定レイアウト（`handedness: 'right'`）: 左下に D-pad、右下に `jump` と `attack` を横並び、その上に `switch` と `item`、上端中央に `pause`。
-- ユーザは設定画面で位置と大きさをドラッグで変え、`Settings.touchLayout` に保存する。
+- **パッド領域**: 横向きでは画面のセーフエリア全体（ゲーム画面に半透明で重ねる）。縦向きではゲーム画面の下の、空いた部分（重ねない）。
+- 円がパッド領域からはみ出す位置は、内側に寄せて置く（縦向きの狭い領域でも同じレイアウトを使えるようにするため）。
+- ボタンは文字を出さない。アイコンは action からエンジンが決める: `jump` は上向きの矢印、`switch` は 2 つの矢印が回る記号、それ以外は無地の円。
+- パックで使わない action のボタンは置かない。サンプルパックは移動、`jump`、`switch` だけ。
+- `switch` のボタンは、切替が無効なパーティ（1 人構成、`mode: 'never'`）では出さない（`UiState.canSwitch` で判定）。
+- ユーザが位置と大きさを変える編集 UI は M2-4（`Settings.touchLayout` に保存）。
 
 ### 9.2 D-pad
 
 - 中心からの距離が `radius × deadzoneRatio` 未満なら無入力。
-- 8 方向。角度で判定し、方向の境界にヒステリシス（±10°）を持たせて境界付近のばたつきを防ぐ。
-- `floating: true` のときは最初に触れた位置を中心にする。
-- 指をスライドさせたまま方向が変わるのを許す。
+- 8 方向。角度で判定し、方向の境界にヒステリシス（±10°）を持たせて境界付近のばたつきを防ぐ。デッドゾーンに入ると方向の記憶を消す。
+- `floating: true` のときは、D-pad の押下領域の中で最初に触れた位置を中心にする。
+- 指をスライドさせたまま方向が変わるのを許す。D-pad で始まった指は、D-pad の外へ出ても D-pad の指のまま（方向は中心からの角度で決まる）。
 
 ### 9.3 ボタン
 
-- マルチタッチ対応。ボタン間をスライドしたら、離れたボタンは up、入ったボタンは down。
-- 押下領域は見た目より 1.2 倍広くする。
+- マルチタッチ対応。D-pad で始まらなかった指は、いま上にあるボタンを押す。ボタン間をスライドしたら、離れたボタンは up、入ったボタンは down。
+- 押下領域は見た目より 1.2 倍広くする（D-pad も同じ）。
+- 同じ action を複数の指やほかのデバイスで押しているときは、すべて離すまで held のまま（`InputBuffer.sourceChanged()`）。
 
 ### 9.4 表示条件とその他
 
-- `matchMedia('(pointer: coarse)')` が真でゲームパッド未接続なら表示。設定で常時表示 / 非表示を選べる。
-- 触覚フィードバックは `navigator.vibrate(10)` を任意で（Android のみ有効）。
-- 仮想パッドは DOM であり、キャンバスの外（セーフエリア内）に置く。`env(safe-area-inset-*)` を使う。
+- `matchMedia('(pointer: coarse)')` が真で、ゲームパッドが接続されていなければ表示する。ゲームパッドをつなぐと隠し、外すと戻す。設定で常時表示 / 非表示を選ぶ UI は M2-2。
+- 隠したときと、フォーカスを失ったとき（`blur`、`visibilitychange(hidden)`）は、触れている指をすべて忘れる（押しっぱなしにしない）。
+- 触覚フィードバック（`navigator.vibrate`）は使っていない（任意。必要になったら追加する）。
+- 仮想パッドは DOM のオーバーレイ（`touch-action: none`、`user-select: none`）で、セーフエリア（`env(safe-area-inset-*)`）の内側に置く。
 
 ## 10. 遅延対策チェックリスト
 

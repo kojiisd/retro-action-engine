@@ -27,6 +27,37 @@
       .stage canvas {
         image-rendering: pixelated;
       }
+      /* The virtual pad (docs/input-and-feel.md 9). In landscape it sits over the game screen,
+         see-through; in portrait the game screen moves up and the pad takes the space below. */
+      .touch-area {
+        position: fixed;
+        inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+          env(safe-area-inset-left);
+        z-index: 1;
+        pointer-events: none;
+      }
+      .touch-area .touch-pad {
+        pointer-events: auto;
+        opacity: var(--touch-opacity, 0.5);
+      }
+      @media (orientation: portrait) {
+        body.touch {
+          --game-height: calc(
+            (100vw - env(safe-area-inset-left) - env(safe-area-inset-right)) *
+              var(--game-ratio, 0.5625)
+          );
+        }
+        body.touch .stage {
+          bottom: auto;
+          height: var(--game-height);
+        }
+        body.touch .touch-area {
+          top: calc(env(safe-area-inset-top) + var(--game-height));
+        }
+        body.touch .touch-area .touch-pad {
+          opacity: 1;
+        }
+      }
       .build-info {
         position: fixed;
         top: 2px;
@@ -36,6 +67,7 @@
         font-family: ui-monospace, monospace;
         opacity: 0.45;
         pointer-events: none;
+        z-index: 2;
       }
       .error {
         margin: 16px;

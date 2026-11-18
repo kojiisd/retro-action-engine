@@ -27,15 +27,19 @@ export interface PlacedLayout {
   readonly buttons: readonly PlacedButton[];
 }
 
-/** Keeps a circle of radius `r` inside 0..size; centered when it cannot fit. */
+/**
+ * Keeps a circle's touch area (radius `r` times `TOUCH_HIT_SCALE`) inside 0..size, so it never
+ * touches the screen edge; centered when it cannot fit.
+ */
 function clampCenter(value: number, r: number, size: number): number {
-  if (size <= 2 * r) return size / 2;
-  return Math.min(Math.max(value, r), size - r);
+  const reach = r * TOUCH_HIT_SCALE;
+  if (size <= 2 * reach) return size / 2;
+  return Math.min(Math.max(value, reach), size - reach);
 }
 
 /**
  * Places a layout in a pad area of `width` x `height` px (docs/input-and-feel.md 9.1): ratios to
- * px, `left` handedness mirrored, and every circle pulled inside the area.
+ * px, `left` handedness mirrored, and every circle (with its touch area) pulled inside the area.
  */
 export function placeLayout(layout: TouchLayout, width: number, height: number): PlacedLayout {
   const short = Math.min(width, height);

@@ -144,5 +144,6 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
   - `renderer-phaser`: `startRenderer`。Phaser に触れない部分（補間、タイルレイヤ、HUD）は別モジュールでテストする。
   - `apps/player`: 配線（`boot.ts`）、`window.__engine`（開発時と `VITE_E2E_HOOKS=1` のビルドだけ）、golden 2 本（`src/golden/`）、e2e（`e2e/`）。
   - core の追加: スプライトのアニメーション（`World.animation`）、`RenderSnapshot`（`output` システム）、`GameSession`。
-- 次は `docs/roadmap.md` の M2-1（タッチ操作）。解析ツールの次（A-3）は M3-3 の後。
+- M2-1（タッチ操作）は実装済み: 配置はパックのデータ（`input.json` の `touch.layouts`）、`input` の `TouchPadDevice`（幾何は `touch-geometry.ts`、DOM 表示は `mountTouchPad`）。横向きはゲーム画面に半透明で重ね、縦向きはゲーム画面の下に置く（`apps/player/index.html` の CSS）。表示は `pointer: coarse` でゲームパッド未接続のとき。決定の記録は ADR-0008 の改訂履歴（2026-11-18）。
+- 次は `docs/roadmap.md` の M2-2（キーコンフィグ UI、非標準ゲームパッド、Settings の保存）。解析ツールの次（A-3）は M3-3 の後。
 - M1-5 のマージ後に、一覧のカード画像をプレイ画面のキャプチャに差し替え、`site.json` の説明文（「準備中のページ」）を直す。どちらも公開情報なので、案を出して所有者の確認を取る。

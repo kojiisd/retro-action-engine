@@ -56,14 +56,14 @@ describe('placeLayout', () => {
   });
 
   it('pulls circles inside a narrow area (portrait)', () => {
-    // 360 x 300: the d-pad (r = 75) would stick out at x = 72.
+    // 360 x 300: the d-pad (r = 75, touch area 90) would stick out at x = 18.
     const placed = placeLayout(
       { ...LAYOUT, dpad: { ...LAYOUT.dpad, cx: 0.05, cy: 0.98 } },
       360,
       300,
     );
-    expect(placed.dpad.x).toBe(placed.dpad.r);
-    expect(placed.dpad.y).toBe(300 - placed.dpad.r);
+    expect(placed.dpad.x).toBeCloseTo(placed.dpad.r * 1.2, 9);
+    expect(placed.dpad.y).toBeCloseTo(300 - placed.dpad.r * 1.2, 9);
   });
 });
 

@@ -348,7 +348,7 @@ interface TouchLayout {
   buttons: Array<{ action: ActionId; cx: number; cy: number; radius: number }>;
 }
 // cx, cy はパッド領域内の相対座標（0..1）。radius はパッド領域の短辺に対する比率。
-// 円がパッド領域からはみ出す位置は、内側に寄せて置く。ボタンのアイコンは action からエンジンが決める。
+// 円（押下領域は見た目の 1.2 倍）がパッド領域からはみ出す位置は、内側に寄せて置く。ボタンのアイコンは action からエンジンが決める。
 type GamepadInputId =
   | `button${number}`
   | 'dpadUp' | 'dpadDown' | 'dpadLeft' | 'dpadRight'

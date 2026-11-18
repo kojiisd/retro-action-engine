@@ -12,7 +12,8 @@
     "@retro-action-engine/core": "workspace:*",
     "@retro-action-engine/input": "workspace:*",
     "@retro-action-engine/pack": "workspace:*",
-    "@retro-action-engine/renderer-phaser": "workspace:*"
+    "@retro-action-engine/renderer-phaser": "workspace:*",
+    "idb-keyval": "6.3.0"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

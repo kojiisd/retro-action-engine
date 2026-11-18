@@ -16,6 +16,11 @@ export interface InputBufferOptions {
   /** Backlog limit in ticks before a resync (docs/input-and-feel.md 5.2 (b)). Default 6. */
   readonly maxBacklogTicks?: number;
   readonly onResync?: (reason: ResyncReason) => void;
+  /**
+   * Called from `sourceChanged` with the actions that just went down (union of the sources),
+   * at once: a tap shorter than a frame is not missed. For the app (opening a menu), not the game.
+   */
+  readonly onPressed?: (mask: number) => void;
 }
 
 /** The parts of `window` and `document` the buffer listens to. */
@@ -37,8 +42,10 @@ export class InputBuffer {
   private readonly edges: EdgeBuffer;
   /** The union last reported through `sourceChanged` (or forced by a focus-loss resync). */
   private reported = 0;
+  private readonly onPressed: ((mask: number) => void) | undefined;
 
   constructor(options: InputBufferOptions = {}) {
+    this.onPressed = options.onPressed;
     this.edges = new EdgeBuffer({
       readPhysical: () => this.physical(),
       ...(options.maxBacklogTicks === undefined
@@ -89,6 +96,8 @@ export class InputBuffer {
       const bit = actionBit(action);
       if ((changed & bit) !== 0) this.edges.push(action, (now & bit) !== 0);
     }
+    const pressed = changed & now;
+    if (pressed !== 0) this.onPressed?.(pressed);
   }
 
   /** The frame for the next tick. Call right before `step`. */

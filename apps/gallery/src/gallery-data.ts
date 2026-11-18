@@ -4,7 +4,7 @@ export interface GalleryCard {
   readonly href: string;
   readonly title: string;
   readonly description: string;
-  /** Relative to the gallery page, e.g. "images/2dsample.svg". */
+  /** Relative to the gallery page, e.g. "images/2dsample.png". */
   readonly image: string;
   readonly imageAlt: string;
 }

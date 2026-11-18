@@ -126,7 +126,7 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 ## 現在の状態
 
 - M1-1（infra とプレビュー配備）は完了。AWS に適用済みで、受け入れ確認も済んでいる（2026-11-14）。
-  - 本番は `https://arcade.kojiisd.jp/`。トップは一覧（`apps/gallery`）、ゲームは `/play/2dsample/`（`apps/player`。M1-5 のマージ前はプレースホルダーページ、マージ後はサンプルパックのゲーム）。
+  - 本番は `https://arcade.kojiisd.jp/`。トップは一覧（`apps/gallery`）、ゲームは `/play/2dsample/`（`apps/player`。サンプルパックのゲーム）。一覧のカード画像はプレイ画面のキャプチャ（`apps/gallery/public/images/2dsample.png`）。
   - PR を作ると `/pr-<番号>/` にプレビューが出て、PR に URL がコメントされる。close で消え、reopen で戻る。`main` へのマージで本番に配信される。
   - `main` はルールセットで保護されている（PR 必須、`ci` 必須、force push と削除を禁止）。
   - infra（`infra/`）を変えたときだけ、所有者が手元で `cdk deploy` する。CloudFront Function を変えたら、手順書 9-0 の `test-function` で確認する。
@@ -146,4 +146,3 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
   - core の追加: スプライトのアニメーション（`World.animation`）、`RenderSnapshot`（`output` システム）、`GameSession`。
 - M2-1（タッチ操作）は実装済み: 配置はパックのデータ（`input.json` の `touch.layouts`）、`input` の `TouchPadDevice`（幾何は `touch-geometry.ts`、DOM 表示は `mountTouchPad`）。横向きはゲーム画面に半透明で重ね、縦向きはゲーム画面の下に置く（`apps/player/index.html` の CSS）。表示は `pointer: coarse` でゲームパッド未接続のとき。決定の記録は ADR-0008 の改訂履歴（2026-11-18）。
 - 次は `docs/roadmap.md` の M2-2（キーコンフィグ UI、非標準ゲームパッド、Settings の保存）。解析ツールの次（A-3）は M3-3 の後。
-- M1-5 のマージ後に、一覧のカード画像をプレイ画面のキャプチャに差し替え、`site.json` の説明文（「準備中のページ」）を直す。どちらも公開情報なので、案を出して所有者の確認を取る。

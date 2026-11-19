@@ -9,9 +9,9 @@
       "slug": "2dsample",
       "app": "player",
       "title": "2D Sample",
-      "description": "サンプルパックで動く 2D アクションの試作です。いまは準備中のページを表示します。",
-      "image": "images/2dsample.svg",
-      "imageAlt": "足場の上に立つドット絵のキャラクター"
+      "description": "サンプルパックで動く 2D アクションの試作です。キーボード、ゲームパッド、スマホのタッチ操作で、2 人のキャラクターを切り替えながら遊べます。",
+      "image": "images/2dsample.png",
+      "imageAlt": "石造りの部屋で、水の柱の手前に立つドット絵の冒険者"
     }
   ]
 }

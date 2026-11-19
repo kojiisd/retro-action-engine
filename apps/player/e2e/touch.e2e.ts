@@ -67,14 +67,19 @@ test.describe('landscape phone', () => {
     const send = await touches(context, page);
     const right = { x: dpad.x + dpad.width * 0.85, y: center(dpad).y, id: 1 };
     const tap = { ...center(jump), id: 2 };
+    const knobX = () => page.locator('.touch-knob').evaluate((el) => Number(el.getAttribute('cx')));
+    expect(await knobX()).toBe(0);
     await send('touchStart', [right]);
     await page.waitForTimeout(200);
+    // The stick's knob follows the finger to the right.
+    expect(await knobX()).toBeGreaterThan(0);
     await send('touchStart', [right, tap]);
     await page.waitForTimeout(200);
     await send('touchEnd', [right]);
     await page.waitForTimeout(100);
     await send('touchEnd', []);
     await page.waitForTimeout(100);
+    expect(await knobX()).toBe(0);
 
     const held = await heldSoFar(page);
     expect(held & actionMask('right', 'jump')).toBe(actionMask('right', 'jump'));

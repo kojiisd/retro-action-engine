@@ -214,6 +214,28 @@
           grid-row: 2;
         }
       }
+      /* Debug display (dev builds and PR previews only). */
+      .debug-overlay {
+        position: fixed;
+        left: calc(env(safe-area-inset-left) + 4px);
+        bottom: calc(env(safe-area-inset-bottom) + 4px);
+        z-index: 2;
+        margin: 0;
+        padding: 4px 6px;
+        border-radius: 4px;
+        background: rgb(0 0 0 / 0.6);
+        color: #9effc8;
+        font: 11px/1.4 ui-monospace, monospace;
+        pointer-events: none;
+      }
+      .debug-overlay[hidden] {
+        display: none;
+      }
+      .settings-feel .settings-note {
+        margin: 4px 0 0;
+        font-size: 12px;
+        opacity: 0.7;
+      }
       .error {
         margin: 16px;
         white-space: pre-wrap;

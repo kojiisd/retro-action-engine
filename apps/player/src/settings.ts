@@ -4,20 +4,44 @@ import type { BindingOverrides } from '@retro-action-engine/input';
 /** Where the virtual pad is shown (docs/input-and-feel.md 9.4). */
 export type TouchPadMode = 'auto' | 'show' | 'hide';
 
-/** `settings:global` (ADR-0011, revision 2026-11-19): what does not depend on the pack. */
+/** Motion smoothing: the feel profile's own, or the user's choice (docs/input-and-feel.md 8.5). */
+export type InterpolationMode = 'profile' | 'linear' | 'none';
+
+/** Debug display, used only in dev builds and PR previews (ADR-0008, revision M2-3). */
+export interface DebugSettings {
+  readonly hitboxes: boolean;
+  readonly latency: boolean;
+  readonly desynchronized: boolean;
+}
+
+/** `settings:global` (ADR-0011, revisions M2-2 and M2-3): what does not depend on the pack. */
 export interface GlobalSettings {
   readonly settingsVersion: 1;
   readonly touchPad: TouchPadMode;
+  readonly interpolation: InterpolationMode;
+  readonly debug: DebugSettings;
 }
 
 /** `settings:<packId>`: the user's changes to one pack. */
 export interface PackSettings {
   readonly settingsVersion: 1;
   readonly bindings: BindingOverrides;
+  /** The chosen feel profile; `null` is the pack's default. */
+  readonly feelProfile: string | null;
 }
 
-export const DEFAULT_GLOBAL: GlobalSettings = { settingsVersion: 1, touchPad: 'auto' };
-export const DEFAULT_PACK: PackSettings = { settingsVersion: 1, bindings: {} };
+export const DEFAULT_DEBUG: DebugSettings = {
+  hitboxes: false,
+  latency: false,
+  desynchronized: false,
+};
+export const DEFAULT_GLOBAL: GlobalSettings = {
+  settingsVersion: 1,
+  touchPad: 'auto',
+  interpolation: 'profile',
+  debug: DEFAULT_DEBUG,
+};
+export const DEFAULT_PACK: PackSettings = { settingsVersion: 1, bindings: {}, feelProfile: null };
 
 const GAMEPAD_INPUT =
   /^(button\d+|axis\d+[+-]|dpad(Up|Down|Left|Right)|leftStick(Up|Down|Left|Right))$/;
@@ -34,12 +58,30 @@ export function parseGlobal(value: unknown, warn: Warn): GlobalSettings {
     warn('settings:global is not a version 1 settings object; using the defaults');
     return DEFAULT_GLOBAL;
   }
-  const touchPad = value.touchPad;
-  if (touchPad !== 'auto' && touchPad !== 'show' && touchPad !== 'hide') {
-    warn(`settings:global touchPad "${String(touchPad)}" is unknown; using "auto"`);
-    return DEFAULT_GLOBAL;
-  }
-  return { settingsVersion: 1, touchPad };
+  // Each field on its own: one unreadable field does not reset the others.
+  const pick = <T extends string>(field: string, allowed: readonly T[], fallback: T): T => {
+    const v = value[field];
+    if (v === undefined) return fallback;
+    if ((allowed as readonly unknown[]).includes(v)) return v as T;
+    warn(`settings:global ${field} "${String(v)}" is unknown; using "${fallback}"`);
+    return fallback;
+  };
+  const debug = isRecord(value.debug) ? value.debug : {};
+  const flag = (field: keyof DebugSettings) => debug[field] === true;
+  return {
+    settingsVersion: 1,
+    touchPad: pick('touchPad', ['auto', 'show', 'hide'], DEFAULT_GLOBAL.touchPad),
+    interpolation: pick(
+      'interpolation',
+      ['profile', 'linear', 'none'],
+      DEFAULT_GLOBAL.interpolation,
+    ),
+    debug: {
+      hitboxes: flag('hitboxes'),
+      latency: flag('latency'),
+      desynchronized: flag('desynchronized'),
+    },
+  };
 }
 
 /** Per-action lists of strings that pass `valid`; other entries are dropped with a warning. */
@@ -95,7 +137,13 @@ export function parsePack(value: unknown, warn: Warn): PackSettings {
   } else if (bindings.gamepad !== undefined) {
     warn('bindings.gamepad is not an object; ignored');
   }
-  return { settingsVersion: 1, bindings: { keyboard, gamepad } };
+  let feelProfile: string | null = null;
+  if (typeof value.feelProfile === 'string' && value.feelProfile !== '') {
+    feelProfile = value.feelProfile;
+  } else if (value.feelProfile !== undefined && value.feelProfile !== null) {
+    warn('feelProfile is not a profile name; using the pack default');
+  }
+  return { settingsVersion: 1, bindings: { keyboard, gamepad }, feelProfile };
 }
 
 /** A key-value store for settings (IndexedDB, localStorage, or memory). */
@@ -198,4 +246,12 @@ export class SettingsStore {
   private packKey(): string {
     return `settings:${this.packId}`;
   }
+}
+
+/** The interpolation to draw with: the user's choice, or the feel profile's own (8.5). */
+export function effectiveInterpolation(
+  mode: InterpolationMode,
+  profile: 'linear' | 'none' | undefined,
+): 'linear' | 'none' {
+  return mode === 'profile' ? (profile ?? 'none') : mode;
 }

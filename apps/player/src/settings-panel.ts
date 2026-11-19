@@ -2,7 +2,8 @@ import type { ActionId } from '@retro-action-engine/core';
 import type { ActionMap } from '@retro-action-engine/input';
 import { STANDARD_PAD } from '@retro-action-engine/input';
 import { addBinding, type Binding, bindingsOf, conflicts, removeBinding } from './bindings-edit';
-import type { TouchPadMode } from './settings';
+import { DEBUG_TEXT } from './debug';
+import type { DebugSettings, InterpolationMode, TouchPadMode } from './settings';
 import { keyLabel, padLabel, type UiStrings } from './ui-strings';
 
 /** What the panel needs from the app. The panel only draws and edits; the app applies. */
@@ -16,6 +17,18 @@ export interface SettingsPanelHost {
   readonly persistent: boolean;
   touchMode(): TouchPadMode;
   setTouchMode(mode: TouchPadMode): void;
+  /** The pack's feel profiles, in the pack's order, with their display names (pack data). */
+  readonly feelProfiles: ReadonlyArray<{ readonly id: string; readonly name: string }>;
+  feelProfile(): string;
+  /** Switches the feel profile; the game starts the room over (docs/input-and-feel.md 8.5). */
+  setFeelProfile(id: string): void;
+  interpolation(): InterpolationMode;
+  setInterpolation(mode: InterpolationMode): void;
+  /** Present only where the debug display is allowed (dev builds and PR previews). */
+  readonly debug?: {
+    get(): DebugSettings;
+    set(settings: DebugSettings): void;
+  };
   /** The map's overrides changed: apply and save. */
   bindingsChanged(): void;
   /** Starts listening for the next key or gamepad input; `done` gets it, or undefined (cancel). */
@@ -113,6 +126,56 @@ export function createSettingsPanel(host: SettingsPanelHost): SettingsPanel {
     header.append(close);
     panel.append(header);
 
+    /** A group of radio buttons. */
+    const radios = <T extends string>(
+      section: HTMLElement,
+      name: string,
+      options: ReadonlyArray<readonly [T, string]>,
+      current: T,
+      choose: (value: T) => void,
+    ) => {
+      for (const [value, text] of options) {
+        const option = el('label', 'settings-option');
+        const radio = el('input');
+        radio.type = 'radio';
+        radio.name = name;
+        radio.value = value;
+        radio.checked = current === value;
+        radio.addEventListener('change', () => choose(value));
+        option.append(radio, doc.createTextNode(` ${text}`));
+        section.append(option);
+      }
+    };
+
+    if (host.feelProfiles.length > 1) {
+      const feel = el('section', 'settings-section settings-feel');
+      feel.append(el('h3', undefined, s.feelTitle));
+      radios(
+        feel,
+        'feel-profile',
+        host.feelProfiles.map((p) => [p.id, p.name] as const),
+        host.feelProfile(),
+        (id) => host.setFeelProfile(id),
+      );
+      feel.append(el('p', 'settings-note', s.feelNote));
+      panel.append(feel);
+    }
+
+    const smoothing = el('section', 'settings-section settings-smoothing');
+    smoothing.append(el('h3', undefined, s.smoothingTitle));
+    radios<InterpolationMode>(
+      smoothing,
+      'smoothing',
+      [
+        ['profile', s.smoothingProfile],
+        ['linear', s.smoothingLinear],
+        ['none', s.smoothingNone],
+      ],
+      host.interpolation(),
+      (mode) => host.setInterpolation(mode),
+    );
+    panel.append(smoothing);
+
     const controls = el('section', 'settings-section');
     controls.append(el('h3', undefined, s.bindingsTitle));
     const list = el('ul', 'settings-bindings');
@@ -172,23 +235,36 @@ export function createSettingsPanel(host: SettingsPanelHost): SettingsPanel {
 
     const touch = el('section', 'settings-section');
     touch.append(el('h3', undefined, s.touchTitle));
-    const options: ReadonlyArray<readonly [TouchPadMode, string]> = [
-      ['auto', s.touchAuto],
-      ['show', s.touchShow],
-      ['hide', s.touchHide],
-    ];
-    for (const [mode, text] of options) {
-      const option = el('label', 'settings-option');
-      const radio = el('input');
-      radio.type = 'radio';
-      radio.name = 'touch-pad';
-      radio.value = mode;
-      radio.checked = host.touchMode() === mode;
-      radio.addEventListener('change', () => host.setTouchMode(mode));
-      option.append(radio, doc.createTextNode(` ${text}`));
-      touch.append(option);
-    }
+    radios<TouchPadMode>(
+      touch,
+      'touch-pad',
+      [
+        ['auto', s.touchAuto],
+        ['show', s.touchShow],
+        ['hide', s.touchHide],
+      ],
+      host.touchMode(),
+      (mode) => host.setTouchMode(mode),
+    );
     panel.append(touch);
+
+    const debug = host.debug;
+    if (debug !== undefined) {
+      const section = el('section', 'settings-section settings-debug');
+      section.lang = 'en';
+      section.append(el('h3', undefined, DEBUG_TEXT.title));
+      for (const key of ['hitboxes', 'latency', 'desynchronized'] as const) {
+        const option = el('label', 'settings-option');
+        const box = el('input');
+        box.type = 'checkbox';
+        box.name = `debug-${key}`;
+        box.checked = debug.get()[key];
+        box.addEventListener('change', () => debug.set({ ...debug.get(), [key]: box.checked }));
+        option.append(box, doc.createTextNode(` ${DEBUG_TEXT[key]}`));
+        section.append(option);
+      }
+      panel.append(section);
+    }
 
     const footer = el('footer', 'settings-footer');
     if (!host.persistent) footer.append(el('p', 'settings-note', s.notSaved));

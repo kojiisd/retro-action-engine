@@ -8,7 +8,7 @@ import type {
 } from '@retro-action-engine/core';
 import { describe, expect, it } from 'vitest';
 import { hudIcons } from './hud';
-import { interpolateSprites } from './interpolate';
+import { interpolateColliders, interpolateSprites } from './interpolate';
 import { tileLayerPlans } from './tile-layers';
 
 // These tests cover the parts that do not touch Phaser. The scene itself is checked in the
@@ -30,7 +30,7 @@ function sprite(id: number, x: number, y: number, extra: Partial<RenderSprite> =
 }
 
 function snapshot(tick: number, sprites: RenderSprite[]): RenderSnapshot {
-  return { tick, camera: { x: 0, y: 0 }, sprites };
+  return { tick, camera: { x: 0, y: 0 }, sprites, colliders: [] };
 }
 
 describe('interpolateSprites', () => {
@@ -62,6 +62,27 @@ describe('interpolateSprites', () => {
     const before = JSON.stringify([prev, curr]);
     interpolateSprites(prev, curr, 0.5, 'linear');
     expect(JSON.stringify([prev, curr])).toBe(before);
+  });
+});
+
+describe('interpolateColliders', () => {
+  const box = (id: number, x: number, y: number) => ({ id, x, y, w: 10, h: 20 });
+  const prev = { ...snapshot(1, [sprite(1, 15, 120)]), colliders: [box(1, 10, 100)] };
+  const curr = { ...snapshot(2, [sprite(1, 18, 116)]), colliders: [box(1, 13, 96)] };
+
+  it('moves the boxes with the sprites', () => {
+    expect(interpolateColliders(prev, curr, 0.5, 'linear')[0]).toEqual(box(1, 11, 98));
+    expect(interpolateColliders(prev, curr, 0.5, 'none')[0]).toEqual(box(1, 13, 96));
+  });
+
+  it('does not blend a teleported sprite or a new box', () => {
+    const warped = {
+      ...snapshot(2, [sprite(1, 200, 50, { teleported: true })]),
+      colliders: [box(1, 195, 30)],
+    };
+    expect(interpolateColliders(prev, warped, 0.5, 'linear')[0]).toEqual(box(1, 195, 30));
+    const added = { ...curr, colliders: [box(1, 13, 96), box(2, 40, 40)] };
+    expect(interpolateColliders(prev, added, 0.5, 'linear')[1]).toEqual(box(2, 40, 40));
   });
 });
 

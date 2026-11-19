@@ -1,4 +1,4 @@
-import { type ActionId, actionBit, type TouchLayout } from '@retro-action-engine/core';
+import type { ActionId, TouchLayout } from '@retro-action-engine/core';
 import type { FocusTargets } from './input-buffer';
 import { placeLayout, sectorMask } from './touch-geometry';
 import type { TouchPadDevice, TouchPadState } from './touch-pad';
@@ -18,14 +18,14 @@ const ICONS: Partial<Record<ActionId, string>> = {
     'M0.5,0.15 L-0.2,0.15 L-0.2,0.02 L-0.5,0.22 L-0.2,0.42 L-0.2,0.29 L0.5,0.29 Z',
 };
 
-/** The d-pad arrows: up, right, down, left, and the action each one shows. */
-const ARROWS: ReadonlyArray<readonly [ActionId, number]> = [
-  ['up', 0],
-  ['right', 90],
-  ['down', 180],
-  ['left', 270],
-];
-const ARROW_PATH = 'M0,-0.82 L0.24,-0.5 L-0.24,-0.5 Z';
+/**
+ * The d-pad looks like an analog stick (owner's choice, 2026-11-19): a ring, and a knob that
+ * follows the finger. Drawing proportions of the ring's radius; the input stays 8-way (9.2).
+ */
+const KNOB_RADIUS = 0.4;
+/** How far the knob's center may leave the ring's center. */
+const KNOB_TRAVEL = 0.6;
+const REST_RADIUS = 0.34;
 
 export interface TouchPadView {
   /** Shows or hides the pad. Hiding lets go of every finger. */
@@ -75,14 +75,23 @@ export function mountTouchPad(
 
   let visible = false;
   root.hidden = true;
-  let dpadArrows: Array<[number, SVGPathElement]> = [];
   let dpadGroup: SVGGElement | undefined;
+  let knob: SVGCircleElement | undefined;
+  let dpadRadius = 0;
   let buttonGroups: SVGGElement[] = [];
 
   const draw = (state: TouchPadState) => {
-    const held = sectorMask(state.dpadSector);
-    for (const [bit, arrow] of dpadArrows) {
-      arrow.setAttribute('fill-opacity', (held & bit) !== 0 ? '1' : '0.55');
+    if (knob !== undefined) {
+      // The knob follows the finger, held inside its travel; at rest it sits in the center.
+      const finger = state.dpadFinger ?? { dx: 0, dy: 0 };
+      const travel = dpadRadius * KNOB_TRAVEL;
+      const distance = Math.hypot(finger.dx, finger.dy);
+      const scale = distance > travel ? travel / distance : 1;
+      knob.setAttribute('cx', String(finger.dx * scale));
+      knob.setAttribute('cy', String(finger.dy * scale));
+      const active = sectorMask(state.dpadSector) !== 0;
+      knob.setAttribute('fill-opacity', active ? '0.55' : state.dpadFinger ? '0.4' : '0.28');
+      knob.setAttribute('data-active', String(active));
     }
     if (dpadGroup !== undefined && state.dpadCenter !== undefined) {
       dpadGroup.setAttribute('transform', `translate(${state.dpadCenter.x} ${state.dpadCenter.y})`);
@@ -97,7 +106,7 @@ export function mountTouchPad(
   const render = () => {
     const rect = area.getBoundingClientRect();
     svg.replaceChildren();
-    dpadArrows = [];
+    knob = undefined;
     buttonGroups = [];
     if (rect.width <= 0 || rect.height <= 0) {
       device.setLayout(undefined);
@@ -120,15 +129,18 @@ export function mountTouchPad(
     const dpad = doc.createElementNS(SVG, 'g');
     dpad.setAttribute('class', 'touch-dpad');
     dpad.setAttribute('transform', `translate(${placed.dpad.x} ${placed.dpad.y})`);
-    dpad.append(circle(placed.dpad.r, '0.18'));
-    for (const [action, degrees] of ARROWS) {
-      const arrow = doc.createElementNS(SVG, 'path');
-      arrow.setAttribute('d', ARROW_PATH);
-      arrow.setAttribute('fill', '#ffffff');
-      arrow.setAttribute('transform', `rotate(${degrees}) scale(${placed.dpad.r})`);
-      dpad.append(arrow);
-      dpadArrows.push([actionBit(action), arrow]);
-    }
+    dpadRadius = placed.dpad.r;
+    const ring = circle(placed.dpad.r, '0.1');
+    ring.setAttribute('stroke-opacity', '0.35');
+    dpad.append(ring);
+    const rest = circle(placed.dpad.r * REST_RADIUS, '0.04');
+    rest.setAttribute('stroke-opacity', '0.18');
+    rest.setAttribute('stroke-dasharray', '3 4');
+    dpad.append(rest);
+    knob = circle(placed.dpad.r * KNOB_RADIUS, '0.28');
+    knob.setAttribute('class', 'touch-knob');
+    knob.setAttribute('stroke-opacity', '0.9');
+    dpad.append(knob);
     svg.append(dpad);
     dpadGroup = dpad;
 

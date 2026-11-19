@@ -240,6 +240,25 @@ describe('TouchPadDevice', () => {
     detach();
   });
 
+  it('reports the d-pad finger for the knob, and redraws on moves that change no direction', () => {
+    const { buffer, pad, placed } = rig();
+    const fingers: unknown[] = [];
+    let sourceChanges = 0;
+    const counting = { sourceChanged: () => sourceChanges++ };
+    const device = new TouchPadDevice(counting);
+    device.setLayout(placed);
+    device.onChange((state) => fingers.push(state.dpadFinger));
+    sourceChanges = 0;
+    device.pointerDown(1, placed.dpad.x + 60, placed.dpad.y);
+    device.pointerMove(1, placed.dpad.x + 70, placed.dpad.y + 2); // still right
+    device.pointerUp(1);
+    expect(fingers).toEqual([{ dx: 60, dy: 0 }, { dx: 70, dy: 2 }, undefined]);
+    // Only the press and the release reach the game; the knob-only move does not.
+    expect(sourceChanges).toBe(2);
+    expect(pad.state().dpadFinger).toBeUndefined();
+    void buffer;
+  });
+
   it('reports what to draw on every change', () => {
     const { pad, placed } = rig();
     const states: unknown[] = [];

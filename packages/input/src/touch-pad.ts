@@ -5,7 +5,7 @@ import { buttonAt, dpadSector, inTouchArea, type PlacedLayout, sectorMask } from
 
 type Finger =
   /** Started on the d-pad: stays a d-pad finger wherever it slides. */
-  | { readonly kind: 'dpad'; sector: number | undefined }
+  | { readonly kind: 'dpad'; sector: number | undefined; dx: number; dy: number }
   /** Any other finger presses the button it is over, if any. */
   | { readonly kind: 'button'; button: number | undefined };
 
@@ -14,6 +14,8 @@ export interface TouchPadState {
   readonly dpadSector: number | undefined;
   /** Center of the d-pad in px (moves with a floating d-pad). */
   readonly dpadCenter: { readonly x: number; readonly y: number } | undefined;
+  /** Where the d-pad finger is, from the center, in px (for the stick's knob); none when untouched. */
+  readonly dpadFinger: { readonly dx: number; readonly dy: number } | undefined;
   readonly pressed: ReadonlySet<number>;
 }
 
@@ -79,12 +81,15 @@ export class TouchPadDevice implements PhysicalSource {
 
   state(): TouchPadState {
     let sector: number | undefined;
+    let dpadFinger: { dx: number; dy: number } | undefined;
     const pressed = new Set<number>();
     for (const finger of this.fingers.values()) {
-      if (finger.kind === 'dpad') sector ??= finger.sector;
-      else if (finger.button !== undefined) pressed.add(finger.button);
+      if (finger.kind === 'dpad') {
+        sector = finger.sector;
+        dpadFinger = { dx: finger.dx, dy: finger.dy };
+      } else if (finger.button !== undefined) pressed.add(finger.button);
     }
-    return { dpadSector: sector, dpadCenter: this.dpadCenter(), pressed };
+    return { dpadSector: sector, dpadCenter: this.dpadCenter(), dpadFinger, pressed };
   }
 
   pointerDown(id: number, x: number, y: number): void {
@@ -93,7 +98,7 @@ export class TouchPadDevice implements PhysicalSource {
     const onDpad = inTouchArea(layout.dpad, x, y);
     if (onDpad && !this.hasDpadFinger()) {
       if (layout.dpad.floating) this.floatingCenter = { x, y };
-      this.fingers.set(id, { kind: 'dpad', sector: undefined });
+      this.fingers.set(id, { kind: 'dpad', sector: undefined, dx: 0, dy: 0 });
     } else {
       this.fingers.set(id, { kind: 'button', button: undefined });
     }
@@ -140,8 +145,14 @@ export class TouchPadDevice implements PhysicalSource {
     if (layout === undefined || finger === undefined) return;
     if (finger.kind === 'dpad') {
       const center = this.dpadCenter() ?? layout.dpad;
-      const sector = dpadSector(x - center.x, y - center.y, layout.dpad.deadzone, finger.sector);
-      if (sector === finger.sector) return;
+      finger.dx = x - center.x;
+      finger.dy = y - center.y;
+      const sector = dpadSector(finger.dx, finger.dy, layout.dpad.deadzone, finger.sector);
+      if (sector === finger.sector) {
+        // Only the knob moved: redraw, nothing to report to the game.
+        this.listener?.(this.state());
+        return;
+      }
       finger.sector = sector;
     } else {
       const button = buttonAt(layout.buttons, x, y, (action) => this.isActionEnabled(action));

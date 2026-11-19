@@ -1,5 +1,5 @@
-export { ActionMap } from './action-map';
-export { GamepadDevice, type GamepadLike } from './gamepad';
+export { ActionMap, type BindingOverrides, STANDARD_PAD } from './action-map';
+export { type GamepadCapture, GamepadDevice, type GamepadLike } from './gamepad';
 export {
   type FocusTargets,
   InputBuffer,

@@ -352,7 +352,8 @@ interface TouchLayout {
 type GamepadInputId =
   | `button${number}`
   | 'dpadUp' | 'dpadDown' | 'dpadLeft' | 'dpadRight'
-  | 'leftStickUp' | 'leftStickDown' | 'leftStickLeft' | 'leftStickRight';
+  | 'leftStickUp' | 'leftStickDown' | 'leftStickLeft' | 'leftStickRight'
+  | `axis${number}+` | `axis${number}-`;            // 軸の向き（M2-2。非標準パッドとほかの軸）
 ```
 
 ```json

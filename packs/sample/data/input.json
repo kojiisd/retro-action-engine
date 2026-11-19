@@ -5,13 +5,8 @@
     "up": ["ArrowUp", "KeyW"],
     "down": ["ArrowDown", "KeyS"],
     "jump": ["KeyZ", "Space"],
-    "attack": ["KeyX"],
     "switch": ["KeyC", "ShiftLeft"],
-    "item": ["KeyV"],
-    "pause": ["Escape"],
-    "menu": ["Enter"],
-    "confirm": ["KeyZ", "Enter"],
-    "cancel": ["KeyX", "Escape"]
+    "menu": ["Enter"]
   },
   "gamepad": {
     "standard": {
@@ -20,13 +15,8 @@
       "up": ["dpadUp", "leftStickUp"],
       "down": ["dpadDown", "leftStickDown"],
       "jump": ["button0"],
-      "attack": ["button2"],
       "switch": ["button1"],
-      "item": ["button3"],
-      "pause": ["button9"],
-      "menu": ["button8"],
-      "confirm": ["button0"],
-      "cancel": ["button1"]
+      "menu": ["button8"]
     }
   },
   "analog": {

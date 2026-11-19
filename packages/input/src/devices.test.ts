@@ -57,6 +57,7 @@ function keyboardRig() {
 class FakePad implements GamepadLike {
   connected = true;
   mapping = 'standard';
+  id = 'Fake pad (standard)';
   buttons = Array.from({ length: 17 }, () => ({ pressed: false }));
   axes = [0, 0, 0, 0];
   constructor(readonly index: number) {}

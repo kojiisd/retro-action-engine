@@ -77,3 +77,9 @@ interface Settings {
 ## 要確認
 
 - なし。
+
+## 改訂履歴
+
+| 日付 | 内容 |
+| --- | --- |
+| 2026-11-19（M2-2） | 設定の保存を実装した。`Settings` は 2 つのキーに分ける。<br>・`settings:global`（パックに依存しない）: `{ settingsVersion: 1, touchPad: 'auto' \| 'show' \| 'hide' }`<br>・`settings:<packId>`（パックごと）: `{ settingsVersion: 1, bindings: { keyboard: Partial<Record<ActionId, string[]>>, gamepad: Record<'standard' \| Gamepad.id, Partial<Record<ActionId, GamepadInputId[]>>> } }`<br>上のスケッチの `touchLayout`、`audio`、`feelProfile`、`scaling`、`interpolationOverride` は、それを使う機能（M2-3、M2-4、M4）と一緒に足す。グローバルのバインド（`Settings.bindings`）は今は使わず、キーコンフィグはパックごとの上書きを編集する。<br>読み込んだ値が壊れている、または版が違うときは、警告を出して既定値で始める（保存し直すまで元の値は消さない）。保存先は `idb-keyval`（6.3.0 に固定）、IndexedDB が使えなければ localStorage に同じキーで JSON を保存する |

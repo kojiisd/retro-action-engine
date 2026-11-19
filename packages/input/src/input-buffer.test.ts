@@ -95,3 +95,21 @@ describe('InputBuffer (DOM side)', () => {
     expect(buffer.nextFrame().held).toBe(held);
   });
 });
+
+describe('InputBuffer.onPressed', () => {
+  it('reports actions that just went down, even if they go up before the next frame', () => {
+    const pressed: number[] = [];
+    let held = 0;
+    const buffer = new InputBuffer({ onPressed: (mask) => pressed.push(mask) });
+    buffer.addSource({ held: () => held });
+    held = actionMask('menu');
+    buffer.sourceChanged();
+    held = 0;
+    buffer.sourceChanged();
+    held = actionMask('menu', 'jump');
+    buffer.sourceChanged();
+    held = actionMask('jump');
+    buffer.sourceChanged();
+    expect(pressed).toEqual([actionMask('menu'), actionMask('menu', 'jump')]);
+  });
+});

@@ -145,4 +145,5 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
   - `apps/player`: 配線（`boot.ts`）、`window.__engine`（開発時と `VITE_E2E_HOOKS=1` のビルドだけ）、golden 2 本（`src/golden/`）、e2e（`e2e/`）。
   - core の追加: スプライトのアニメーション（`World.animation`）、`RenderSnapshot`（`output` システム）、`GameSession`。
 - M2-1（タッチ操作）は実装済み: 配置はパックのデータ（`input.json` の `touch.layouts`）、`input` の `TouchPadDevice`（幾何は `touch-geometry.ts`、DOM 表示は `mountTouchPad`）。横向きはゲーム画面に半透明で重ね、縦向きはゲーム画面の下に置く（`apps/player/index.html` の CSS）。表示は `pointer: coarse` でゲームパッド未接続のとき。決定の記録は ADR-0008 の改訂履歴（2026-11-18）。
-- 次は `docs/roadmap.md` の M2-2（キーコンフィグ UI、非標準ゲームパッド、Settings の保存）。解析ツールの次（A-3）は M3-3 の後。
+- M2-2（キーコンフィグ、非標準ゲームパッド、設定の保存）は実装済み: 設定画面は `apps/player/src/settings-panel.ts`（HUD 帯の右端の歯車か `menu` で開き、開いている間はゲームを止める）、文言は `ui-strings.ts`（ブラウザの言語で日英。公開情報なので変更は所有者の確認を取る）、保存は `settings.ts` と `settings-idb.ts`（`idb-keyval` 6.3.0、`settings:global` と `settings:<packId>`）。`input` の `ActionMap` はユーザの上書きを重ね、`GamepadDevice` は非標準パッドを `Gamepad.id` ごとの割当で読む。決定の記録は ADR-0008 と ADR-0011 の改訂履歴（2026-11-19）。
+- 次は `docs/roadmap.md` の M2-3（操作感プロファイルの切替 UI、補間の on/off、デバッグ表示）。解析ツールの次（A-3）は M3-3 の後。

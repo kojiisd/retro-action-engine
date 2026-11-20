@@ -17,6 +17,8 @@ export interface SettingsPanelHost {
   readonly persistent: boolean;
   touchMode(): TouchPadMode;
   setTouchMode(mode: TouchPadMode): void;
+  /** Opens the virtual pad layout editor; absent when the pack has no pad. */
+  readonly editTouchLayout?: () => void;
   /** The pack's feel profiles, in the pack's order, with their display names (pack data). */
   readonly feelProfiles: ReadonlyArray<{ readonly id: string; readonly name: string }>;
   feelProfile(): string;
@@ -246,6 +248,13 @@ export function createSettingsPanel(host: SettingsPanelHost): SettingsPanel {
       host.touchMode(),
       (mode) => host.setTouchMode(mode),
     );
+    const editTouch = host.editTouchLayout;
+    if (editTouch !== undefined) {
+      const edit = el('button', 'settings-touch-edit', s.touchEdit);
+      edit.type = 'button';
+      edit.addEventListener('click', () => editTouch());
+      touch.append(edit);
+    }
     panel.append(touch);
 
     const debug = host.debug;

@@ -30,6 +30,19 @@ const PACK: PackSettings = {
     gamepad: { standard: { jump: ['button1'] }, 'Retro pad (Vendor: 1234)': { left: ['axis6-'] } },
   },
   feelProfile: 'retro',
+  // The virtual pad moved and resized in landscape only (docs/input-and-feel.md 9.5).
+  touchLayouts: {
+    landscape: {
+      handedness: 'left',
+      opacity: 0.35,
+      dpad: { cx: 0.2, cy: 0.75, radius: 0.3, floating: true },
+      buttons: {
+        jump: { cx: 0.88, cy: 0.6, radius: 0.15 },
+        switch: { cx: 0.7, cy: 0.8, radius: 0.08 },
+      },
+    },
+    portrait: null,
+  },
 };
 
 describe('SettingsStore', () => {
@@ -147,6 +160,45 @@ describe('parsePack feelProfile', () => {
     ).toBeNull();
     expect(parsePack({ settingsVersion: 1 }, (w) => warnings.push(w)).feelProfile).toBeNull();
     expect(warnings).toHaveLength(1);
+  });
+});
+
+describe('parsePack touchLayouts', () => {
+  const layout = PACK.touchLayouts.landscape;
+
+  it('keeps one layout per orientation', () => {
+    const warnings: string[] = [];
+    const parsed = parsePack(
+      { settingsVersion: 1, touchLayouts: { landscape: null, portrait: layout } },
+      (w) => warnings.push(w),
+    );
+    expect(parsed.touchLayouts).toEqual({ landscape: null, portrait: layout });
+    expect(warnings).toEqual([]);
+    // Settings saved before M2-4 have none.
+    expect(parsePack({ settingsVersion: 1 }, () => {}).touchLayouts).toEqual({
+      landscape: null,
+      portrait: null,
+    });
+  });
+
+  it.each([
+    ['a ratio outside 0..1', { dpad: { cx: 1.5, cy: 0.5, radius: 0.2, floating: false } }],
+    ['a radius of 0', { buttons: { jump: { cx: 0.5, cy: 0.5, radius: 0 } } }],
+    ['an unknown action', { buttons: { fly: { cx: 0.5, cy: 0.5, radius: 0.1 } } }],
+    ['an unknown handedness', { handedness: 'both' }],
+    ['an opacity of 2', { opacity: 2 }],
+    ['a d-pad without floating', { dpad: { cx: 0.5, cy: 0.5, radius: 0.2 } }],
+    ['not an object', 'left'],
+  ])('drops a whole layout with %s, with a warning', (_, broken) => {
+    const warnings: string[] = [];
+    const parsed = parsePack(
+      { settingsVersion: 1, touchLayouts: { landscape: broken, portrait: layout } },
+      (w) => warnings.push(w),
+    );
+    // The other orientation is kept.
+    expect(parsed.touchLayouts).toEqual({ landscape: null, portrait: layout });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/^touchLayouts\.landscape /);
   });
 });
 

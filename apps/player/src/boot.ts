@@ -1,6 +1,7 @@
 import { actionBit, GameSession, type StartState } from '@retro-action-engine/core';
 import {
   ActionMap,
+  applyTouchOverride,
   type FocusTargets,
   GamepadDevice,
   type GamepadLike,
@@ -8,6 +9,7 @@ import {
   KeyboardDevice,
   mountTouchPad,
   TouchPadDevice,
+  touchOverrideOf,
 } from '@retro-action-engine/input';
 import { type FetchLike, loadPack } from '@retro-action-engine/pack';
 import { startRenderer } from '@retro-action-engine/renderer-phaser';
@@ -18,11 +20,13 @@ import {
   effectiveInterpolation,
   type InterpolationMode,
   type KeyValueStore,
+  type Orientation,
   type PackSettings,
   SettingsStore,
   type TouchPadMode,
 } from './settings';
 import { createGearButton, createSettingsPanel } from './settings-panel';
+import { createTouchLayoutEditor, type TouchLayoutEditor } from './touch-layout-editor';
 import { touchPadVisible } from './touch-visibility';
 import type { UiStrings } from './ui-strings';
 
@@ -48,6 +52,8 @@ export interface BootOptions {
     readonly document: Document;
     /** `matchMedia('(pointer: coarse)').matches`, read every frame. */
     readonly coarsePointer: () => boolean;
+    /** `matchMedia('(orientation: portrait)').matches`, read every frame (9.5). */
+    readonly portrait: () => boolean;
     /** The pad was shown or hidden (the page lays the game screen out again). */
     readonly onVisibleChange: (visible: boolean) => void;
   };
@@ -128,21 +134,42 @@ export async function bootGame(options: BootOptions): Promise<Game> {
   const detachKeys = keyboard.attach(options.focus);
   const detachFocus = buffer.attachFocusEvents(options.focus);
 
-  const layout = runtime.input.touch.layouts[runtime.input.touch.layout];
-  const pad =
-    layout === undefined
+  // The pack's pad layout, with the user's changes for the screen's orientation (9.5).
+  const baseLayout = runtime.input.touch.layouts[runtime.input.touch.layout];
+  const orientation = (): Orientation => (options.touch.portrait() ? 'portrait' : 'landscape');
+  const layoutFor = (o: Orientation) =>
+    baseLayout === undefined
       ? undefined
-      : mountTouchPad(options.touch.area, touch, layout, {
+      : applyTouchOverride(baseLayout, packSettings.touchLayouts[o] ?? undefined);
+  let padOrientation = orientation();
+  const startLayout = layoutFor(padOrientation);
+  const pad =
+    startLayout === undefined
+      ? undefined
+      : mountTouchPad(options.touch.area, touch, startLayout, {
           document: options.touch.document,
           focus: options.focus,
         });
+  // Created with the settings screen below; while it is open the pad is shown to be edited.
+  let editor: TouchLayoutEditor | undefined;
+  let lastCanSwitch = true;
   const updatePad = (canSwitch: boolean) => {
     if (pad === undefined) return;
-    const visible = touchPadVisible({
-      mode: globalSettings.touchPad,
-      coarsePointer: options.touch.coarsePointer(),
-      gamepadConnected: gamepad.connected,
-    });
+    lastCanSwitch = canSwitch;
+    const now = orientation();
+    if (now !== padOrientation) {
+      padOrientation = now;
+      const next = layoutFor(now);
+      if (next !== undefined) pad.setLayout(next);
+      editor?.orientationChanged();
+    }
+    const visible =
+      editor?.open === true ||
+      touchPadVisible({
+        mode: globalSettings.touchPad,
+        coarsePointer: options.touch.coarsePointer(),
+        gamepadConnected: gamepad.connected,
+      });
     if (visible !== pad.visible) {
       options.touch.onVisibleChange(visible);
       pad.setVisible(visible);
@@ -174,6 +201,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       void save(settingsStore.saveGlobal(globalSettings));
     },
     bindingsChanged: () => savePack({ ...packSettings, bindings: map.overrides }),
+    ...(pad === undefined ? {} : { editTouchLayout: () => openEditor() }),
     feelProfiles: Object.entries(runtime.feel).map(([id, p]) => ({ id, name: p.name })),
     feelProfile: () => session.startState.feelProfile,
     setFeelProfile: (id: string) => {
@@ -230,6 +258,44 @@ export async function bootGame(options: BootOptions): Promise<Game> {
   );
   options.settings.container.append(gear, panel.element);
 
+  // ---- the pad layout editor, opened from the settings; the game stays stopped ----
+  const backToSettings = () => {
+    gear.hidden = false;
+    panel.show();
+  };
+  if (pad !== undefined && baseLayout !== undefined) {
+    editor = createTouchLayoutEditor({
+      document: options.touch.document,
+      strings: options.settings.strings,
+      pad,
+      base: baseLayout,
+      orientation,
+      layout: (o) => layoutFor(o) ?? baseLayout,
+      save: (o, edited) =>
+        savePack({
+          ...packSettings,
+          touchLayouts: {
+            ...packSettings.touchLayouts,
+            [o]: edited === null ? null : touchOverrideOf(edited),
+          },
+        }),
+      done: backToSettings,
+    });
+    options.settings.container.append(editor.element);
+  }
+  const openEditor = () => {
+    if (editor === undefined || editor.open) return;
+    panel.hide();
+    gear.hidden = true;
+    editor.show();
+    updatePad(lastCanSwitch);
+  };
+  const closeEditor = () => {
+    if (editor?.open !== true) return;
+    editor.hide();
+    backToSettings();
+  };
+
   // Latency and frame stats (debug display), refreshed a few times a second.
   const overlay = options.touch.document.createElement('pre');
   overlay.className = 'debug-overlay';
@@ -263,11 +329,13 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       }
       if (menuPressed) {
         menuPressed = false;
-        if (panel.open) closeMenu();
+        if (editor?.open === true) closeEditor();
+        else if (panel.open) closeMenu();
         else openMenu();
       }
-      // No time passes in the game while the settings are open.
-      const view = session.frame(panel.open ? 0 : deltaMs);
+      // No time passes in the game while the settings or the pad editor are open.
+      const paused = panel.open || editor?.open === true;
+      const view = session.frame(paused ? 0 : deltaMs);
       meter?.ticked(view.ticks);
       updatePad(view.ui.canSwitch);
       return view;
@@ -301,6 +369,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       stopRenderer();
       pad?.destroy();
       gear.remove();
+      editor?.element.remove();
       overlay.remove();
       panel.element.remove();
       detachKeys();

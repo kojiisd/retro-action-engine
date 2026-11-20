@@ -1,6 +1,7 @@
 import type { ActionId, TouchLayout } from '@retro-action-engine/core';
 import type { FocusTargets } from './input-buffer';
-import { placeLayout, sectorMask } from './touch-geometry';
+import { type PlacedLayout, placeLayout, sectorMask } from './touch-geometry';
+import { type TouchPart, touchPartAt } from './touch-layout-edit';
 import type { TouchPadDevice, TouchPadState } from './touch-pad';
 
 const SVG = 'http://www.w3.org/2000/svg';
@@ -27,12 +28,31 @@ const KNOB_RADIUS = 0.4;
 const KNOB_TRAVEL = 0.6;
 const REST_RADIUS = 0.34;
 
+/** What the layout editor is told while the pad is being edited (docs/input-and-feel.md 9.5). */
+export interface TouchEditHandlers {
+  /** A part was touched, or the empty area (`undefined`). */
+  select(part: TouchPart | undefined): void;
+  /** The touched part is dragged: its center should go to (x, y) px in a `width` x `height` area. */
+  move(part: TouchPart, x: number, y: number, width: number, height: number): void;
+  /** The finger dragging `part` left the screen. */
+  end(part: TouchPart): void;
+}
+
 export interface TouchPadView {
   /** Shows or hides the pad. Hiding lets go of every finger. */
   setVisible(visible: boolean): void;
   readonly visible: boolean;
   /** Shows or hides one action's button (e.g. `switch` when the party cannot switch). */
   setActionEnabled(action: ActionId, enabled: boolean): void;
+  /** Uses another layout (the user's changes), placed at once. */
+  setLayout(layout: TouchLayout): void;
+  /**
+   * Edit mode: touches go to `handlers` instead of the game, and every button is shown (also
+   * hidden ones). `undefined` goes back to play.
+   */
+  setEditing(handlers: TouchEditHandlers | undefined): void;
+  /** The part drawn as selected in edit mode. */
+  setSelected(part: TouchPart | undefined): void;
   /** Places the layout again for the area's current size. */
   refresh(): void;
   destroy(): void;
@@ -65,7 +85,13 @@ export function mountTouchPad(
     webkitUserSelect: 'none',
   });
   root.style.setProperty('-webkit-touch-callout', 'none');
-  root.style.setProperty('--touch-opacity', String(layout.opacity));
+  let current = layout;
+  let editing: TouchEditHandlers | undefined;
+  let selected: TouchPart | undefined;
+  /** The finger dragging a part in edit mode, and its offset from the part's center. */
+  let drag: { id: number; part: TouchPart; dx: number; dy: number } | undefined;
+  let placedNow: PlacedLayout | undefined;
+  root.style.setProperty('--touch-opacity', String(current.opacity));
   const svg = doc.createElementNS(SVG, 'svg');
   svg.setAttribute('width', '100%');
   svg.setAttribute('height', '100%');
@@ -108,11 +134,14 @@ export function mountTouchPad(
     svg.replaceChildren();
     knob = undefined;
     buttonGroups = [];
+    placedNow = undefined;
+    root.dataset.editing = String(editing !== undefined);
     if (rect.width <= 0 || rect.height <= 0) {
       device.setLayout(undefined);
       return;
     }
-    const placed = placeLayout(layout, rect.width, rect.height);
+    const placed = placeLayout(current, rect.width, rect.height);
+    placedNow = placed;
     svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
 
     const circle = (r: number, fillOpacity: string) => {
@@ -128,6 +157,7 @@ export function mountTouchPad(
 
     const dpad = doc.createElementNS(SVG, 'g');
     dpad.setAttribute('class', 'touch-dpad');
+    dpad.setAttribute('data-selected', String(editing !== undefined && selected === 'dpad'));
     dpad.setAttribute('transform', `translate(${placed.dpad.x} ${placed.dpad.y})`);
     dpadRadius = placed.dpad.r;
     const ring = circle(placed.dpad.r, '0.1');
@@ -148,6 +178,10 @@ export function mountTouchPad(
       const group = doc.createElementNS(SVG, 'g');
       group.setAttribute('class', 'touch-button');
       group.setAttribute('data-action', button.action);
+      group.setAttribute(
+        'data-selected',
+        String(editing !== undefined && selected === button.action),
+      );
       group.setAttribute('transform', `translate(${button.x} ${button.y})`);
       group.append(circle(button.r, '0.3'));
       const icon = ICONS[button.action];
@@ -158,10 +192,34 @@ export function mountTouchPad(
         path.setAttribute('transform', `scale(${button.r * 0.8})`);
         group.append(path);
       }
-      if (!device.isActionEnabled(button.action)) group.style.display = 'none';
+      // The editor places every button, also those the game hides for now.
+      if (editing === undefined && !device.isActionEnabled(button.action)) {
+        group.style.display = 'none';
+      }
       svg.append(group);
       buttonGroups.push(group);
     });
+    // The selected part in edit mode: a dashed ring around it.
+    if (editing !== undefined && selected !== undefined) {
+      const part =
+        selected === 'dpad' ? placed.dpad : placed.buttons.find((b) => b.action === selected);
+      if (part !== undefined) {
+        const mark = circle(part.r + 6, '0');
+        mark.setAttribute('class', 'touch-selection');
+        mark.setAttribute('cx', String(part.x));
+        mark.setAttribute('cy', String(part.y));
+        mark.setAttribute('stroke', '#ffd75e');
+        mark.setAttribute('stroke-opacity', '1');
+        mark.setAttribute('stroke-width', '3');
+        mark.setAttribute('stroke-dasharray', '6 5');
+        svg.append(mark);
+      }
+    }
+    if (editing !== undefined) {
+      // No touches reach the game while editing.
+      device.setLayout(undefined);
+      return;
+    }
     device.setLayout(placed);
     draw(device.state());
   };
@@ -178,14 +236,39 @@ export function mountTouchPad(
       // Not every pointer can be captured (e.g. synthetic ones); moves still arrive on the pad.
     }
     const [x, y] = local(event);
+    if (editing !== undefined) {
+      if (drag !== undefined || placedNow === undefined) return;
+      const part = touchPartAt(placedNow, x, y);
+      if (part !== undefined) {
+        const at =
+          part === 'dpad' ? placedNow.dpad : placedNow.buttons.find((b) => b.action === part);
+        drag = { id: event.pointerId, part, dx: x - (at?.x ?? x), dy: y - (at?.y ?? y) };
+      }
+      editing.select(part);
+      return;
+    }
     device.pointerDown(event.pointerId, x, y);
   };
   const onMove = (event: PointerEvent) => {
     event.preventDefault();
     const [x, y] = local(event);
+    if (editing !== undefined) {
+      if (drag === undefined || drag.id !== event.pointerId) return;
+      const rect = area.getBoundingClientRect();
+      editing.move(drag.part, x - drag.dx, y - drag.dy, rect.width, rect.height);
+      return;
+    }
     device.pointerMove(event.pointerId, x, y);
   };
-  const onUp = (event: PointerEvent) => device.pointerUp(event.pointerId);
+  const onUp = (event: PointerEvent) => {
+    if (drag !== undefined && drag.id === event.pointerId) {
+      const { part } = drag;
+      drag = undefined;
+      editing?.end(part);
+      return;
+    }
+    device.pointerUp(event.pointerId);
+  };
   const onMenu = (event: Event) => event.preventDefault();
 
   root.addEventListener('pointerdown', onDown);
@@ -214,6 +297,24 @@ export function mountTouchPad(
     setActionEnabled(action, enabled) {
       if (device.isActionEnabled(action) === enabled) return;
       device.setActionEnabled(action, enabled);
+      if (visible) render();
+    },
+    setLayout(next) {
+      if (next === current) return;
+      current = next;
+      root.style.setProperty('--touch-opacity', String(current.opacity));
+      if (visible) render();
+    },
+    setEditing(handlers) {
+      editing = handlers;
+      drag = undefined;
+      if (handlers === undefined) selected = undefined;
+      device.releaseAll();
+      if (visible) render();
+    },
+    setSelected(part) {
+      if (part === selected) return;
+      selected = part;
       if (visible) render();
     },
     refresh() {

@@ -20,6 +20,16 @@ export interface UiStrings {
   readonly touchAuto: string;
   readonly touchShow: string;
   readonly touchHide: string;
+  readonly touchEdit: string;
+  readonly touchEditTitle: (orientation: 'landscape' | 'portrait') => string;
+  readonly touchEditHint: string;
+  readonly touchStick: string;
+  readonly touchEditSize: (part: string) => string;
+  readonly touchEditOpacity: string;
+  readonly touchEditMirror: string;
+  readonly touchEditFloating: string;
+  readonly touchEditReset: string;
+  readonly touchEditDone: string;
   readonly notSaved: string;
   readonly feelTitle: string;
   readonly feelNote: string;
@@ -55,6 +65,17 @@ const JA: UiStrings = {
   touchAuto: '自動（タッチ画面で、ゲームパッドが無いとき）',
   touchShow: '常に表示',
   touchHide: '表示しない',
+  touchEdit: '配置を変える',
+  touchEditTitle: (o) => (o === 'landscape' ? 'パッドの配置（横向き）' : 'パッドの配置（縦向き）'),
+  touchEditHint:
+    'スティックやボタンをドラッグして動かします。タップして選ぶと大きさを変えられます。',
+  touchStick: 'スティック',
+  touchEditSize: (part) => `大きさ（${part}）`,
+  touchEditOpacity: '濃さ',
+  touchEditMirror: '左右を入れ替える',
+  touchEditFloating: 'スティックを触れた位置に出す',
+  touchEditReset: 'この向きを既定に戻す',
+  touchEditDone: '完了',
   notSaved: 'この端末では設定を保存できません。ページを閉じると元に戻ります。',
   feelTitle: '操作感',
   feelNote: '切り替えると、部屋の入口からやり直します。',
@@ -117,6 +138,16 @@ const EN: UiStrings = {
   touchAuto: 'Auto (on touch screens without a gamepad)',
   touchShow: 'Always show',
   touchHide: 'Hide',
+  touchEdit: 'Edit layout',
+  touchEditTitle: (o) => (o === 'landscape' ? 'Pad layout (landscape)' : 'Pad layout (portrait)'),
+  touchEditHint: 'Drag the stick and buttons to move them. Tap one to change its size.',
+  touchStick: 'Stick',
+  touchEditSize: (part) => `Size (${part})`,
+  touchEditOpacity: 'Opacity',
+  touchEditMirror: 'Swap left and right',
+  touchEditFloating: 'Stick appears where you touch',
+  touchEditReset: 'Reset this layout',
+  touchEditDone: 'Done',
   notSaved: 'Settings cannot be saved on this device. They reset when the page closes.',
   feelTitle: 'Feel',
   feelNote: 'Switching starts the room over.',

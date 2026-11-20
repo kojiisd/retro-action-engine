@@ -19,5 +19,26 @@ export {
   sectorMask,
   TOUCH_HIT_SCALE,
 } from './touch-geometry';
+export {
+  applyTouchOverride,
+  moveTouchPart,
+  resizeTouchPart,
+  setTouchFloating,
+  setTouchHandedness,
+  setTouchOpacity,
+  TOUCH_OPACITY_MIN,
+  TOUCH_SIZE_MAX,
+  TOUCH_SIZE_MIN,
+  type TouchLayoutOverride,
+  type TouchPart,
+  touchOverrideOf,
+  touchPartAt,
+  touchPartScale,
+} from './touch-layout-edit';
 export { TouchPadDevice, type TouchPadState } from './touch-pad';
-export { type MountOptions, mountTouchPad, type TouchPadView } from './touch-view';
+export {
+  type MountOptions,
+  mountTouchPad,
+  type TouchEditHandlers,
+  type TouchPadView,
+} from './touch-view';

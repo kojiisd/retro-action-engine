@@ -23,6 +23,8 @@ touchArea.className = 'touch-area';
 document.body.append(stage, touchArea);
 document.body.dataset.state = 'loading';
 const coarse = window.matchMedia('(pointer: coarse)');
+// The same query as the page's CSS (index.html), so the pad's layout follows its place.
+const portrait = window.matchMedia('(orientation: portrait)');
 
 const exposeHooks = import.meta.env.DEV || import.meta.env.VITE_E2E_HOOKS === '1';
 const warn = (message: string) => console.warn(`[settings] ${message}`);
@@ -49,6 +51,7 @@ openStore({
         area: touchArea,
         document,
         coarsePointer: () => coarse.matches,
+        portrait: () => portrait.matches,
         onVisibleChange: (visible) => document.body.classList.toggle('touch', visible),
       },
       settings: { store, strings, container: document.body, buildInfo, warn },

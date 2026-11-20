@@ -1,5 +1,5 @@
 import { ACTIONS, type ActionId, type GamepadInputId } from '@retro-action-engine/core';
-import type { BindingOverrides } from '@retro-action-engine/input';
+import type { BindingOverrides, TouchLayoutOverride } from '@retro-action-engine/input';
 
 /** Where the virtual pad is shown (docs/input-and-feel.md 9.4). */
 export type TouchPadMode = 'auto' | 'show' | 'hide';
@@ -22,12 +22,23 @@ export interface GlobalSettings {
   readonly debug: DebugSettings;
 }
 
+/** The screen's orientation: the virtual pad keeps one layout for each (9.5). */
+export type Orientation = 'landscape' | 'portrait';
+
+/** The user's virtual pad layouts; `null` is the pack's own layout. */
+export interface TouchLayouts {
+  readonly landscape: TouchLayoutOverride | null;
+  readonly portrait: TouchLayoutOverride | null;
+}
+
 /** `settings:<packId>`: the user's changes to one pack. */
 export interface PackSettings {
   readonly settingsVersion: 1;
   readonly bindings: BindingOverrides;
   /** The chosen feel profile; `null` is the pack's default. */
   readonly feelProfile: string | null;
+  /** The virtual pad, moved and resized by the user (docs/input-and-feel.md 9.5). */
+  readonly touchLayouts: TouchLayouts;
 }
 
 export const DEFAULT_DEBUG: DebugSettings = {
@@ -41,7 +52,13 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   interpolation: 'profile',
   debug: DEFAULT_DEBUG,
 };
-export const DEFAULT_PACK: PackSettings = { settingsVersion: 1, bindings: {}, feelProfile: null };
+export const DEFAULT_TOUCH_LAYOUTS: TouchLayouts = { landscape: null, portrait: null };
+export const DEFAULT_PACK: PackSettings = {
+  settingsVersion: 1,
+  bindings: {},
+  feelProfile: null,
+  touchLayouts: DEFAULT_TOUCH_LAYOUTS,
+};
 
 const GAMEPAD_INPUT =
   /^(button\d+|axis\d+[+-]|dpad(Up|Down|Left|Right)|leftStick(Up|Down|Left|Right))$/;
@@ -110,6 +127,72 @@ function actionLists<T extends string>(
   return out;
 }
 
+const isUnit = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 1;
+const isRadius = (v: unknown): v is number =>
+  typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 0.5;
+
+/**
+ * One saved virtual pad layout, or `null` (the pack's). The pack schema's bounds hold; a layout
+ * with anything out of place is dropped as a whole, with a warning, so that no half-moved pad is
+ * shown.
+ */
+function parseTouchOverride(value: unknown, where: string, warn: Warn): TouchLayoutOverride | null {
+  if (value === undefined || value === null) return null;
+  const bad = (what: string) => {
+    warn(`${where} ${what}; using the pack's layout`);
+    return null;
+  };
+  if (!isRecord(value)) return bad('is not an object');
+  const out: {
+    handedness?: 'right' | 'left';
+    opacity?: number;
+    dpad?: { cx: number; cy: number; radius: number; floating: boolean };
+    buttons?: Partial<Record<ActionId, { cx: number; cy: number; radius: number }>>;
+  } = {};
+  if (value.handedness !== undefined) {
+    if (value.handedness !== 'right' && value.handedness !== 'left') {
+      return bad('has an unknown handedness');
+    }
+    out.handedness = value.handedness;
+  }
+  if (value.opacity !== undefined) {
+    if (!isUnit(value.opacity)) return bad('has an opacity outside 0..1');
+    out.opacity = value.opacity;
+  }
+  if (value.dpad !== undefined) {
+    const d = value.dpad;
+    if (
+      !isRecord(d) ||
+      !isUnit(d.cx) ||
+      !isUnit(d.cy) ||
+      !isRadius(d.radius) ||
+      typeof d.floating !== 'boolean'
+    ) {
+      return bad('has an unreadable d-pad');
+    }
+    out.dpad = { cx: d.cx, cy: d.cy, radius: d.radius, floating: d.floating };
+  }
+  if (value.buttons !== undefined) {
+    if (!isRecord(value.buttons)) return bad('has unreadable buttons');
+    const buttons: Partial<Record<ActionId, { cx: number; cy: number; radius: number }>> = {};
+    for (const [action, b] of Object.entries(value.buttons)) {
+      if (
+        !(ACTIONS as readonly string[]).includes(action) ||
+        !isRecord(b) ||
+        !isUnit(b.cx) ||
+        !isUnit(b.cy) ||
+        !isRadius(b.radius)
+      ) {
+        return bad(`has an unreadable button "${action}"`);
+      }
+      buttons[action as ActionId] = { cx: b.cx, cy: b.cy, radius: b.radius };
+    }
+    out.buttons = buttons;
+  }
+  return out;
+}
+
 /** Reads `settings:<packId>`; anything unreadable is dropped with a warning. */
 export function parsePack(value: unknown, warn: Warn): PackSettings {
   if (value === undefined) return DEFAULT_PACK;
@@ -143,7 +226,15 @@ export function parsePack(value: unknown, warn: Warn): PackSettings {
   } else if (value.feelProfile !== undefined && value.feelProfile !== null) {
     warn('feelProfile is not a profile name; using the pack default');
   }
-  return { settingsVersion: 1, bindings: { keyboard, gamepad }, feelProfile };
+  const layouts = isRecord(value.touchLayouts) ? value.touchLayouts : {};
+  if (value.touchLayouts !== undefined && !isRecord(value.touchLayouts)) {
+    warn('touchLayouts is not an object; using the pack layouts');
+  }
+  const touchLayouts: TouchLayouts = {
+    landscape: parseTouchOverride(layouts.landscape, 'touchLayouts.landscape', warn),
+    portrait: parseTouchOverride(layouts.portrait, 'touchLayouts.portrait', warn),
+  };
+  return { settingsVersion: 1, bindings: { keyboard, gamepad }, feelProfile, touchLayouts };
 }
 
 /** A key-value store for settings (IndexedDB, localStorage, or memory). */

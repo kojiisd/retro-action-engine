@@ -1,6 +1,7 @@
 import { PackLoadError } from '@retro-action-engine/pack';
 import { bootGame } from './boot';
 import { readBuildInfo, summarizeBuild } from './build-info';
+import { debugAllowed } from './debug';
 import { openStore } from './settings';
 import { idbStore } from './settings-idb';
 import { uiStrings } from './ui-strings';
@@ -51,6 +52,8 @@ openStore({
         onVisibleChange: (visible) => document.body.classList.toggle('touch', visible),
       },
       settings: { store, strings, container: document.body, buildInfo, warn },
+      // Dev builds and PR previews only, never production (ADR-0008, revision M2-3).
+      ...(debugAllowed(import.meta.env) ? { debug: { now: () => performance.now() } } : {}),
     }),
   )
   .then((game) => {

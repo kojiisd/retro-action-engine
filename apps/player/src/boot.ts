@@ -12,8 +12,16 @@ import {
 import { type FetchLike, loadPack } from '@retro-action-engine/pack';
 import { startRenderer } from '@retro-action-engine/renderer-phaser';
 import type { Binding } from './bindings-edit';
+import { formatStats, LatencyMeter } from './debug';
 import { createEngineHooks, type EngineHooks } from './engine-hooks';
-import { type KeyValueStore, SettingsStore, type TouchPadMode } from './settings';
+import {
+  effectiveInterpolation,
+  type InterpolationMode,
+  type KeyValueStore,
+  type PackSettings,
+  SettingsStore,
+  type TouchPadMode,
+} from './settings';
 import { createGearButton, createSettingsPanel } from './settings-panel';
 import { touchPadVisible } from './touch-visibility';
 import type { UiStrings } from './ui-strings';
@@ -52,6 +60,11 @@ export interface BootOptions {
     readonly buildInfo: string;
     readonly warn: (message: string) => void;
   };
+  /** The debug display (dev builds and PR previews only; ADR-0008, revision M2-3). */
+  readonly debug?: {
+    /** The page clock in ms (`performance.now`), for the latency display. */
+    readonly now: () => number;
+  };
 }
 
 export interface Game {
@@ -67,11 +80,6 @@ export interface Game {
 export async function bootGame(options: BootOptions): Promise<Game> {
   const { runtime } = await loadPack(options.fetch, options.packUrl);
   options.onDisplay?.(runtime.display);
-  const start: StartState = {
-    ...runtime.entry,
-    seed: NEW_GAME_SEED,
-    feelProfile: runtime.feelDefault,
-  };
 
   const settingsStore = new SettingsStore(
     options.settings.store,
@@ -80,10 +88,24 @@ export async function bootGame(options: BootOptions): Promise<Game> {
   );
   const saved = await settingsStore.load();
   let globalSettings = saved.global;
+  let packSettings: PackSettings = saved.pack;
   const save = (what: Promise<void>) =>
     what.catch((error: unknown) =>
       options.settings.warn(`settings were not saved: ${String(error)}`),
     );
+  // The saved feel profile, if the pack still has it (docs/input-and-feel.md 8.5).
+  let feelProfile = runtime.feelDefault;
+  if (packSettings.feelProfile !== null) {
+    if (runtime.feel[packSettings.feelProfile] !== undefined)
+      feelProfile = packSettings.feelProfile;
+    else
+      options.settings.warn(
+        `feel profile "${packSettings.feelProfile}" is not in the pack; using the default`,
+      );
+  }
+  const start: StartState = { ...runtime.entry, seed: NEW_GAME_SEED, feelProfile };
+  const debug = options.debug;
+  const meter = debug === undefined ? undefined : new LatencyMeter(debug.now);
 
   // `menu` opens and closes the settings: taken at the moment it is pressed (see frame below).
   let menuPressed = false;
@@ -93,6 +115,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
   const buffer = new InputBuffer({
     onPressed: (mask) => {
       if ((mask & MENU) !== 0) menuPressed = true;
+      meter?.pressed();
     },
   });
   const map = new ActionMap(runtime.input, saved.pack.bindings);
@@ -128,6 +151,12 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     pad.setActionEnabled('switch', canSwitch);
   };
 
+  const session = new GameSession(runtime, start, buffer);
+  const savePack = (next: PackSettings) => {
+    packSettings = next;
+    void save(settingsStore.savePack(packSettings));
+  };
+
   // ---- settings screen: open with the gear or `menu`; the game stops while it is open ----
   const stopCapture = () => {
     keyboard.setCapture(undefined);
@@ -144,9 +173,31 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       globalSettings = { ...globalSettings, touchPad: mode };
       void save(settingsStore.saveGlobal(globalSettings));
     },
-    bindingsChanged: () => {
-      void save(settingsStore.savePack({ settingsVersion: 1, bindings: map.overrides }));
+    bindingsChanged: () => savePack({ ...packSettings, bindings: map.overrides }),
+    feelProfiles: Object.entries(runtime.feel).map(([id, p]) => ({ id, name: p.name })),
+    feelProfile: () => session.startState.feelProfile,
+    setFeelProfile: (id: string) => {
+      if (runtime.feel[id] === undefined || id === session.startState.feelProfile) return;
+      // A feel profile holds for a whole run: switching starts the room over.
+      session.restart({ ...session.startState, feelProfile: id });
+      savePack({ ...packSettings, feelProfile: id === runtime.feelDefault ? null : id });
     },
+    interpolation: () => globalSettings.interpolation,
+    setInterpolation: (mode: InterpolationMode) => {
+      globalSettings = { ...globalSettings, interpolation: mode };
+      void save(settingsStore.saveGlobal(globalSettings));
+    },
+    ...(debug === undefined
+      ? {}
+      : {
+          debug: {
+            get: () => globalSettings.debug,
+            set: (next) => {
+              globalSettings = { ...globalSettings, debug: next };
+              void save(settingsStore.saveGlobal(globalSettings));
+            },
+          },
+        }),
     capture: (done: (binding: Binding | undefined) => void) => {
       keyboard.setCapture((code) => {
         stopCapture();
@@ -179,7 +230,15 @@ export async function bootGame(options: BootOptions): Promise<Game> {
   );
   options.settings.container.append(gear, panel.element);
 
-  const session = new GameSession(runtime, start, buffer);
+  // Latency and frame stats (debug display), refreshed a few times a second.
+  const overlay = options.touch.document.createElement('pre');
+  overlay.className = 'debug-overlay';
+  overlay.lang = 'en';
+  overlay.hidden = true;
+  if (meter !== undefined) options.settings.container.append(overlay);
+  let overlayFrames = 0;
+  const desynchronized = debug !== undefined && saved.global.debug.desynchronized;
+
   const hooks = createEngineHooks({
     session,
     feelProfiles: Object.keys(runtime.feel),
@@ -209,10 +268,30 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       }
       // No time passes in the game while the settings are open.
       const view = session.frame(panel.open ? 0 : deltaMs);
+      meter?.ticked(view.ticks);
       updatePad(view.ui.canSwitch);
       return view;
     },
-    interpolation: () => runtime.feel[session.startState.feelProfile]?.interpolation ?? 'none',
+    interpolation: () =>
+      effectiveInterpolation(
+        globalSettings.interpolation,
+        runtime.feel[session.startState.feelProfile]?.interpolation,
+      ),
+    showColliders: () => debug !== undefined && globalSettings.debug.hitboxes,
+    desynchronized,
+    afterDraw: () => {
+      if (meter === undefined) return;
+      meter.drawn();
+      const show = globalSettings.debug.latency;
+      overlay.hidden = !show;
+      if (show && overlayFrames++ % 10 === 0) {
+        overlay.textContent = formatStats(meter.stats(), {
+          droppedFrames: session.droppedFrames,
+          resyncs: buffer.resyncCount,
+          desynchronized,
+        });
+      }
+    },
     ...(options.onReady === undefined ? {} : { onReady: options.onReady }),
   });
 
@@ -222,6 +301,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       stopRenderer();
       pad?.destroy();
       gear.remove();
+      overlay.remove();
       panel.element.remove();
       detachKeys();
       detachFocus();

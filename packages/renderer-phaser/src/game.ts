@@ -2,7 +2,7 @@ import type { FrameView, PackRuntime } from '@retro-action-engine/core';
 import type { LoadedRuntime } from '@retro-action-engine/pack';
 import * as Phaser from 'phaser';
 import { hudIcons } from './hud';
-import { type Interpolation, interpolateSprites } from './interpolate';
+import { type Interpolation, interpolateColliders, interpolateSprites } from './interpolate';
 import { tileLayerPlans } from './tile-layers';
 
 export interface RendererOptions {
@@ -20,7 +20,17 @@ export interface RendererOptions {
   readonly interpolation: () => Interpolation;
   /** Called once the textures are loaded and the first frame can be drawn. */
   readonly onReady?: () => void;
+  /** Debug display (dev and PR previews only): draw the collision boxes. Read every frame. */
+  readonly showColliders?: () => boolean;
+  /** Called after each frame is drawn (the debug latency display measures from input to here). */
+  readonly afterDraw?: () => void;
+  /** A desynchronized canvas context (lower latency on some devices; measured in M2-3). */
+  readonly desynchronized?: boolean;
 }
+
+/** Debug collision boxes: a thin line above everything in the play area. */
+const COLLIDER_COLOR = 0x40ff90;
+const COLLIDER_DEPTH = 100;
 
 /** Margin of the HUD icons inside the HUD band, in px. Layout only. */
 const HUD_PAD = 2;
@@ -35,6 +45,7 @@ class GameScene extends Phaser.Scene {
   private readonly hud: Phaser.GameObjects.Sprite[] = [];
   private hudCamera: Phaser.Cameras.Scene2D.Camera | undefined;
   private readonly world: Phaser.GameObjects.GameObject[] = [];
+  private debug: Phaser.GameObjects.Graphics | undefined;
 
   constructor(private readonly options: RendererOptions) {
     super({ key: 'game' });
@@ -75,13 +86,33 @@ class GameScene extends Phaser.Scene {
       this.hudCamera.setRoundPixels(true);
       this.hudCamera.ignore(this.world);
     }
+    this.debug = this.add.graphics().setDepth(COLLIDER_DEPTH);
+    this.hudCamera?.ignore(this.debug);
     this.options.onReady?.();
   }
 
   override update(_time: number, delta: number): void {
     const view = this.options.frame(delta);
     this.drawSprites(view);
+    this.drawColliders(view);
     this.drawHud(view, this.options.runtime);
+    this.options.afterDraw?.();
+  }
+
+  private drawColliders(view: FrameView): void {
+    const g = this.debug;
+    if (g === undefined) return;
+    g.clear();
+    if (this.options.showColliders?.() !== true) return;
+    g.lineStyle(1, COLLIDER_COLOR, 1);
+    const boxes = interpolateColliders(
+      view.prev,
+      view.curr,
+      view.alpha,
+      this.options.interpolation(),
+    );
+    // Half-pixel inset so a 1 px line sits on the box's edge pixels.
+    for (const b of boxes) g.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
   }
 
   private drawSprites(view: FrameView): void {
@@ -145,6 +176,7 @@ export function startRenderer(parent: HTMLElement, options: RendererOptions): ()
     pixelArt: true,
     backgroundColor: '#000000',
     banner: false,
+    desynchronized: options.desynchronized === true,
     // Input comes from the `input` package (docs/input-and-feel.md 3.4); Phaser's is off.
     input: { keyboard: false, mouse: false, touch: false, gamepad: false },
     audio: { noAudio: true },

@@ -176,6 +176,52 @@ describe('animation: the sprite follows the movement state', () => {
   });
 });
 
+describe('render snapshot: collision boxes for the debug display', () => {
+  it('covers the pixels of the collider, from the position and the offsets', () => {
+    const runtime = runtimeWith(SPRITED);
+    const world = createWorld(runtime, {
+      roomId: 'room',
+      spawnId: 'start',
+      seed: 1,
+      feelProfile: 'modern',
+    });
+    const c = SPRITED.collider;
+    for (const frame of script().hold('right', 9).build()) {
+      const box = step(world, frame, runtime).render.colliders[0];
+      const left = (world.entities.x[0] as number) + c.ox;
+      const top = (world.entities.y[0] as number) + c.oy;
+      expect(box?.x).toBe(Math.floor(left / 256));
+      expect(box?.y).toBe(Math.floor(top / 256));
+      expect((box?.x ?? 0) + (box?.w ?? 0)).toBe(Math.floor((left + c.w - 1) / 256) + 1);
+      expect((box?.y ?? 0) + (box?.h ?? 0)).toBe(Math.floor((top + c.h - 1) / 256) + 1);
+    }
+  });
+
+  it('follows the active character', () => {
+    const base = runtimeWith(SPRITED, ['walker', 'swimmer']);
+    const small = { w: 8 * 256, h: 10 * 256, ox: -4 * 256, oy: -10 * 256 };
+    const runtime = {
+      ...base,
+      characters: { ...base.characters, swimmer: { ...SWIMMER, collider: small } },
+    };
+    const world = createWorld(runtime, {
+      roomId: 'room',
+      spawnId: 'start',
+      seed: 1,
+      feelProfile: 'retro',
+    });
+    const out = script()
+      .wait(3)
+      .tap('switch')
+      .wait(3)
+      .build()
+      .map((f) => step(world, f, runtime));
+    expect(out[0]?.render.colliders[0]?.w).toBe(Math.ceil(WALKER.collider.w / 256));
+    expect(out.at(-1)?.render.colliders[0]?.w).toBe(8);
+    expect(out.at(-1)?.render.colliders[0]?.h).toBe(10);
+  });
+});
+
 describe('render snapshot: no way back into the World', () => {
   it('changing a snapshot changes neither the hash nor the next tick', () => {
     const runtime = runtimeWith(SPRITED);

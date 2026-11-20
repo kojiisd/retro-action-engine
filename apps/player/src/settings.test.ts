@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_GLOBAL,
   DEFAULT_PACK,
+  effectiveInterpolation,
   type KeyValueStore,
   memoryStore,
   openStore,
   type PackSettings,
+  parseGlobal,
   parsePack,
   SettingsStore,
   storageStore,
@@ -27,6 +29,7 @@ const PACK: PackSettings = {
     keyboard: { jump: ['KeyX', 'Space'], left: [] },
     gamepad: { standard: { jump: ['button1'] }, 'Retro pad (Vendor: 1234)': { left: ['axis6-'] } },
   },
+  feelProfile: 'retro',
 };
 
 describe('SettingsStore', () => {
@@ -38,10 +41,16 @@ describe('SettingsStore', () => {
   it('round-trips global and pack settings, per pack id', async () => {
     const store = memoryStore();
     const a = new SettingsStore(store, 'sample', () => {});
-    await a.saveGlobal({ settingsVersion: 1, touchPad: 'hide' });
+    const global = {
+      settingsVersion: 1 as const,
+      touchPad: 'hide' as const,
+      interpolation: 'none' as const,
+      debug: { hitboxes: true, latency: false, desynchronized: true },
+    };
+    await a.saveGlobal(global);
     await a.savePack(PACK);
     expect(await new SettingsStore(store, 'sample', () => {}).load()).toEqual({
-      global: { settingsVersion: 1, touchPad: 'hide' },
+      global,
       pack: PACK,
     });
     // Another pack shares the global settings only.
@@ -96,6 +105,51 @@ describe('parsePack', () => {
   });
 });
 
+describe('parseGlobal', () => {
+  it('reads each field on its own, so one bad field keeps the others', () => {
+    const warnings: string[] = [];
+    const parsed = parseGlobal(
+      {
+        settingsVersion: 1,
+        touchPad: 'sideways',
+        interpolation: 'linear',
+        debug: { hitboxes: true, latency: 'yes' },
+      },
+      (w) => warnings.push(w),
+    );
+    expect(parsed).toEqual({
+      settingsVersion: 1,
+      touchPad: 'auto',
+      interpolation: 'linear',
+      debug: { hitboxes: true, latency: false, desynchronized: false },
+    });
+    expect(warnings).toEqual(['settings:global touchPad "sideways" is unknown; using "auto"']);
+  });
+
+  it('fills fields added later (M2-3) from the defaults, without a warning', () => {
+    const warnings: string[] = [];
+    expect(parseGlobal({ settingsVersion: 1, touchPad: 'show' }, (w) => warnings.push(w))).toEqual({
+      ...DEFAULT_GLOBAL,
+      touchPad: 'show',
+    });
+    expect(warnings).toEqual([]);
+  });
+});
+
+describe('parsePack feelProfile', () => {
+  it('keeps a profile name, and drops anything else with a warning', () => {
+    const warnings: string[] = [];
+    expect(parsePack({ settingsVersion: 1, feelProfile: 'retro' }, () => {}).feelProfile).toBe(
+      'retro',
+    );
+    expect(
+      parsePack({ settingsVersion: 1, feelProfile: 3 }, (w) => warnings.push(w)).feelProfile,
+    ).toBeNull();
+    expect(parsePack({ settingsVersion: 1 }, (w) => warnings.push(w)).feelProfile).toBeNull();
+    expect(warnings).toHaveLength(1);
+  });
+});
+
 describe('openStore', () => {
   const working = (kind: KeyValueStore['kind']): KeyValueStore => ({
     kind,
@@ -134,5 +188,15 @@ describe('openStore', () => {
     });
     expect(none.kind).toBe('memory');
     expect(warnings).toHaveLength(3);
+  });
+});
+
+describe('effectiveInterpolation', () => {
+  it("follows the profile unless the user chose, and the user's choice wins", () => {
+    expect(effectiveInterpolation('profile', 'linear')).toBe('linear');
+    expect(effectiveInterpolation('profile', 'none')).toBe('none');
+    expect(effectiveInterpolation('profile', undefined)).toBe('none');
+    expect(effectiveInterpolation('none', 'linear')).toBe('none');
+    expect(effectiveInterpolation('linear', 'none')).toBe('linear');
   });
 });

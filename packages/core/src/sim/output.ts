@@ -22,12 +22,24 @@ export interface RenderSprite {
   readonly teleported: boolean;
 }
 
+/** An entity's collision box in px (floor), for the debug drawing (ADR-0004, revision M2-3). */
+export interface RenderCollider {
+  readonly id: number;
+  /** Top-left corner. */
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
 export interface RenderSnapshot {
   readonly tick: number;
   /** Top-left of the view in px. Always 0, 0 in M1-5 (one screen per room). */
   readonly camera: { readonly x: number; readonly y: number };
   /** In ascending id order. */
   readonly sprites: readonly RenderSprite[];
+  /** Collision boxes of the entities, in ascending id order. Drawn only by the debug display. */
+  readonly colliders: readonly RenderCollider[];
 }
 
 /**
@@ -40,6 +52,7 @@ export function renderSnapshot(
   teleported = false,
 ): RenderSnapshot {
   const sprites: RenderSprite[] = [];
+  const colliders: RenderCollider[] = [];
   if (world.party.members.length > 0) {
     const character = activeCharacter(world, runtime);
     const s = world.entities;
@@ -47,6 +60,16 @@ export function renderSnapshot(
     const anim = world.animation;
     const resolved = resolveAnimation(character, anim.name === '' ? 'idle' : anim.name);
     const sprite = character.sprite;
+    const left = (s.x[slot] as number) + (s.colOx[slot] as number);
+    const top = (s.y[slot] as number) + (s.colOy[slot] as number);
+    colliders.push({
+      id: world.party.entityId,
+      x: toPxFloor(left),
+      y: toPxFloor(top),
+      // Width from the floored edges, so the box covers the pixels the body touches.
+      w: toPxFloor(left + (s.colW[slot] as number) - 1) - toPxFloor(left) + 1,
+      h: toPxFloor(top + (s.colH[slot] as number) - 1) - toPxFloor(top) + 1,
+    });
     if (sprite !== undefined && resolved !== undefined) {
       const frame = resolved.def.frames[Math.min(anim.frame, resolved.def.frames.length - 1)];
       sprites.push({
@@ -62,5 +85,5 @@ export function renderSnapshot(
       });
     }
   }
-  return { tick: world.tick, camera: { x: 0, y: 0 }, sprites };
+  return { tick: world.tick, camera: { x: 0, y: 0 }, sprites, colliders };
 }

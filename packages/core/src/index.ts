@@ -94,7 +94,12 @@ export type { SolidKind, TileClass } from './runtime/tile';
 export { type FrameView, GameSession, type InputSource } from './session/session';
 export { animationStep, movementAnimation, resolveAnimation } from './sim/anim';
 export { type Intent, inputIntent } from './sim/intent';
-export { type RenderSnapshot, type RenderSprite, renderSnapshot } from './sim/output';
+export {
+  type RenderCollider,
+  type RenderSnapshot,
+  type RenderSprite,
+  renderSnapshot,
+} from './sim/output';
 export { activeCharacter, canSwitch } from './sim/party';
 export {
   createWorld,

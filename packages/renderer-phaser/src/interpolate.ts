@@ -1,4 +1,4 @@
-import type { RenderSnapshot, RenderSprite } from '@retro-action-engine/core';
+import type { RenderCollider, RenderSnapshot, RenderSprite } from '@retro-action-engine/core';
 
 /** How sprites move between two ticks on screen (`FeelProfile.interpolation`). */
 export type Interpolation = 'linear' | 'none';
@@ -40,6 +40,30 @@ export function interpolateSprites(
       flipX: sprite.flipX,
       depth: sprite.depth,
       visible: sprite.visible,
+    };
+  });
+}
+
+/**
+ * Collision boxes where to draw them (debug display): blended like the sprites, so a box stays on
+ * its sprite. Boxes of new entities, or of `teleported` sprites, are drawn where they are.
+ */
+export function interpolateColliders(
+  prev: RenderSnapshot,
+  curr: RenderSnapshot,
+  alpha: number,
+  mode: Interpolation,
+): RenderCollider[] {
+  const before = new Map<number, RenderCollider>();
+  for (const box of prev.colliders) before.set(box.id, box);
+  const teleported = new Set(curr.sprites.filter((s) => s.teleported).map((s) => s.id));
+  return curr.colliders.map((box) => {
+    const from = before.get(box.id);
+    if (mode !== 'linear' || from === undefined || teleported.has(box.id)) return { ...box };
+    return {
+      ...box,
+      x: Math.floor(from.x + (box.x - from.x) * alpha),
+      y: Math.floor(from.y + (box.y - from.y) * alpha),
     };
   });
 }

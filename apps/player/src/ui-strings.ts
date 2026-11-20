@@ -21,6 +21,12 @@ export interface UiStrings {
   readonly touchShow: string;
   readonly touchHide: string;
   readonly notSaved: string;
+  readonly feelTitle: string;
+  readonly feelNote: string;
+  readonly smoothingTitle: string;
+  readonly smoothingProfile: string;
+  readonly smoothingLinear: string;
+  readonly smoothingNone: string;
   readonly buildInfo: string;
   readonly otherPad: string;
   readonly actions: Readonly<Record<ActionId, string>>;
@@ -50,6 +56,12 @@ const JA: UiStrings = {
   touchShow: '常に表示',
   touchHide: '表示しない',
   notSaved: 'この端末では設定を保存できません。ページを閉じると元に戻ります。',
+  feelTitle: '操作感',
+  feelNote: '切り替えると、部屋の入口からやり直します。',
+  smoothingTitle: '動きの補間',
+  smoothingProfile: '操作感に合わせる',
+  smoothingLinear: '滑らか',
+  smoothingNone: 'なし（コマ送り）',
   buildInfo: 'ビルド情報',
   otherPad: 'ほかのパッド',
   actions: {
@@ -106,6 +118,12 @@ const EN: UiStrings = {
   touchShow: 'Always show',
   touchHide: 'Hide',
   notSaved: 'Settings cannot be saved on this device. They reset when the page closes.',
+  feelTitle: 'Feel',
+  feelNote: 'Switching starts the room over.',
+  smoothingTitle: 'Motion smoothing',
+  smoothingProfile: 'Match the feel',
+  smoothingLinear: 'Smooth',
+  smoothingNone: 'Off (frame by frame)',
   buildInfo: 'Build',
   otherPad: 'other pad',
   actions: {

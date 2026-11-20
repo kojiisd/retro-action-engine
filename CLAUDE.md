@@ -146,4 +146,5 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
   - core の追加: スプライトのアニメーション（`World.animation`）、`RenderSnapshot`（`output` システム）、`GameSession`。
 - M2-1（タッチ操作）は実装済み: 配置はパックのデータ（`input.json` の `touch.layouts`）、`input` の `TouchPadDevice`（幾何は `touch-geometry.ts`、DOM 表示は `mountTouchPad`）。横向きはゲーム画面に半透明で重ね、縦向きはゲーム画面の下に置く（`apps/player/index.html` の CSS）。表示は `pointer: coarse` でゲームパッド未接続のとき。決定の記録は ADR-0008 の改訂履歴（2026-11-18）。
 - M2-2（キーコンフィグ、非標準ゲームパッド、設定の保存）は実装済み: 設定画面は `apps/player/src/settings-panel.ts`（HUD 帯の右端の歯車か `menu` で開き、開いている間はゲームを止める）、文言は `ui-strings.ts`（ブラウザの言語で日英。公開情報なので変更は所有者の確認を取る）、保存は `settings.ts` と `settings-idb.ts`（`idb-keyval` 6.3.0、`settings:global` と `settings:<packId>`）。`input` の `ActionMap` はユーザの上書きを重ね、`GamepadDevice` は非標準パッドを `Gamepad.id` ごとの割当で読む。決定の記録は ADR-0008 と ADR-0011 の改訂履歴（2026-11-19）。
-- 次は `docs/roadmap.md` の M2-3（操作感プロファイルの切替 UI、補間の on/off、デバッグ表示）。解析ツールの次（A-3）は M3-3 の後。
+- M2-3（操作感の切替、補間の上書き、デバッグ表示）は実装済み: 設定画面で操作感を選ぶと部屋の入口からやり直す（パックごとに保存）。補間は「操作感に合わせる / 滑らか / なし」。デバッグ表示（当たり判定の枠、入力から描画までの遅延などの数値、`desynchronized` の切替）は開発と PR のプレビューだけ（`apps/player/src/debug.ts` の `debugAllowed`）。`desynchronized` の採否は所有者が実機で測ってから決める（ADR-0008 の要確認）。決定の記録は ADR-0008、ADR-0011、ADR-0004 の改訂履歴（2026-11-19）。
+- 次は `docs/roadmap.md` の M2-4（仮想パッドのレイアウト編集）。解析ツールの次（A-3）は M3-3 の後。

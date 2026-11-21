@@ -7,7 +7,16 @@ const name = z.string().min(1);
 
 /** Animation (docs/pack-spec.md 4.1). */
 export const animationSchema = z.object({
-  frames: z.array(z.object({ frame: name, ticks: z.int().positive() })).min(1),
+  frames: z
+    .array(
+      z.object({
+        frame: name,
+        ticks: z.int().positive(),
+        // Attack hitbox (ADR-0017), px from the feet center, facing right.
+        hitbox: z.object({ x: px, y: px, w: px.positive(), h: px.positive() }).optional(),
+      }),
+    )
+    .min(1),
   loop: z.boolean(),
 });
 
@@ -105,6 +114,8 @@ export const feelSchema = z.object({
       media: z
         .record(name, z.object({ ...feelMotionShape, swim: z.boolean() }).partial())
         .optional(),
+      // While attacking on the ground (ADR-0017). Absent is `stop`.
+      attackOnGround: z.enum(['stop', 'move']).optional(),
     }),
   ),
 });

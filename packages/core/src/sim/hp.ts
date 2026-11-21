@@ -2,7 +2,7 @@ import { tileClassAt } from '../collision/grid';
 import { moveBody } from '../collision/move';
 import type { HazardDef, PackRuntime } from '../runtime/pack';
 import type { TileClass } from '../runtime/tile';
-import { newControllerState, type World } from '../world/world';
+import { NEVER, newControllerState, type World } from '../world/world';
 import { activeCharacter, applyCharacter, isAlive, nextAlive } from './party';
 import { effectiveTags } from './tags';
 
@@ -121,6 +121,7 @@ export function hpStep(world: World, runtime: PackRuntime, gridOf: GridOf): bool
     const switchRules = runtime.rules.party.switch;
     party.activeIndex = next;
     party.cooldownTicks = switchRules.cooldownTicks;
+    world.controller.attackUntilTick = NEVER;
     applyCharacter(world, activeCharacter(world, runtime));
     if (switchRules.placement === 'spawn') {
       s.x[slot] = party.spawnX;

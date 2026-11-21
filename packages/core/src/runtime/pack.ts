@@ -6,7 +6,15 @@ import type { TileClass } from './tile';
 
 /** One animation of a sprite (docs/pack-spec.md 4.1). Core advances it tick by tick. */
 export interface AnimationDef {
-  readonly frames: ReadonlyArray<{ readonly frame: string; readonly ticks: number }>;
+  readonly frames: ReadonlyArray<{
+    readonly frame: string;
+    readonly ticks: number;
+    /**
+     * Attack hitbox on this frame (ADR-0017), from the feet center, for a character facing
+     * right; mirrored when facing left. Fx.
+     */
+    readonly hitbox?: { readonly x: Fx; readonly y: Fx; readonly w: Fx; readonly h: Fx };
+  }>;
   readonly loop: boolean;
 }
 

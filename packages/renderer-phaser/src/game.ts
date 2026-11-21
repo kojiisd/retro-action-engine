@@ -2,7 +2,12 @@ import type { FrameView, PackRuntime } from '@retro-action-engine/core';
 import type { LoadedRuntime } from '@retro-action-engine/pack';
 import * as Phaser from 'phaser';
 import { HUD_PAD, hudIcons, hudLayout } from './hud';
-import { type Interpolation, interpolateColliders, interpolateSprites } from './interpolate';
+import {
+  type Interpolation,
+  interpolateColliders,
+  interpolateHitboxes,
+  interpolateSprites,
+} from './interpolate';
 import { integerZoom, type Scaling } from './scaling';
 import { tileLayerPlans } from './tile-layers';
 
@@ -33,6 +38,8 @@ export interface RendererOptions {
 
 /** Debug collision boxes: a thin line above everything in the play area. */
 const COLLIDER_COLOR = 0x40ff90;
+/** Debug attack hitboxes (ADR-0017), in another color than the bodies. */
+const HITBOX_COLOR = 0xff5040;
 const COLLIDER_DEPTH = 100;
 
 const HUD_INACTIVE_ALPHA = 0.4;
@@ -124,6 +131,14 @@ class GameScene extends Phaser.Scene {
     );
     // Half-pixel inset so a 1 px line sits on the box's edge pixels.
     for (const b of boxes) g.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
+    g.lineStyle(1, HITBOX_COLOR, 1);
+    const hits = interpolateHitboxes(
+      view.prev,
+      view.curr,
+      view.alpha,
+      this.options.interpolation(),
+    );
+    for (const b of hits) g.strokeRect(b.x + 0.5, b.y + 0.5, b.w - 1, b.h - 1);
   }
 
   private drawSprites(view: FrameView): void {

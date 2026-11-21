@@ -272,6 +272,14 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
         });
       }
     }
+    // The swing lasts the attack animation once (ADR-0017): it cannot loop.
+    if (c.sprite.animations.attack?.loop === true) {
+      issues.error(
+        file,
+        ['characters', i, 'sprite', 'animations', 'attack', 'loop'],
+        'the "attack" animation must not loop (its length is the swing)',
+      );
+    }
     if (c.sprite.animations.idle === undefined) {
       issues.error(
         file,
@@ -289,7 +297,32 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
         ox: toFx(c.collider.ox),
         oy: toFx(c.collider.oy),
       },
-      sprite: c.sprite,
+      // Hitboxes are px in the file and Fx in the runtime, like the collider.
+      sprite: {
+        atlas: c.sprite.atlas,
+        animations: Object.fromEntries(
+          Object.entries(c.sprite.animations).map(([key, anim]) => [
+            key,
+            {
+              loop: anim.loop,
+              frames: anim.frames.map((f) => ({
+                frame: f.frame,
+                ticks: f.ticks,
+                ...(f.hitbox === undefined
+                  ? {}
+                  : {
+                      hitbox: {
+                        x: toFx(f.hitbox.x),
+                        y: toFx(f.hitbox.y),
+                        w: toFx(f.hitbox.w),
+                        h: toFx(f.hitbox.h),
+                      },
+                    }),
+              })),
+            },
+          ]),
+        ),
+      },
       ...(c.hp === undefined ? {} : { hp: c.hp }),
       ...(c.feelOverrides === undefined ? {} : { feelOverrides: convertMotion(c.feelOverrides) }),
     };

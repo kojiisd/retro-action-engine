@@ -10,6 +10,8 @@ export interface Intent {
   readonly jumpHeld: boolean;
   readonly downHeld: boolean;
   readonly switchRequested: boolean;
+  /** `attack` pressed this tick (no buffer; ADR-0017). */
+  readonly attackPressed: boolean;
 }
 
 /**
@@ -45,5 +47,6 @@ export function inputIntent(world: World, frame: InputFrame, feel: FeelProfile):
     jumpHeld: isHeld(frame, 'jump'),
     downHeld: isHeld(frame, 'down') && !isHeld(frame, 'up'),
     switchRequested: isPressed(frame, 'switch'),
+    attackPressed: isPressed(frame, 'attack'),
   };
 }

@@ -8,7 +8,7 @@ import type {
 } from '@retro-action-engine/core';
 import { describe, expect, it } from 'vitest';
 import { gaugeFill, HP_BAR, HUD_PAD, hudIcons, hudLayout } from './hud';
-import { interpolateColliders, interpolateSprites } from './interpolate';
+import { interpolateColliders, interpolateHitboxes, interpolateSprites } from './interpolate';
 import { integerZoom } from './scaling';
 import { tileLayerPlans } from './tile-layers';
 
@@ -31,7 +31,7 @@ function sprite(id: number, x: number, y: number, extra: Partial<RenderSprite> =
 }
 
 function snapshot(tick: number, sprites: RenderSprite[]): RenderSnapshot {
-  return { tick, camera: { x: 0, y: 0 }, sprites, colliders: [] };
+  return { tick, camera: { x: 0, y: 0 }, sprites, colliders: [], hitboxes: [] };
 }
 
 describe('interpolateSprites', () => {
@@ -84,6 +84,22 @@ describe('interpolateColliders', () => {
     expect(interpolateColliders(prev, warped, 0.5, 'linear')[0]).toEqual(box(1, 195, 30));
     const added = { ...curr, colliders: [box(1, 13, 96), box(2, 40, 40)] };
     expect(interpolateColliders(prev, added, 0.5, 'linear')[1]).toEqual(box(2, 40, 40));
+  });
+});
+
+describe('interpolateHitboxes (ADR-0017)', () => {
+  const body = (x: number) => ({ id: 1, x, y: 100, w: 10, h: 20 });
+  const hit = (x: number) => ({ id: 1, x, y: 90, w: 12, h: 8 });
+  const prev = { ...snapshot(1, [sprite(1, 15, 120)]), colliders: [body(10)] };
+  const curr = {
+    ...snapshot(2, [sprite(1, 19, 120)]),
+    colliders: [body(14)],
+    hitboxes: [hit(20)],
+  };
+
+  it('moves a hitbox with its body box', () => {
+    expect(interpolateHitboxes(prev, curr, 0.5, 'linear')).toEqual([hit(18)]);
+    expect(interpolateHitboxes(prev, curr, 0.5, 'none')).toEqual([hit(20)]);
   });
 });
 

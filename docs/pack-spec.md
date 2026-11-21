@@ -343,6 +343,8 @@ interface ItemDef {
 
 操作感は「プロファイル → キャラクターの `feelOverrides` → 媒体の上書き」の順に重ねる（後ろが優先）。
 
+各プロファイルの `attackOnGround?: 'stop' | 'move'`（無ければ `stop`）は、地上で攻撃している間にその場で止まるか、歩きながら振れるか（M2-5、ADR-0017）。
+
 `rules.json` の `hp` と `hazards`（M2-5、ADR-0016）:
 
 - `hp: { scope: 'perCharacter', onDeath: 'switchToAlive' | 'respawnAtSavePoint', onAllDown: 'respawnAtSavePoint' }`。無ければ HP は無い。`shared` と `gameOver` は M3-5。

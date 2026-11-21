@@ -5,6 +5,7 @@
     "up": ["ArrowUp", "KeyW"],
     "down": ["ArrowDown", "KeyS"],
     "jump": ["KeyZ", "Space"],
+    "attack": ["KeyX"],
     "switch": ["KeyC", "ShiftLeft"],
     "menu": ["Enter"]
   },
@@ -15,6 +16,7 @@
       "up": ["dpadUp", "leftStickUp"],
       "down": ["dpadDown", "leftStickDown"],
       "jump": ["button0"],
+      "attack": ["button2"],
       "switch": ["button1"],
       "menu": ["button8"]
     }
@@ -42,6 +44,12 @@
             "cx": 0.9,
             "cy": 0.76,
             "radius": 0.12
+          },
+          {
+            "action": "attack",
+            "cx": 0.68,
+            "cy": 0.88,
+            "radius": 0.11
           },
           {
             "action": "switch",

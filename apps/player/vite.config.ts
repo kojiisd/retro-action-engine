@@ -76,4 +76,14 @@ function samplePack(): Plugin {
 export default defineConfig({
   base,
   plugins: [samplePack()],
+  build: {
+    rolldownOptions: {
+      output: {
+        // Third-party code (Phaser, zod, idb-keyval) in a chunk of its own: it changes far less
+        // often than the game code, so a deploy that only changes the game keeps it cached
+        // (hashed file names, cached as immutable; ADR-0014).
+        codeSplitting: { groups: [{ name: 'vendor', test: /[\\/]node_modules[\\/]/ }] },
+      },
+    },
+  },
 });

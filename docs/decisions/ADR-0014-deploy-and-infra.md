@@ -12,6 +12,7 @@
 | 2026-10-05 | M1-1 の実装に合わせて追記した。追記内容は次のとおり。<br>・独自ドメイン `arcade.kojiisd.jp` と、証明書のリージョン戦略（案 C）<br>・セキュリティヘッダーとプレビューの noindex<br>・OIDC プロバイダの作成と参照の切替<br>・設定ファイルとプレースホルダー検証<br>・repository variables の変更（`CF_DOMAIN` を `SITE_DOMAIN` に変更、`AWS_REGION` を追加）<br>・拒否確認の方法とパス設計の方針<br>初版の要確認「カスタムドメイン」を解消した。初版の決定を覆す変更ではなく、要確認の解消と追加なので、ADR の README の規約に対して同一 ADR への追記とした |
 | 2026-11-03 | AWS 適用前に、所有者の確認を受けて次を決めた。<br>・パス設計の確定: トップ（`/`）はゲーム一覧、各ゲームは `/play/<slug>/`。slug はリポジトリ直下の `site.json` で一元管理する（初回は `2dsample`）<br>・HSTS の max-age を初回 1 日にし、運用が安定してから延ばす<br>・CloudFront の既定ドメイン（`*.cloudfront.net`）への要求を独自ドメインへ 301 で転送する<br>いずれも「将来のパス設計」の具体化と、適用前の設定値の変更で、既存の決定を覆すものではないため同一 ADR に追記した |
 | 2026-11-14 | 初回の適用後、所有者の確認を受けて次を変えた。<br>・OIDC の `sub` を不変 ID 形式（`repo:<owner>@<ownerId>/<repo>@<repoId>:...`）で照合する。このリポジトリは GitHub が不変 ID 形式で `sub` を発行しており（`actions/oidc/customization/sub` の `use_immutable_subject: true`）、名前だけの形式では assume が拒否された。ID も照合するので、名前の変更や同名での作り直しで別のリポジトリが信頼されることも防げる。ID は `config/deploy.json` の `github.ownerId` と `github.repoId` で渡す<br>・CloudFront Function の `for...of` を使わない書き方に直した（`cloudfront-js-2.0` が SyntaxError で拒否し、全リクエストが 503 になった） |
+| 2026-11-21 | ゲームのビルドで、外部ライブラリ（Phaser、zod、idb-keyval）を別のハッシュ付きファイル（`play/<slug>/assets/vendor-*.js`）に分けた（`apps/player/vite.config.ts`）。ゲームのコードだけが変わるデプロイでは外部ライブラリのファイル名が変わらず、キャッシュがそのまま使われる（取り直すのは圧縮後でおよそ 30 KB。分ける前はおよそ 400 KB）。キャッシュの方針（上の `Cache-Control`）は変えていない |
 
 ## 背景
 

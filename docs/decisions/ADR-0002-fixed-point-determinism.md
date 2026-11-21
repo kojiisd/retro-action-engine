@@ -75,7 +75,7 @@
   - `flags`: 件数（int32）、続いてキーの昇順に「キー（文字列）、型タグ 1 バイト（0 = 数値、1 = 真偽値）、値」。
   - `entities`: 生存数（int32）、続いて生存エンティティを id 昇順に、コンポーネントの列を固定順で投入する。tombstone とスロット位置は結果に影響しない（`compact` で hash は変わらない）。
 - レーンの offset basis: hi は FNV-1a 標準の `0x811c9dc5`、lo は ASCII 文字列 `retro-action-engine` の FNV-1a（`0xea4bc20d`）。どちらも一度決めたら変えない。
-- `World` のフィールドは、それを使うシステムと同じ PR で追加し、上の走査順の位置に挿入する（M1-5 時点は `tick`、`rng`、`roomId`、`party`、`controller`、`animation`、`flags`、`entities`）。
+- `World` のフィールドは、それを使うシステムと同じ PR で追加し、上の走査順の位置に挿入する（M1-5 時点は `tick`、`rng`、`roomId`、`party`、`controller`、`animation`、`flags`、`entities`。`party` の中身は M2-5 で `hp`、`hazardId`、`hazardTicks` を足した。改訂履歴を参照）。
   - `party`: メンバー数と各 id（文字列）、`activeIndex`、`cooldownTicks`、`entityId`、`spawnX`、`spawnY`。
   - `controller`: `feelProfileId`（文字列）、`facing`、`lastGroundedTick`、`jumpedSinceGrounded`（真偽値）、`jumpPressedTick`、`jumpStartTick`、`jumpCut`（真偽値）、`dropThroughUntilTick`、`landingLagUntilTick`、`leftPressedTick`、`rightPressedTick`。「まだ起きていない」tick は `NEVER`（`-0x7fffffff`）。
   - `animation`: 操作中キャラクターのスプライトのアニメーション。`name`（文字列）、`frame`、`ticks`。
@@ -91,6 +91,7 @@
 
 | 日付 | 内容 |
 | --- | --- |
+| 2026-11-21（M2-5） | `party` の `spawnY` の後に、`hp`（件数と各値）、`hazardId`（文字列）、`hazardTicks` を追加した（ADR-0016） |
 | 2026-11-17（M1-5） | 走査順に `animation`（操作中キャラクターのスプライトのアニメーション。名前、コマ番号、コマ内の tick）を `controller` の直後に追加した。アニメーションのコマ送りは core が tick 単位で行う（ADR-0001） |
 | 2026-11-14（M1-3） | 走査順に `controller`（操作中キャラクターの状態機械の記憶）を `party` の直後に追加した。各フィールドの順序を上に明記した |
 | 2026-11-14 | M1-2 の実装で次を決めた。<br>・`Fx` は `number` の型エイリアスにする（下記）<br>・xorshift32 のシフト量とゼロシードの扱い、hash に投入するバイト列とレーンの offset basis を明記した<br>・値域 assert は `FxRangeError` を投げる。テストでは `packages/core/vitest.config.ts` の setup で常に有効にする<br>・core のソースに禁止 API（`Math.random`、`Date`、`performance`、超越関数、`**`、DOM のグローバル）が無いことを、テスト（`determinism-guard.test.ts`）で検査する |

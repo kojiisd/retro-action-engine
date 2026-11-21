@@ -14,7 +14,7 @@ import { decodePng } from './png';
 // HP in the browser (M2-5, ADR-0016): the explorer stays in the water until its HP runs out,
 // the diver takes over in place, the HUD cells show it, and the hashes still match Node.
 
-/** The HP cell colors of the renderer (renderer-phaser game.ts). */
+/** The full color of the HP gauge in the renderer (renderer-phaser game.ts). */
 const FULL = [0xff, 0x6b, 0x6b] as const;
 
 async function open(page: Page): Promise<string[]> {
@@ -83,11 +83,6 @@ test('the explorer runs out of HP in the water and the diver takes over', async 
   const errors = await open(page);
   const { file, node, runtime } = await drownReplay();
   const fullBefore = await countColor(page, FULL);
-  // Every member starts with all its cells full.
-  const cells = runtime.rules.party.members.reduce(
-    (sum, id) => sum + (runtime.characters[id]?.hp?.max ?? 0),
-    0,
-  );
   expect(fullBefore).toBeGreaterThan(0);
   expect(await page.evaluate(() => window.__engine?.getStats().party)).toEqual(
     runtime.rules.party.members.map((id) => ({
@@ -110,11 +105,11 @@ test('the explorer runs out of HP in the water and the diver takes over', async 
   expect(stats?.activeCharacter).toBe('diver');
   expect(stats?.party[0]).toMatchObject({ id: 'explorer', hp: 0, alive: false });
   expect(stats?.party[1]?.alive).toBe(true);
-  // The HUD shows fewer full cells: all of the explorer's are gone (each cell is a few pixels).
+  // The HUD gauges shrink with the HP left: the explorer's is empty, so the full part of both
+  // together drops at least by the explorer's share (each gauge has the same length).
   const fullAfter = await countColor(page, FULL);
+  const members = runtime.rules.party.members.length;
   expect(fullAfter).toBeLessThan(fullBefore);
-  const perCell = fullBefore / cells;
-  const lostCells = cells - (stats?.party ?? []).reduce((sum, m) => sum + m.hp, 0);
-  expect(fullAfter).toBeCloseTo(fullBefore - lostCells * perCell, -1);
+  expect(fullAfter).toBeLessThanOrEqual(Math.ceil(fullBefore * ((members - 1) / members)) + 2);
   expect(errors).toEqual([]);
 });

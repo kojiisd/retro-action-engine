@@ -115,7 +115,7 @@ describe('packs/sample', () => {
     const swimInterval = hazard.byTag?.find((b) => b.anyTag.includes('move:swim'))?.intervalTicks;
     expect(swimInterval).toBeGreaterThan(hazard.intervalTicks);
     const lowest = Math.max(...cells.map((i) => Math.floor(i / hub.widthTiles)));
-    const ticks = hazard.intervalTicks * 3;
+    const ticks = (swimInterval as number) * 3;
     const hpAfter = (member: string) => {
       const entry = runtime.entry as { roomId: string; spawnId: string };
       const world = createWorld(runtime, {
@@ -131,7 +131,9 @@ describe('packs/sample', () => {
       return world.party.hp[0];
     };
     const max = (id: string) => runtime.characters[id]?.hp?.max as number;
-    expect(hpAfter('explorer')).toBe(max('explorer') - 3 * hazard.damage);
+    expect(hpAfter('explorer')).toBe(
+      max('explorer') - Math.floor(ticks / hazard.intervalTicks) * hazard.damage,
+    );
     expect(hpAfter('diver')).toBe(
       max('diver') - Math.floor(ticks / (swimInterval as number)) * hazard.damage,
     );

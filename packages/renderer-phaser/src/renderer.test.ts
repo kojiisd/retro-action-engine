@@ -7,7 +7,7 @@ import type {
   RoomData,
 } from '@retro-action-engine/core';
 import { describe, expect, it } from 'vitest';
-import { HP_CELL, HUD_PAD, hudIcons, hudLayout } from './hud';
+import { gaugeFill, HP_BAR, HUD_PAD, hudIcons, hudLayout } from './hud';
 import { interpolateColliders, interpolateSprites } from './interpolate';
 import { tileLayerPlans } from './tile-layers';
 
@@ -197,34 +197,44 @@ describe('HP in the HUD (ADR-0016)', () => {
     ]);
   });
 
-  it('puts one cell per HP after each icon, the lost ones not full, inside the band', () => {
+  it('puts a gauge after each icon, filled by the HP left, inside the band', () => {
     const icons = hudIcons(ui, ['a', 'b'], runtime);
     const band = 20;
     const layout = hudLayout(icons, [16, 16], band);
     expect(layout.icons[0]).toEqual({ x: HUD_PAD, y: HUD_PAD });
-    expect(layout.cells.map((c) => [c.icon, c.full])).toEqual([
-      [0, false],
-      [0, false],
-      [1, true],
-      [1, true],
-      [1, false],
+    expect(layout.bars.map((b) => [b.icon, b.w, b.fill])).toEqual([
+      [0, HP_BAR.w, 0],
+      [1, HP_BAR.w, Math.floor((HP_BAR.w * 2) / 3)],
     ]);
-    // Cells follow their icon, in order, without overlapping the next icon.
-    const firstOfB = layout.cells[2] as (typeof layout.cells)[number];
-    const lastOfA = layout.cells[1] as (typeof layout.cells)[number];
-    expect(lastOfA.x).toBeGreaterThan((layout.icons[0]?.x ?? 0) + 16);
-    expect(layout.icons[1]?.x).toBeGreaterThan(lastOfA.x + HP_CELL.w);
-    expect(firstOfB.x).toBeGreaterThan((layout.icons[1]?.x ?? 0) + 16);
-    for (const cell of layout.cells) {
-      expect(cell.y).toBeGreaterThanOrEqual(0);
-      expect(cell.y + cell.h).toBeLessThanOrEqual(band);
+    // Each gauge follows its icon, and the next icon comes after it.
+    const [a, b] = layout.bars as [(typeof layout.bars)[number], (typeof layout.bars)[number]];
+    expect(a.x).toBeGreaterThan((layout.icons[0]?.x ?? 0) + 16);
+    expect(layout.icons[1]?.x).toBeGreaterThan(a.x + a.w);
+    expect(b.x).toBeGreaterThan((layout.icons[1]?.x ?? 0) + 16);
+    for (const bar of layout.bars) {
+      expect(bar.y).toBeGreaterThanOrEqual(0);
+      expect(bar.y + bar.h).toBeLessThanOrEqual(band);
     }
   });
 
-  it('draws no cells without HP', () => {
+  it('shows every small loss of a fine-grained HP, and never looks empty while any is left', () => {
+    const max = 120;
+    const fills = Array.from({ length: max + 1 }, (_, hp) => gaugeFill(hp, max, HP_BAR.w));
+    expect(fills[max]).toBe(HP_BAR.w);
+    expect(fills[0]).toBe(0);
+    expect(fills[1]).toBe(1);
+    // Never grows as HP drops, and drops by at most one pixel per point.
+    for (let hp = 1; hp <= max; hp++) {
+      const step = (fills[hp] as number) - (fills[hp - 1] as number);
+      expect(step).toBeGreaterThanOrEqual(0);
+      expect(step).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('draws no gauge without HP', () => {
     const icons = hudIcons({ ...ui, party: [] }, ['a', 'b'], runtime);
     expect(icons.every((i) => i.alive && i.hp === undefined)).toBe(true);
-    expect(hudLayout(icons, [16, 16], 20).cells).toEqual([]);
+    expect(hudLayout(icons, [16, 16], 20).bars).toEqual([]);
   });
 });
 

@@ -35,7 +35,7 @@ const COLLIDER_DEPTH = 100;
 const HUD_INACTIVE_ALPHA = 0.4;
 /** A member whose HP is 0 (ADR-0016): darker than one that is only not active. */
 const HUD_DOWN_ALPHA = 0.15;
-/** HP cells: left and lost (ADR-0016; no image, no text). */
+/** The HP gauge: left and lost (ADR-0016; no image, no text). */
 const HP_FULL_COLOR = 0xff6b6b;
 const HP_LOST_COLOR = 0x4a2b2b;
 
@@ -179,15 +179,17 @@ class GameScene extends Phaser.Scene {
     layout.icons.forEach((at, i) => {
       this.hud[i]?.setPosition(at.x, at.y).setAlpha(alphaOf(i));
     });
-    // HP: one small square per point, the lost ones dark.
-    const cells = this.hpCells;
-    if (cells === undefined) return;
-    cells.clear();
-    for (const cell of layout.cells) {
+    // HP: a gauge per member, the lost part dark.
+    const gauges = this.hpCells;
+    if (gauges === undefined) return;
+    gauges.clear();
+    for (const bar of layout.bars) {
       // Readable for every living member, active or not; dark once the member is down.
-      const alpha = icons[cell.icon]?.alive === false ? HUD_DOWN_ALPHA : 1;
-      cells.fillStyle(cell.full ? HP_FULL_COLOR : HP_LOST_COLOR, alpha);
-      cells.fillRect(cell.x, cell.y, cell.w, cell.h);
+      const alpha = icons[bar.icon]?.alive === false ? HUD_DOWN_ALPHA : 1;
+      gauges.fillStyle(HP_LOST_COLOR, alpha);
+      gauges.fillRect(bar.x + bar.fill, bar.y, bar.w - bar.fill, bar.h);
+      gauges.fillStyle(HP_FULL_COLOR, alpha);
+      gauges.fillRect(bar.x, bar.y, bar.fill, bar.h);
     }
   }
 }

@@ -57,6 +57,8 @@ test('switching the feel starts the room over with that profile, and is kept', a
   });
   await close(page);
 
+  // Saving is asynchronous: let it finish before the page goes away.
+  await page.evaluate(() => window.__engine?.settingsSaved());
   await page.reload();
   await expect(page.locator('body')).toHaveAttribute('data-state', 'ready', { timeout: 20_000 });
   await page.waitForFunction(() => window.__engine !== undefined);

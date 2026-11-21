@@ -458,10 +458,11 @@ interface ReplayFile {
 | --- | --- |
 | `hash()` | 現在の `World` の hash |
 | `runReplay(file)` | 実際の描画ループでリプレイを再生し、全 tick の hash を返す（Determinism (c)）。再生中と再生後はライブ入力を無視する |
-| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル |
+| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル、操作中のキャラクターと HP（M2-5） |
 | `setFeelProfile(id)` | プロファイルを切り替えて最初からやり直す |
 | `restart()` | ライブ入力で最初からやり直す |
 | `recording()` | 最後に始めてからのライブ入力を `ReplayFile` で返す（デバイスの入力がゲームに届いたことの確認に使う。M2-1） |
+| `settingsSaved()` | それまでに始めた設定の保存がすべて終わると解決する（保存は非同期なので、再読み込みの前に待つ。M2-5） |
 | `loadPack(source)` | パック切替（M4。外部パックの読み込みと合わせて追加） |
 
 `window.__engine` を公開するのは、開発サーバ（`import.meta.env.DEV`）と、`VITE_E2E_HOOKS=1` を付けたビルドだけ（M1-5）。後者は e2e が `apps/player/dist-e2e/` に作るもので、デプロイ用のビルド（preview と deploy のワークフロー）は付けない。

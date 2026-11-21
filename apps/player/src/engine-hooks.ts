@@ -44,18 +44,26 @@ export interface EngineHooks {
   restart(): void;
   /** The live input since the last start, as a replay (what the devices produced). */
   recording(): ReplayFile;
+  /**
+   * Resolves once the settings changed so far are stored. Saving is asynchronous (IndexedDB), so
+   * a test waits for it before reloading the page.
+   */
+  settingsSaved(): Promise<void>;
 }
 
 export interface HookTargets {
   readonly session: GameSession;
   readonly feelProfiles: readonly string[];
   readonly resyncCount: () => number;
+  /** Resolves once every settings write started so far has finished. */
+  readonly settingsSaved?: () => Promise<void>;
 }
 
 export function createEngineHooks({
   session,
   feelProfiles,
   resyncCount,
+  settingsSaved,
 }: HookTargets): EngineHooks {
   let pending: { reject: (error: Error) => void } | undefined;
 
@@ -117,5 +125,7 @@ export function createEngineHooks({
     },
 
     recording: () => session.recording(),
+
+    settingsSaved: () => settingsSaved?.() ?? Promise.resolve(),
   };
 }

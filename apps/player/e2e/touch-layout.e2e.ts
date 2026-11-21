@@ -170,6 +170,8 @@ test.describe('landscape phone', () => {
       .toBe(actionMask('jump'));
 
     // Kept after a reload.
+    // Saving is asynchronous: let it finish before the page goes away.
+    await page.evaluate(() => window.__engine?.settingsSaved());
     await page.reload();
     await ready(page);
     await expect.poll(() => boxSoon(page, JUMP)).toEqual(moved);
@@ -183,6 +185,8 @@ test.describe('landscape phone', () => {
     await openEditor(page);
     await page.getByRole('button', { name: 'Reset this layout' }).click();
     await expect.poll(() => boxSoon(page, JUMP)).toEqual(jump0);
+    // Saving is asynchronous: let it finish before the page goes away.
+    await page.evaluate(() => window.__engine?.settingsSaved());
     await page.reload();
     await ready(page);
     await expect.poll(() => boxSoon(page, JUMP)).toEqual(jump0);
@@ -203,6 +207,8 @@ test.describe('landscape phone', () => {
       })
       .toBeCloseTo(from.x - 150, 0);
     const moved = await settledBox(page, JUMP);
+    // Saving is asynchronous: let it finish before the page goes away.
+    await page.evaluate(() => window.__engine?.settingsSaved());
     await page.reload();
     await ready(page);
     await expect.poll(() => boxSoon(page, JUMP)).toEqual(moved);

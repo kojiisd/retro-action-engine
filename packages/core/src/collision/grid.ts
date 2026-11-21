@@ -30,6 +30,14 @@ export interface CollisionContext {
 
 export const NO_ABILITIES: CollisionContext = { abilityTags: new Set<string>() };
 
+/** The tile class at a cell, or undefined outside the room. */
+export function tileClassAt(grid: CollisionGrid, col: number, row: number): TileClass | undefined {
+  if (col < 0 || row < 0 || col >= grid.widthTiles || row >= grid.heightTiles) {
+    return undefined;
+  }
+  return grid.classById[grid.collision[row * grid.widthTiles + col] as number];
+}
+
 /** Kinds handled by the movement code in this version. Slopes arrive in M5. */
 const SUPPORTED_SOLIDS: readonly SolidKind[] = ['none', 'full', 'oneway'];
 

@@ -261,3 +261,56 @@ describe('solveRoom: a party that starts inside a tile only some members can pas
     expect(scopeOf(report, 'swimmer')?.proofs.region).toBe(true);
   });
 });
+
+describe('solveRoom: media and HP-draining tiles take away the height proofs (ADR-0016)', () => {
+  const base = roomRuntime(fixture);
+  const room = base.rooms.room as NonNullable<(typeof base.rooms)['room']>;
+  const retro = base.feel.retro as NonNullable<(typeof base.feel)['retro']>;
+  const withHp = (runtime: PackRuntime, hazards: boolean): PackRuntime => ({
+    ...runtime,
+    characters: Object.fromEntries(
+      Object.entries(runtime.characters).map(([id, c]) => [id, { ...c, hp: { max: 3 } }]),
+    ),
+    rules: {
+      ...runtime.rules,
+      hp: { scope: 'perCharacter', onDeath: 'switchToAlive', onAllDown: 'respawnAtSavePoint' },
+      ...(hazards ? { hazards: { acid: { damage: 1, intervalTicks: 1000 } } } : {}),
+    },
+  });
+  const hazardRoom: PackRuntime = {
+    ...base,
+    rooms: {
+      room: {
+        ...room,
+        tileClasses: [...room.tileClasses, { id: 9, solid: 'none', hazard: 'acid' }],
+      },
+    },
+  };
+  const cases: Array<readonly [string, PackRuntime]> = [
+    [
+      'a profile with a medium',
+      { ...base, feel: { ...base.feel, retro: { ...retro, media: { goo: { swim: true } } } } },
+    ],
+    ['an HP-draining tile with HP rules', withHp(hazardRoom, true)],
+  ];
+
+  for (const [name, runtime] of cases) {
+    it(`${name}: no height proofs in any scope`, () => {
+      for (const scope of solveRoom(runtime, start).scopes) {
+        expect(scope.proofs.height).toBe(false);
+        expect(scope.riseBound).toBeNull();
+        expect(
+          scope.footholds.some(
+            (f) => f.blocker?.certainty === 'proven' && f.blocker.reason === 'tooHigh',
+          ),
+        ).toBe(false);
+        expect(scope.footholds.some((f) => f.return?.status === 'provenNo')).toBe(false);
+      }
+    });
+  }
+
+  it('HP rules alone, without such a tile, keep the proofs', () => {
+    const party = scopeOf(solveRoom(withHp(base, false), start), 'party');
+    expect(party?.proofs).toEqual({ region: true, height: true });
+  });
+});

@@ -20,7 +20,8 @@ const GID_MASK = 0x1fffffff;
 interface TileMeta {
   readonly solid: TileClass['solid'];
   readonly ladder?: boolean;
-  readonly hazard?: number;
+  readonly hazard?: string;
+  readonly medium?: string;
   readonly requiresAnyTag?: readonly string[];
 }
 
@@ -46,8 +47,24 @@ function tileMeta(tileset: MapTileset, local: number, issues: IssueList, file: s
           .map((t) => t.trim())
           .filter((t) => t !== '')
       : undefined;
-  const withTags = (meta: TileMeta): TileMeta =>
-    tags === undefined ? meta : { ...meta, requiresAnyTag: tags };
+  // `hazard` and `medium` (ADR-0016) may go with any class.
+  const named = (name: 'hazard' | 'medium'): string | undefined => {
+    const value = propertyOf(tile.properties, name);
+    if (value === undefined) return undefined;
+    if (typeof value !== 'string' || value.trim() === '') {
+      issues.error(file, ['tiles', local], `${name} must be a non-empty string`);
+      return undefined;
+    }
+    return value.trim();
+  };
+  const hazard = named('hazard');
+  const medium = named('medium');
+  const withTags = (meta: TileMeta): TileMeta => ({
+    ...meta,
+    ...(tags === undefined ? {} : { requiresAnyTag: tags }),
+    ...(hazard === undefined ? {} : { hazard }),
+    ...(medium === undefined ? {} : { medium }),
+  });
   switch (cls) {
     case '':
       return withTags(EMPTY);
@@ -57,10 +74,14 @@ function tileMeta(tileset: MapTileset, local: number, issues: IssueList, file: s
       return withTags({ solid: 'oneway' });
     case 'ladder':
       return withTags({ solid: 'none', ladder: true });
-    case 'hazard': {
-      const damage = propertyOf(tile.properties, 'damage');
-      return withTags({ solid: 'none', hazard: typeof damage === 'number' ? damage : 1 });
-    }
+    case 'hazard':
+      // The contact-damage class was dropped (ADR-0016): use the `hazard` property instead.
+      issues.error(
+        file,
+        ['tiles', local],
+        'the "hazard" class was replaced by the "hazard" property (docs/pack-spec.md 5.3)',
+      );
+      return EMPTY;
     case 'slope':
       issues.error(file, ['tiles', local], 'slope tiles are not supported yet (M5)');
       return EMPTY;

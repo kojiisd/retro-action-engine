@@ -1,4 +1,4 @@
-import type { GameSession, ReplayFile, WorldHash } from '@retro-action-engine/core';
+import type { GameSession, ReplayFile, UiState, WorldHash } from '@retro-action-engine/core';
 
 declare global {
   interface Window {
@@ -24,6 +24,9 @@ export interface EngineStats {
   readonly droppedFrames: number;
   readonly replaying: boolean;
   readonly feelProfile: string;
+  /** The active character and every member's HP (ADR-0016; empty without HP). */
+  readonly activeCharacter: string;
+  readonly party: UiState['party'];
 }
 
 /** `window.__engine` (docs/input-and-feel.md 12). Only in dev and e2e builds. */
@@ -41,18 +44,26 @@ export interface EngineHooks {
   restart(): void;
   /** The live input since the last start, as a replay (what the devices produced). */
   recording(): ReplayFile;
+  /**
+   * Resolves once the settings changed so far are stored. Saving is asynchronous (IndexedDB), so
+   * a test waits for it before reloading the page.
+   */
+  settingsSaved(): Promise<void>;
 }
 
 export interface HookTargets {
   readonly session: GameSession;
   readonly feelProfiles: readonly string[];
   readonly resyncCount: () => number;
+  /** Resolves once every settings write started so far has finished. */
+  readonly settingsSaved?: () => Promise<void>;
 }
 
 export function createEngineHooks({
   session,
   feelProfiles,
   resyncCount,
+  settingsSaved,
 }: HookTargets): EngineHooks {
   let pending: { reject: (error: Error) => void } | undefined;
 
@@ -94,6 +105,8 @@ export function createEngineHooks({
       droppedFrames: session.droppedFrames,
       replaying: session.replaying,
       feelProfile: session.startState.feelProfile,
+      activeCharacter: session.uiState.activeCharacterId,
+      party: session.uiState.party,
     }),
 
     setFeelProfile(id) {
@@ -112,5 +125,7 @@ export function createEngineHooks({
     },
 
     recording: () => session.recording(),
+
+    settingsSaved: () => settingsSaved?.() ?? Promise.resolve(),
   };
 }

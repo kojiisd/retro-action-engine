@@ -34,14 +34,46 @@ export interface FeelMotion {
   readonly landingLagTicks: number;
 }
 
+/**
+ * How the character moves inside a medium (ADR-0016): motion values that replace the profile's,
+ * and `swim`, which allows a jump (a stroke) at any time inside it.
+ */
+export interface FeelMedium extends Partial<FeelMotion> {
+  readonly swim?: boolean;
+}
+
 export interface FeelProfile extends FeelMotion {
   readonly id: string;
   readonly name: string;
   readonly interpolation: 'linear' | 'none';
   readonly socd: 'neutral' | 'lastWins' | 'leftWins';
+  /** By medium name (a tile's `medium`). A medium not listed changes nothing. */
+  readonly media?: Readonly<Record<string, FeelMedium>>;
+}
+
+/** The feel in effect at one tick: the profile, then the character's, then the medium's. */
+export interface ActiveFeel extends FeelProfile {
+  /** Inside a medium with `swim`: a jump is allowed without standing on anything. */
+  readonly swim: boolean;
 }
 
 /** Profile with a character's overrides applied: `{ ...profile, ...overrides }`. */
 export function resolveFeel(profile: FeelProfile, overrides?: Partial<FeelMotion>): FeelProfile {
   return overrides === undefined ? profile : { ...profile, ...overrides };
+}
+
+/**
+ * The feel in a medium (ADR-0016): profile, then the character's overrides, then the medium's.
+ * Without a medium, or with one the profile does not list, only the first two apply.
+ */
+export function activeFeel(
+  profile: FeelProfile,
+  overrides: Partial<FeelMotion> | undefined,
+  medium: string | undefined,
+): ActiveFeel {
+  const base = resolveFeel(profile, overrides);
+  const inside = medium === undefined ? undefined : profile.media?.[medium];
+  if (inside === undefined) return { ...base, swim: false };
+  const { swim, ...motion } = inside;
+  return { ...base, ...motion, swim: swim === true };
 }

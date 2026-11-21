@@ -129,9 +129,9 @@ export function feelProfile(
   meta: Pick<FeelProfile, 'id' | 'name' | 'interpolation' | 'socd'>,
   values: FeelInPx,
 ): FeelProfile {
-  const converted: Record<string, number> = { ...values };
+  const converted: Record<string, unknown> = { ...values };
   for (const key of FX_FIELDS) {
-    converted[key] = pxToFx(values[key]);
+    converted[key] = pxToFx(values[key] as number);
   }
   return { ...meta, ...(converted as unknown as FeelInPx) };
 }

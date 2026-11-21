@@ -1,21 +1,32 @@
 import { type CollisionGrid, createCollisionGrid } from '../collision/grid';
 import { moveBody } from '../collision/move';
 import type { InputFrame } from '../input/frame';
-import { type FeelProfile, resolveFeel } from '../runtime/feel';
+import { type ActiveFeel, activeFeel } from '../runtime/feel';
 import type { PackRuntime, RoomData, StartState } from '../runtime/pack';
 import { newControllerState, newWorld, type World } from '../world/world';
 import { animationStep } from './anim';
 import { controllerStep } from './controller';
+import { hpStep, initialHp, tileAtBodyCenter } from './hp';
 import { inputIntent } from './intent';
 import { type RenderSnapshot, renderSnapshot } from './output';
-import { activeCharacter, canSwitch, partyStep } from './party';
+import { activeCharacter, canSwitch, isAlive, partyStep } from './party';
 import { effectiveTags } from './tags';
 
-/** The part of `UiState` (docs/architecture.md 6) available as of M1-3. */
+/** One party member in the HUD (ADR-0016). */
+export interface UiMember {
+  readonly id: string;
+  readonly hp: number;
+  readonly hpMax: number;
+  readonly alive: boolean;
+}
+
+/** The part of `UiState` (docs/architecture.md 6) available as of M2-5. */
 export interface UiState {
   readonly activeCharacterId: string;
   /** False with one member or `mode: 'never'`: the renderer shows no switch UI. */
   readonly canSwitch: boolean;
+  /** Every member in `members` order; empty when the pack has no HP rules. */
+  readonly party: readonly UiMember[];
 }
 
 /** The part of `StepOutput` available as of M1-5. Audio and transitions come with M3. */
@@ -40,13 +51,18 @@ export function roomGrid(runtime: PackRuntime, roomId: string): CollisionGrid {
   return grid;
 }
 
-/** Active feel profile with the active character's overrides. */
-export function currentFeel(world: World, runtime: PackRuntime): FeelProfile {
+/**
+ * The feel in effect now: the profile, the active character's overrides, and the medium under
+ * the body's center (ADR-0016).
+ */
+export function currentFeel(world: World, runtime: PackRuntime): ActiveFeel {
   const profile = runtime.feel[world.controller.feelProfileId];
   if (profile === undefined) {
     throw new RangeError(`feel profile "${world.controller.feelProfileId}" is not defined`);
   }
-  return resolveFeel(profile, activeCharacter(world, runtime).feelOverrides);
+  const medium =
+    profile.media === undefined ? undefined : tileAtBodyCenter(world, runtime, roomGrid)?.medium;
+  return activeFeel(profile, activeCharacter(world, runtime).feelOverrides, medium);
 }
 
 /** Builds the World for a new game: the party entity stands at the start spawn. */
@@ -63,9 +79,12 @@ export function createWorld(runtime: PackRuntime, start: StartState): World {
   world.party.members = members;
   world.party.spawnX = spawn.x;
   world.party.spawnY = spawn.y;
+  world.party.hp = initialHp(runtime, members);
   world.controller = newControllerState(start.feelProfile);
   const character = activeCharacter(world, runtime);
-  currentFeel(world, runtime); // fail early on an unknown profile
+  if (runtime.feel[start.feelProfile] === undefined) {
+    throw new RangeError(`feel profile "${start.feelProfile}" is not defined`);
+  }
   world.party.entityId = world.entities.create({
     x: spawn.x,
     y: spawn.y,
@@ -103,7 +122,8 @@ export function setFeelProfile(world: World, runtime: PackRuntime, profileId: st
 
 /**
  * One simulation tick. The system order is fixed (docs/architecture.md 4.3); systems that do not
- * exist yet are skipped: inputIntent, party, controller, movement, timers, output.
+ * exist yet are skipped: inputIntent, party, controller, movement, interaction (HP only),
+ * timers, output.
  */
 export function step(world: World, input: InputFrame, runtime: PackRuntime): StepOutput {
   const intent = inputIntent(world, input, currentFeel(world, runtime));
@@ -137,16 +157,35 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   s.vx[slot] = body.vx;
   s.vy[slot] = body.vy;
 
+  // interaction: HP-draining tiles, and a character whose HP reached 0 (ADR-0016).
+  const placed = hpStep(world, runtime, roomGrid);
+
   // timers
   if (world.party.cooldownTicks > 0) {
     world.party.cooldownTicks--;
   }
-  animationStep(world, character);
+  const active = activeCharacter(world, runtime);
+  animationStep(world, active);
 
   world.tick++;
   // output
   return {
-    ui: { activeCharacterId: character.id, canSwitch: canSwitch(world, runtime) },
-    render: renderSnapshot(world, runtime, teleported),
+    ui: {
+      activeCharacterId: active.id,
+      canSwitch: canSwitch(world, runtime),
+      party: uiParty(world, runtime),
+    },
+    render: renderSnapshot(world, runtime, teleported || placed),
   };
+}
+
+/** The party for `UiState`: every member's HP, or none without HP rules. */
+export function uiParty(world: World, runtime: PackRuntime): UiMember[] {
+  if (world.party.hp.length === 0) return [];
+  return world.party.members.map((id, index) => ({
+    id,
+    hp: world.party.hp[index] as number,
+    hpMax: runtime.characters[id]?.hp?.max ?? 0,
+    alive: isAlive(world, index),
+  }));
 }

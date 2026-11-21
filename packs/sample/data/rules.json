@@ -7,5 +7,22 @@
       "requireGrounded": false,
       "placement": "same"
     }
+  },
+  "hp": {
+    "scope": "perCharacter",
+    "onDeath": "switchToAlive",
+    "onAllDown": "respawnAtSavePoint"
+  },
+  "hazards": {
+    "water": {
+      "damage": 1,
+      "intervalTicks": 2,
+      "byTag": [
+        {
+          "anyTag": ["move:swim"],
+          "intervalTicks": 10
+        }
+      ]
+    }
   }
 }

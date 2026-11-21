@@ -68,6 +68,8 @@ test.describe('Japanese browser', () => {
     expect((await heldSoFar(page)) & actionMask('jump')).toBe(actionMask('jump'));
 
     // Kept after a reload (IndexedDB).
+    // Saving is asynchronous: let it finish before the page goes away.
+    await page.evaluate(() => window.__engine?.settingsSaved());
     await page.reload();
     await expect(page.locator('body')).toHaveAttribute('data-state', 'ready', { timeout: 20_000 });
     await page.getByRole('button', { name: '設定を開く' }).click();

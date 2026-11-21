@@ -17,6 +17,22 @@ export function activeCharacter(world: World, runtime: PackRuntime): CharacterDe
   return character;
 }
 
+/** Whether a member can play: always, without HP rules (ADR-0016). */
+export function isAlive(world: World, index: number): boolean {
+  const hp = world.party.hp;
+  return hp.length === 0 || (hp[index] as number) > 0;
+}
+
+/** The next living member after the active one, in `members` order, if any. */
+export function nextAlive(world: World): number | undefined {
+  const count = world.party.members.length;
+  for (let k = 1; k < count; k++) {
+    const index = (world.party.activeIndex + k) % count;
+    if (isAlive(world, index)) return index;
+  }
+  return undefined;
+}
+
 /** Puts the character's collider on the party entity. */
 export function applyCharacter(world: World, character: CharacterDef): void {
   const s = world.entities;
@@ -31,6 +47,7 @@ export function applyCharacter(world: World, character: CharacterDef): void {
  * The `party` system (docs/architecture.md 4.3, ADR-0007). A switch request moves to the next
  * member when switching is enabled, the cooldown is over and, if required, the character is on
  * the ground. `placement: 'spawn'` moves the body to the room's entry spawn and stops it.
+ * Members whose HP is 0 are skipped; with no other living member nothing happens (ADR-0016).
  */
 export function partyStep(world: World, intent: Intent, runtime: PackRuntime): void {
   const party = world.party;
@@ -43,7 +60,11 @@ export function partyStep(world: World, intent: Intent, runtime: PackRuntime): v
   if (rules.requireGrounded && ((s.contact[slot] as number) & CONTACT_GROUNDED) === 0) {
     return;
   }
-  party.activeIndex = (party.activeIndex + 1) % party.members.length;
+  const next = nextAlive(world);
+  if (next === undefined) {
+    return;
+  }
+  party.activeIndex = next;
   party.cooldownTicks = rules.cooldownTicks;
   applyCharacter(world, activeCharacter(world, runtime));
   if (rules.placement === 'spawn') {

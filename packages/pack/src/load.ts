@@ -290,6 +290,7 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
         oy: toFx(c.collider.oy),
       },
       sprite: c.sprite,
+      ...(c.hp === undefined ? {} : { hp: c.hp }),
       ...(c.feelOverrides === undefined ? {} : { feelOverrides: convertMotion(c.feelOverrides) }),
     };
   });
@@ -304,6 +305,32 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
       );
     }
   });
+  // HP and HP-draining tiles (ADR-0016).
+  if (rules.hp !== undefined) {
+    rules.party.members.forEach((member, i) => {
+      const character = characters.characters.find((c) => c.id === member);
+      if (character !== undefined && character.hp === undefined) {
+        issues.error(
+          files.rules as string,
+          ['party', 'members', i],
+          `character "${member}" needs hp.max, because rules.hp is set`,
+        );
+      }
+    });
+  } else if (rules.hazards !== undefined) {
+    issues.error(files.rules as string, ['hazards'], 'hazards need rules.hp');
+  }
+  for (const room of Object.values(rooms)) {
+    for (const tileClass of room.tileClasses) {
+      if (tileClass.hazard !== undefined && rules.hazards?.[tileClass.hazard] === undefined) {
+        issues.error(
+          files.rules as string,
+          ['hazards'],
+          `hazard "${tileClass.hazard}" (a tile in room "${room.id}") is not defined`,
+        );
+      }
+    }
+  }
   const profiles: Record<string, FeelProfile> = {};
   for (const [id, profile] of Object.entries(feel.profiles)) {
     profiles[id] = convertProfile(id, profile);
@@ -355,7 +382,11 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     rooms,
     characters: characterDefs,
     feel: profiles,
-    rules: { party: rules.party },
+    rules: {
+      party: rules.party,
+      ...(rules.hp === undefined ? {} : { hp: rules.hp }),
+      ...(rules.hazards === undefined ? {} : { hazards: rules.hazards }),
+    },
   };
   return { runtime, warnings: issues.warnings };
 }

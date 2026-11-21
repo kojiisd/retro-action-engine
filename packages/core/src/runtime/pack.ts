@@ -35,6 +35,8 @@ export interface CharacterDef {
   readonly feelOverrides?: Partial<FeelMotion>;
   /** How it is drawn. Without it, the character has no sprite in the render snapshot. */
   readonly sprite?: SpriteDef;
+  /** Required for every party member when `rules.hp` is set (ADR-0016). */
+  readonly hp?: { readonly max: number };
 }
 
 export interface PartyRules {
@@ -49,8 +51,32 @@ export interface PartyRules {
   };
 }
 
+/** HP rules (ADR-0007, the part ADR-0016 brings forward). Without them there is no HP. */
+export interface HpRules {
+  readonly scope: 'perCharacter';
+  /** When the active character's HP reaches 0. */
+  readonly onDeath: 'switchToAlive' | 'respawnAtSavePoint';
+  /** When no member is left: back where the party entered the room (no save points yet). */
+  readonly onAllDown: 'respawnAtSavePoint';
+}
+
+/** One kind of HP-draining tile (ADR-0016). */
+export interface HazardDef {
+  readonly damage: number;
+  readonly intervalTicks: number;
+  /** The first entry whose tags the active character has (any of them) replaces the values. */
+  readonly byTag?: ReadonlyArray<{
+    readonly anyTag: readonly string[];
+    readonly damage?: number;
+    readonly intervalTicks?: number;
+  }>;
+}
+
 export interface RulesDef {
   readonly party: PartyRules;
+  readonly hp?: HpRules;
+  /** By name (a tile's `hazard`). Needs `hp`. */
+  readonly hazards?: Readonly<Record<string, HazardDef>>;
 }
 
 /** A tile layer for drawing only (`bg`, `main`, `fg`). Core never reads it. */

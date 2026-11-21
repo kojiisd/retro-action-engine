@@ -83,6 +83,8 @@ describe('window.__engine hooks', () => {
       droppedFrames: 0,
       replaying: false,
       feelProfile: 'retro',
+      activeCharacter: session.uiState.activeCharacterId,
+      party: session.uiState.party,
     });
     expect(() => hooks.setFeelProfile('turbo')).toThrow(/not in the pack/);
   });

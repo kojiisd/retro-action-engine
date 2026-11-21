@@ -1,7 +1,7 @@
 import type { FrameView, PackRuntime } from '@retro-action-engine/core';
 import type { LoadedRuntime } from '@retro-action-engine/pack';
 import * as Phaser from 'phaser';
-import { hudIcons } from './hud';
+import { HUD_PAD, hudIcons, hudLayout } from './hud';
 import { type Interpolation, interpolateColliders, interpolateSprites } from './interpolate';
 import { tileLayerPlans } from './tile-layers';
 
@@ -32,9 +32,12 @@ export interface RendererOptions {
 const COLLIDER_COLOR = 0x40ff90;
 const COLLIDER_DEPTH = 100;
 
-/** Margin of the HUD icons inside the HUD band, in px. Layout only. */
-const HUD_PAD = 2;
 const HUD_INACTIVE_ALPHA = 0.4;
+/** A member whose HP is 0 (ADR-0016): darker than one that is only not active. */
+const HUD_DOWN_ALPHA = 0.15;
+/** The HP gauge: left and lost (ADR-0016; no image, no text). */
+const HP_FULL_COLOR = 0xff6b6b;
+const HP_LOST_COLOR = 0x4a2b2b;
 
 /**
  * The only scene. Phaser draws; it does not keep game time (`fps.smoothStep: false`, no physics,
@@ -44,6 +47,7 @@ class GameScene extends Phaser.Scene {
   private readonly sprites = new Map<number, Phaser.GameObjects.Sprite>();
   private readonly hud: Phaser.GameObjects.Sprite[] = [];
   private hudCamera: Phaser.Cameras.Scene2D.Camera | undefined;
+  private hpCells: Phaser.GameObjects.Graphics | undefined;
   private readonly world: Phaser.GameObjects.GameObject[] = [];
   private debug: Phaser.GameObjects.Graphics | undefined;
 
@@ -88,6 +92,10 @@ class GameScene extends Phaser.Scene {
     }
     this.debug = this.add.graphics().setDepth(COLLIDER_DEPTH);
     this.hudCamera?.ignore(this.debug);
+    if (this.hudCamera !== undefined) {
+      this.hpCells = this.add.graphics();
+      this.cameras.main.ignore(this.hpCells);
+    }
     this.options.onReady?.();
   }
 
@@ -156,9 +164,33 @@ class GameScene extends Phaser.Scene {
       // Icons are cropped to the band height from the top of the frame (head and shoulders).
       const size = camera.height - HUD_PAD * 2;
       sprite.setCrop(0, 0, sprite.frame.width, size);
-      sprite.setPosition(HUD_PAD + i * (sprite.frame.width + HUD_PAD), HUD_PAD);
-      sprite.setAlpha(icon.active ? 1 : HUD_INACTIVE_ALPHA);
     });
+    const alphaOf = (i: number) => {
+      const icon = icons[i];
+      if (icon === undefined) return 1;
+      if (!icon.alive) return HUD_DOWN_ALPHA;
+      return icon.active ? 1 : HUD_INACTIVE_ALPHA;
+    };
+    const layout = hudLayout(
+      icons,
+      icons.map((_, i) => this.hud[i]?.frame.width ?? 0),
+      camera.height,
+    );
+    layout.icons.forEach((at, i) => {
+      this.hud[i]?.setPosition(at.x, at.y).setAlpha(alphaOf(i));
+    });
+    // HP: a gauge per member, the lost part dark.
+    const gauges = this.hpCells;
+    if (gauges === undefined) return;
+    gauges.clear();
+    for (const bar of layout.bars) {
+      // Readable for every living member, active or not; dark once the member is down.
+      const alpha = icons[bar.icon]?.alive === false ? HUD_DOWN_ALPHA : 1;
+      gauges.fillStyle(HP_LOST_COLOR, alpha);
+      gauges.fillRect(bar.x + bar.fill, bar.y, bar.w - bar.fill, bar.h);
+      gauges.fillStyle(HP_FULL_COLOR, alpha);
+      gauges.fillRect(bar.x, bar.y, bar.fill, bar.h);
+    }
   }
 }
 

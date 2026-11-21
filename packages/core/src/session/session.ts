@@ -6,7 +6,7 @@ import { checkReplayPack, Player, Recorder, type ReplayFile, startOf } from '../
 import type { PackRuntime, StartState } from '../runtime/pack';
 import { type RenderSnapshot, renderSnapshot } from '../sim/output';
 import { activeCharacter, canSwitch } from '../sim/party';
-import { createWorld, step, type UiState } from '../sim/sim';
+import { createWorld, step, type UiState, uiParty } from '../sim/sim';
 import type { World } from '../world/world';
 
 /** Where live input comes from. `InputBuffer` (package `input`) fits this shape. */
@@ -166,10 +166,16 @@ export class GameSession {
     this.observer?.(this.world.tick, hashWorld(this.world));
   }
 
+  /** The HUD state after the last tick (or at the start). */
+  get uiState(): UiState {
+    return this.ui;
+  }
+
   private initialUi(): UiState {
     return {
       activeCharacterId: activeCharacter(this.world, this.runtime).id,
       canSwitch: canSwitch(this.world, this.runtime),
+      party: uiParty(this.world, this.runtime),
     };
   }
 }

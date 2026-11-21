@@ -60,7 +60,8 @@ const FLAG_NUMBER = 0;
 const FLAG_BOOLEAN = 1;
 
 /**
- * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, party, controller,
+ * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, party (with hp and the
+ * hazard state last, ADR-0016), controller,
  * animation, flags
  * (keys sorted by UTF-16 code units), entities (live ones in ascending id order, columns in
  * `COLUMNS` order).
@@ -76,6 +77,12 @@ export function hashWorld(world: World): WorldHash {
     h.string(member);
   }
   h.int32(p.activeIndex).int32(p.cooldownTicks).int32(p.entityId).int32(p.spawnX).int32(p.spawnY);
+  // ADR-0016 (M2-5): HP per member, then the HP-draining tile being touched.
+  h.int32(p.hp.length);
+  for (const hp of p.hp) {
+    h.int32(hp);
+  }
+  h.string(p.hazardId).int32(p.hazardTicks);
 
   const c = world.controller;
   h.string(c.feelProfileId)

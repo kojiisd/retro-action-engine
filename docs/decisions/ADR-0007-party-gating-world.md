@@ -94,3 +94,9 @@ Condition は ADR-0005 の集合に `hasTag`, `hasItem`, `partyIncludes` を加�
 ## 要確認
 
 - `onInteract` のボタンを `confirm` にするか `up` にするか（原作風は `up` が多い）。パックの `input.json` で選べるようにする前提で、既定値は M3 で決める。
+
+## 改訂履歴
+
+| 日付 | 内容 |
+| --- | --- |
+| 2026-11-21（M2-5） | `RulesDef.hp` を一部だけ先に実装した（ADR-0016）: `scope` は `perCharacter` のみ、`onDeath` は `switchToAlive` と `respawnAtSavePoint`、`onAllDown` は `respawnAtSavePoint`（セーブポイントが無い間は、部屋に入った位置に戻る）。`shared` と `gameOver` は M3-5。`rules.hazards`（触れると HP が減るタイルの種類ごとの値と、能力タグによる上書き）を追加した。手動の交代は倒れたメンバーを飛ばす。サンプルパックの水は `move:swim` による通行の制限ではなく、全員が入れて HP が減る水になった（`move:swim` は減るのが遅い） |

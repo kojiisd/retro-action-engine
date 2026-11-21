@@ -327,6 +327,83 @@ describe('loadPack', () => {
   });
 });
 
+describe('loadPack: HP, HP-draining tiles and media (ADR-0016)', () => {
+  /** The swim-only tile becomes an open tile of fumes and mist; both members get HP. */
+  function withHazards(): Files {
+    const files = edit(packFiles(), 'tilesets/blocks.json', (t) => {
+      t.tiles[2] = {
+        id: 2,
+        properties: [
+          { name: 'hazard', type: 'string', value: 'fumes' },
+          { name: 'medium', type: 'string', value: 'mist' },
+        ],
+      };
+    });
+    edit(files, 'data/characters.json', (c) => {
+      c.characters[0].hp = { max: 4 };
+      c.characters[1].hp = { max: 6 };
+    });
+    edit(files, 'data/rules.json', (r) => {
+      r.hp = { scope: 'perCharacter', onDeath: 'switchToAlive', onAllDown: 'respawnAtSavePoint' };
+      r.hazards = {
+        fumes: { damage: 1, intervalTicks: 30, byTag: [{ anyTag: ['move:swim'], damage: 2 }] },
+      };
+    });
+    edit(files, 'data/feel.json', (f) => {
+      f.profiles.smooth.media = { mist: { gravity: 0.1, maxFallSpeed: 1.25, swim: true } };
+    });
+    return files;
+  }
+
+  it('reads them into the runtime, media values in Fx', async () => {
+    const { runtime, warnings } = await loadPack(memoryFetch(withHazards()), BASE);
+    expect(warnings).toEqual([]);
+    expect(runtime.rooms.start?.tileClasses[3]).toEqual({
+      id: 3,
+      solid: 'none',
+      hazard: 'fumes',
+      medium: 'mist',
+    });
+    expect(runtime.characters.runner?.hp).toEqual({ max: 4 });
+    expect(runtime.rules.hp?.onDeath).toBe('switchToAlive');
+    expect(runtime.rules.hazards?.fumes?.byTag?.[0]).toEqual({ anyTag: ['move:swim'], damage: 2 });
+    expect(runtime.feel.smooth?.media).toEqual({
+      mist: { gravity: Math.round(0.1 * 256), maxFallSpeed: Math.round(1.25 * 256), swim: true },
+    });
+    expect(runtime.feel.crisp?.media).toBeUndefined();
+  });
+
+  it('requires HP for every member, HP rules for hazards, and every tile hazard defined', async () => {
+    const noHp = edit(withHazards(), 'data/characters.json', (c) => {
+      delete c.characters[1].hp;
+    });
+    expect(await issuesOf(noHp)).toEqual([
+      'data/rules.json#/party/members/1: character "swimmer" needs hp.max, because rules.hp is set',
+    ]);
+    const noRules = edit(withHazards(), 'data/rules.json', (r) => {
+      delete r.hp;
+    });
+    expect(await issuesOf(noRules)).toEqual(['data/rules.json#/hazards: hazards need rules.hp']);
+    const undefinedKind = edit(withHazards(), 'data/rules.json', (r) => {
+      r.hazards = { smoke: { damage: 1, intervalTicks: 10 } };
+    });
+    expect(await issuesOf(undefinedKind)).toEqual([
+      'data/rules.json#/hazards: hazard "fumes" (a tile in room "start") is not defined',
+    ]);
+  });
+
+  it('rejects the old contact-damage class and empty names', async () => {
+    const files = edit(packFiles(), 'tilesets/blocks.json', (t) => {
+      t.tiles[1] = { id: 1, class: 'hazard', properties: [{ name: 'damage', value: 1 }] };
+      t.tiles[2].properties.push({ name: 'medium', type: 'string', value: ' ' });
+    });
+    expect(await issuesOf(files)).toEqual([
+      'tilesets/blocks.json#/tiles/1: the "hazard" class was replaced by the "hazard" property (docs/pack-spec.md 5.3)',
+      'tilesets/blocks.json#/tiles/2: medium must be a non-empty string',
+    ]);
+  });
+});
+
 describe('loadPack errors', () => {
   it('reports schema errors as file#/pointer: message, from every file at once', async () => {
     const files = packFiles();

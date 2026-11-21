@@ -346,6 +346,12 @@ interface FeelMotion {
 - 設定画面でパックのプロファイル（`feel.json` の `profiles`、表示名は各プロファイルの `name`）を選ぶ。切り替えると部屋の入口からやり直す。選んだプロファイルはパックごとに保存する（ADR-0011 の改訂履歴）。
 - 補間は「プロファイルに従う / 滑らか（`linear`）/ なし（`none`）」をユーザが上書きできる。描画だけの設定で、tick の結果（hash）は変わらない（Determinism (c) を両方で確かめる）。
 
+### 8.6 媒体の中の動き（M2-5）
+
+- タイルの `medium`（水など）の中では、操作感プロファイルの `media[名前]` の値で動きを上書きする（重ねる順は「プロファイル → キャラクターの `feelOverrides` → 媒体」）。媒体の中かどうかは、体の中心の点があるタイルで決める。決定の記録は ADR-0016。
+- `swim: true` の媒体の中では、接地していなくてもジャンプでき、そのたびに媒体の `jumpVelocity` で水をかく（コヨーテタイムと「接地からのジャンプは 1 回」の制限は見ない）。
+- サンプルパックの水: 移動はゆっくり、ゆっくり沈み、何度でも水をかいて上がれる（値は `feel.json` の `media.water`。プレビューで触って調整する）。
+
 ## 9. 仮想パッド（M2）
 
 M2-1 で実装。配置、見た目、画面との重なりは ADR-0008 の改訂履歴（2026-11-18）で決めた。
@@ -452,10 +458,11 @@ interface ReplayFile {
 | --- | --- |
 | `hash()` | 現在の `World` の hash |
 | `runReplay(file)` | 実際の描画ループでリプレイを再生し、全 tick の hash を返す（Determinism (c)）。再生中と再生後はライブ入力を無視する |
-| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル |
+| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル、操作中のキャラクターと HP（M2-5） |
 | `setFeelProfile(id)` | プロファイルを切り替えて最初からやり直す |
 | `restart()` | ライブ入力で最初からやり直す |
 | `recording()` | 最後に始めてからのライブ入力を `ReplayFile` で返す（デバイスの入力がゲームに届いたことの確認に使う。M2-1） |
+| `settingsSaved()` | それまでに始めた設定の保存がすべて終わると解決する（保存は非同期なので、再読み込みの前に待つ。M2-5） |
 | `loadPack(source)` | パック切替（M4。外部パックの読み込みと合わせて追加） |
 
 `window.__engine` を公開するのは、開発サーバ（`import.meta.env.DEV`）と、`VITE_E2E_HOOKS=1` を付けたビルドだけ（M1-5）。後者は e2e が `apps/player/dist-e2e/` に作るもので、デプロイ用のビルド（preview と deploy のワークフロー）は付けない。

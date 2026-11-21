@@ -95,10 +95,15 @@ export async function bootGame(options: BootOptions): Promise<Game> {
   const saved = await settingsStore.load();
   let globalSettings = saved.global;
   let packSettings: PackSettings = saved.pack;
-  const save = (what: Promise<void>) =>
-    what.catch((error: unknown) =>
-      options.settings.warn(`settings were not saved: ${String(error)}`),
-    );
+  // Writes still in flight; `settingsSaved` (test hook) waits for them.
+  const pendingSaves = new Set<Promise<void>>();
+  const save = (what: Promise<void>): Promise<void> => {
+    const done: Promise<void> = what
+      .catch((error: unknown) => options.settings.warn(`settings were not saved: ${String(error)}`))
+      .finally(() => pendingSaves.delete(done));
+    pendingSaves.add(done);
+    return done;
+  };
   // The saved feel profile, if the pack still has it (docs/input-and-feel.md 8.5).
   let feelProfile = runtime.feelDefault;
   if (packSettings.feelProfile !== null) {
@@ -309,6 +314,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     session,
     feelProfiles: Object.keys(runtime.feel),
     resyncCount: () => buffer.resyncCount,
+    settingsSaved: () => Promise.all([...pendingSaves]).then(() => undefined),
   });
 
   // Lay the page out for the pad before the renderer measures the game screen.

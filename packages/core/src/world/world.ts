@@ -13,9 +13,18 @@ export interface PartyState {
   cooldownTicks: number;
   /** The entity the active character drives. */
   entityId: number;
-  /** Where `placement: 'spawn'` puts the character: the spawn the room was entered at. */
+  /**
+   * Where `placement: 'spawn'` puts the character, and where the party comes back when everyone
+   * is down: the spawn the room was entered at.
+   */
   spawnX: Fx;
   spawnY: Fx;
+  /** HP per member, in `members` order. Empty when the pack has no HP rules (ADR-0016). */
+  hp: number[];
+  /** The kind of HP-draining tile the body is in ('' for none). */
+  hazardId: string;
+  /** Ticks in a row in that kind of tile since the last damage. */
+  hazardTicks: number;
 }
 
 /** Per-tick memory of the character controller (docs/input-and-feel.md 6, 8.4). */
@@ -96,7 +105,17 @@ export function newWorld(init: WorldInit): World {
     tick: 0,
     rng: seedRng(init.seed),
     roomId: init.roomId,
-    party: { members: [], activeIndex: 0, cooldownTicks: 0, entityId: 0, spawnX: 0, spawnY: 0 },
+    party: {
+      members: [],
+      activeIndex: 0,
+      cooldownTicks: 0,
+      entityId: 0,
+      spawnX: 0,
+      spawnY: 0,
+      hp: [],
+      hazardId: '',
+      hazardTicks: 0,
+    },
     controller: newControllerState(''),
     animation: { name: '', frame: 0, ticks: 0 },
     flags: {},
@@ -110,7 +129,7 @@ export function cloneWorld(world: World): World {
     tick: world.tick,
     rng: world.rng,
     roomId: world.roomId,
-    party: { ...world.party, members: [...world.party.members] },
+    party: { ...world.party, members: [...world.party.members], hp: [...world.party.hp] },
     controller: { ...world.controller },
     animation: { ...world.animation },
     flags: { ...world.flags },

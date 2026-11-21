@@ -116,7 +116,7 @@ interface CharacterDef {
   id: string;
   name: string;                       // "@strings:key" 可（M3。M1-5 は文字を表示しない）
   abilityTags: string[];              // 基本の能力タグ
-  hp?: { max: number };               // M3 で使う
+  hp?: { max: number };               // rules.hp があるパックでは必須（M2-5、ADR-0016）
   collider: { w: number; h: number; ox: number; oy: number }; // px。位置（足元中央）からの相対
   sprite: { atlas: string; animations: Record<string, AnimationDef> };
   feelOverrides?: Partial<FeelMotion>; // 操作感プロファイルの一部をキャラ別に上書き
@@ -305,6 +305,9 @@ interface ItemDef {
     "switch": { "mode": "anywhere", "cooldownTicks": 20, "requireGrounded": false, "placement": "same" }
   },
   "hp": { "scope": "perCharacter", "onDeath": "switchToAlive", "onAllDown": "respawnAtSavePoint" },
+  "hazards": {
+    "water": { "damage": 1, "intervalTicks": 60, "byTag": [{ "anyTag": ["move:swim"], "intervalTicks": 300 }] }
+  },
   "inventory": { "scope": "shared" },
   "gating": { "subject": "active" },
   "save": { "slots": 3, "autosave": { "onRoomTransition": true } },
@@ -327,6 +330,22 @@ interface ItemDef {
   }
 }
 ```
+
+各プロファイルに `media` を書くと、媒体（タイルの `medium`）の中だけ操作感を上書きできる（M2-5、ADR-0016）。値の単位はプロファイルの本体と同じ。`swim: true` の媒体の中では、接地していなくても何度でもジャンプ（水をかく）できる。
+
+```json
+"media": {
+  "water": { "runSpeed": 0.8, "gravity": 0.05, "maxFallSpeed": 0.8, "jumpVelocity": 1.6, "airControl": 1, "airAccel": 0.1, "airDecel": 0.05, "swim": true }
+}
+```
+
+操作感は「プロファイル → キャラクターの `feelOverrides` → 媒体の上書き」の順に重ねる（後ろが優先）。
+
+`rules.json` の `hp` と `hazards`（M2-5、ADR-0016）:
+
+- `hp: { scope: 'perCharacter', onDeath: 'switchToAlive' | 'respawnAtSavePoint', onAllDown: 'respawnAtSavePoint' }`。無ければ HP は無い。`shared` と `gameOver` は M3-5。
+- `hazards: Record<string, { damage, intervalTicks, byTag?: Array<{ anyTag, damage?, intervalTicks? }> }>`。触れ続けて `intervalTicks` tick ごとに `damage` 減る。`byTag` は上から順に見て、操作中のキャラクターの有効タグにどれかが含まれる最初の要素で上書きする。
+- `hazards` があるのに `hp` が無い、タイルの `hazard` が `hazards` に無い、`hp` があるのにパーティのメンバーに `hp.max` が無い、は読み込み時のエラーにする。タイルの `medium` がプロファイルの `media` に無いのは正しい（その媒体では動きが変わらない）。
 
 ### 4.7 `input.json`
 
@@ -468,10 +487,13 @@ interface AudioDef {
 | `oneway` | なし | `solid: 'oneway'` |
 | `slope` | `heights: "0,1,2,...,15"`（文字列。tileSize 個） | `solid: 'slope'`（M5） |
 | `ladder` | なし | `ladder: true` |
-| `hazard` | `damage: int` | `hazard: damage` |
 | 任意 | `requiresAnyTag: "move:swim,size:small"` | `requiresAnyTag`（カンマ区切り） |
+| 任意 | `hazard: "water"` | `hazard`（触れると HP が減る種類。`rules.json` の `hazards` のキー。ADR-0016） |
+| 任意 | `medium: "water"` | `medium`（媒体。`feel.json` の各プロファイルの `media` のキー。ADR-0016） |
 
-例: 水タイルは `class: "solid"` + `requiresAnyTag: "move:swim"` とすると、泳げるキャラだけが通れる。狭い通路は `class: "solid"` + `requiresAnyTag: "size:small"`。
+例: 全員が入れて HP が減る水は、クラス空 + `hazard: "water"` + `medium: "water"`。泳げるキャラだけが通れる水は `class: "solid"` + `requiresAnyTag: "move:swim"`。狭い通路は `class: "solid"` + `requiresAnyTag: "size:small"`。
+
+`hazard` と `medium` は、体（当たり判定の箱）の中心の点があるタイルで判定する。接触ダメージのクラス `hazard`（`damage: int`）は廃止した（敵や棘の接触ダメージは M3-4）。
 
 ### 5.4 オブジェクト規約
 
@@ -564,7 +586,7 @@ Tiled の外部タイルセット形式をそのまま使う。`image` はタイ
 ## 12. パック作成チェックリスト
 
 1. `pack.json` の `display`、`tileSize`、`entry` を決める。プレイ領域がタイルの倍数になるよう `hudReserve` を調整する。
-2. タイルセットにクラス（`solid` / `oneway` / `ladder` / `hazard`）と `requiresAnyTag` を付ける。
+2. タイルセットにクラス（`solid` / `oneway` / `ladder`）と、プロパティ（`requiresAnyTag`、`hazard`、`medium`）を付ける。
 3. Tiled で部屋を作る。レイヤ名は規約どおり。`spawn` を少なくとも 1 つ置く。
 4. `characters.json` に能力タグとアニメーションを定義する。1 人でもよい。
 5. `rules.json` でパーティ、HP、所持品、切替を選ぶ。
@@ -576,7 +598,7 @@ Tiled の外部タイルセット形式をそのまま使う。`image` はタイ
 
 | 部屋 | 役割 | 検証する機能 |
 | --- | --- | --- |
-| `hub` | 拠点。セーブポイント、東の施錠扉（`small-key`）、西の低い通路（`size:small`）、下の水路（`move:swim`） | 能力タグ通行、ゲート、セーブ、2 人切替 |
+| `hub` | 拠点。セーブポイント、東の施錠扉（`small-key`）、西の低い通路（`size:small`）、水（全員が入れて HP が減る。`move:swim` は減るのが遅い。M2-5） | 能力タグ通行、ゲート、セーブ、2 人切替 |
 | `cave-01` | 最初のダンジョン。`walker` 数体、`breakable`（`break:rock`）、すり抜け床、`swim-charm` の宝箱 | 敵の振る舞い、hit/hurt、アイテムによるタグ付与、oneway |
 | `cave-boss`（M3） | ボス部屋。`bossDoor`、撃破で `small-key` ドロップ | ボスフラグ、ドロップ、部屋遷移 |
 

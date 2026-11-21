@@ -4,7 +4,7 @@ import type { InputFrame } from '../input/frame';
 import { type ActiveFeel, activeFeel } from '../runtime/feel';
 import type { PackRuntime, RoomData, StartState } from '../runtime/pack';
 import { newControllerState, newWorld, type World } from '../world/world';
-import { animationStep } from './anim';
+import { animationStep, attackTicks } from './anim';
 import { controllerStep } from './controller';
 import { hpStep, initialHp, tileAtBodyCenter } from './hp';
 import { inputIntent } from './intent';
@@ -132,7 +132,7 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   const teleported =
     world.party.activeIndex !== activeBefore && runtime.rules.party.switch.placement === 'spawn';
   const feel = currentFeel(world, runtime);
-  controllerStep(world, intent, feel);
+  controllerStep(world, intent, feel, attackTicks(activeCharacter(world, runtime)));
 
   // movement: only the party entity exists as of M1-3.
   const s = world.entities;

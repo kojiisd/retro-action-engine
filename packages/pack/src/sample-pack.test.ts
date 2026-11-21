@@ -1,7 +1,14 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createWorld, fromPx, type PackRuntime, script, step } from '@retro-action-engine/core';
+import {
+  attackTicks,
+  createWorld,
+  fromPx,
+  type PackRuntime,
+  script,
+  step,
+} from '@retro-action-engine/core';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type FetchLike, type LoadedRuntime, loadPack } from './load';
 
@@ -137,5 +144,27 @@ describe('packs/sample', () => {
     expect(hpAfter('diver')).toBe(
       max('diver') - Math.floor(ticks / (swimInterval as number)) * hazard.damage,
     );
+  });
+
+  it('lets both characters swing, with a hitbox on the slash frames (ADR-0017)', () => {
+    const entry = runtime.entry as { roomId: string; spawnId: string };
+    for (const member of runtime.rules.party.members) {
+      const character = runtime.characters[member];
+      const length = character === undefined ? undefined : attackTicks(character);
+      expect(length).toBeGreaterThan(0);
+      const world = createWorld(runtime, {
+        ...entry,
+        party: [member],
+        seed: 1,
+        feelProfile: runtime.feelDefault as string,
+      });
+      const outs = script()
+        .hold('attack', 1)
+        .build(length as number)
+        .map((frame) => step(world, frame, runtime));
+      expect(outs.some((o) => o.render.hitboxes.length > 0)).toBe(true);
+      // Over at the end of the animation.
+      expect(world.tick).toBe(world.controller.attackUntilTick);
+    }
   });
 });

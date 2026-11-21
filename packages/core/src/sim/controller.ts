@@ -24,8 +24,17 @@ function approach(v: Fx, target: Fx, rate: Fx): Fx {
  * - Velocity first, then position (8.3): gravity also applies on the take-off tick.
  * - In a medium with `swim` (ADR-0016), a jump needs no ground and no coyote time: each one is a
  *   stroke with the medium's `jumpVelocity`.
+ * - Attack (ADR-0017): a press starts a swing of `attackTicks` when none is running. During it the
+ *   facing stays; on the ground with `attackOnGround: 'stop'` the character stands still and takes
+ *   no jump. In the air it keeps flying.
  */
-export function controllerStep(world: World, intent: Intent, feel: FeelProfile | ActiveFeel): void {
+export function controllerStep(
+  world: World,
+  intent: Intent,
+  feel: FeelProfile | ActiveFeel,
+  /** Length of the active character's attack in ticks; undefined if it cannot attack. */
+  attackTicks?: number,
+): void {
   const swim = 'swim' in feel && feel.swim;
   const c = world.controller;
   const t = world.tick;
@@ -44,15 +53,32 @@ export function controllerStep(world: World, intent: Intent, feel: FeelProfile |
     }
   }
   const locked = t < c.landingLagUntilTick;
-  const moveDir = locked ? 0 : intent.moveDir;
-  if (moveDir !== 0) {
+
+  // ---- Attack (ADR-0017): a press starts one when none is running; on the ground it roots ----
+  if (
+    !locked &&
+    intent.attackPressed &&
+    t >= c.attackUntilTick &&
+    attackTicks !== undefined &&
+    attackTicks > 0
+  ) {
+    c.attackUntilTick = t + attackTicks;
+  }
+  const attacking = t < c.attackUntilTick;
+  const rooted = attacking && grounded && (feel.attackOnGround ?? 'stop') === 'stop';
+
+  const moveDir = locked || rooted ? 0 : intent.moveDir;
+  // No turning round in the middle of a swing.
+  if (moveDir !== 0 && !attacking) {
     c.facing = moveDir;
   }
 
   // ---- Horizontal ----
   let vx = s.vx[slot] as number;
   const target = moveDir * feel.runSpeed;
-  if (grounded) {
+  if (rooted) {
+    vx = 0;
+  } else if (grounded) {
     if (moveDir === 0) {
       vx = approach(vx, 0, feel.groundDecel);
     } else {
@@ -72,7 +98,9 @@ export function controllerStep(world: World, intent: Intent, feel: FeelProfile |
   // ---- Jump and drop-through ----
   let vy = s.vy[slot] as number;
   const onlyOneway = grounded && (contact & CONTACT_ONEWAY) !== 0;
-  if (!locked && intent.jumpPressed && intent.downHeld && onlyOneway) {
+  if (rooted) {
+    // A rooted swing takes no jump and no drop-through; a press may still be buffered.
+  } else if (!locked && intent.jumpPressed && intent.downHeld && onlyOneway) {
     c.dropThroughUntilTick = t + feel.dropThroughTicks;
     c.jumpPressedTick = NEVER;
   } else if (!locked && t - c.jumpPressedTick <= feel.jumpBufferTicks) {

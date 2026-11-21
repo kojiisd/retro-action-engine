@@ -91,6 +91,7 @@
 
 | 日付 | 内容 |
 | --- | --- |
+| 2026-11-21（M2-5 後半） | `controller` の `rightPressedTick` の後に `attackUntilTick` を追加した（ADR-0017） |
 | 2026-11-21（M2-5） | `party` の `spawnY` の後に、`hp`（件数と各値）、`hazardId`（文字列）、`hazardTicks` を追加した（ADR-0016） |
 | 2026-11-17（M1-5） | 走査順に `animation`（操作中キャラクターのスプライトのアニメーション。名前、コマ番号、コマ内の tick）を `controller` の直後に追加した。アニメーションのコマ送りは core が tick 単位で行う（ADR-0001） |
 | 2026-11-14（M1-3） | 走査順に `controller`（操作中キャラクターの状態機械の記憶）を `party` の直後に追加した。各フィールドの順序を上に明記した |

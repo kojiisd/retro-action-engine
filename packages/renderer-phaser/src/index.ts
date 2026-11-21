@@ -4,6 +4,7 @@ export {
   type DrawSprite,
   type Interpolation,
   interpolateColliders,
+  interpolateHitboxes,
   interpolateSprites,
 } from './interpolate';
 export { integerZoom, type Scaling } from './scaling';

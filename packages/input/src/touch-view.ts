@@ -13,6 +13,12 @@ const SVG = 'http://www.w3.org/2000/svg';
 const ICONS: Partial<Record<ActionId, string>> = {
   // An arrow pointing up.
   jump: 'M0,-0.55 L0.45,0 L0.18,0 L0.18,0.5 L-0.18,0.5 L-0.18,0 L-0.45,0 Z',
+  // A sword pointing up (ADR-0017): blade with its tip, guard, grip and pommel.
+  attack:
+    'M0,-0.62 L0.09,-0.48 L0.09,0.14 L-0.09,0.14 L-0.09,-0.48 Z ' +
+    'M-0.32,0.14 L0.32,0.14 L0.32,0.24 L-0.32,0.24 Z ' +
+    'M-0.06,0.24 L0.06,0.24 L0.06,0.46 L-0.06,0.46 Z ' +
+    'M-0.1,0.46 L0.1,0.46 L0.1,0.56 L-0.1,0.56 Z',
   // Two arrows pointing opposite ways: swap.
   switch:
     'M-0.5,-0.29 L0.2,-0.29 L0.2,-0.42 L0.5,-0.22 L0.2,-0.02 L0.2,-0.15 L-0.5,-0.15 Z ' +

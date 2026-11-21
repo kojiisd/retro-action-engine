@@ -49,6 +49,8 @@ export interface ControllerState {
   /** Ticks of the last left and right presses (SOCD lastWins). */
   leftPressedTick: number;
   rightPressedTick: number;
+  /** Attacking while tick < this (ADR-0017); NEVER when not attacking. */
+  attackUntilTick: number;
 }
 
 /** Animation of the party entity's sprite. Advanced by the `timers` system, one tick at a time. */
@@ -96,6 +98,7 @@ export function newControllerState(feelProfileId: string): ControllerState {
     landingLagUntilTick: NEVER,
     leftPressedTick: NEVER,
     rightPressedTick: NEVER,
+    attackUntilTick: NEVER,
   };
 }
 

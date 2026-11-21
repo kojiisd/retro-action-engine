@@ -51,7 +51,25 @@ export const charactersSchema = z.object({
     .min(1),
 });
 
-/** `rules.json`. Only `party` is used as of M1-5; the rest is kept for later milestones. */
+/** One kind of HP-draining tile (ADR-0016). */
+const hazardSchema = z.object({
+  damage: z.int().positive(),
+  intervalTicks: z.int().positive(),
+  byTag: z
+    .array(
+      z.object({
+        anyTag: z.array(name).min(1),
+        damage: z.int().positive().optional(),
+        intervalTicks: z.int().positive().optional(),
+      }),
+    )
+    .optional(),
+});
+
+/**
+ * `rules.json`. `party`, and `hp` and `hazards` in the part ADR-0016 brings forward, are used;
+ * the rest is kept for later milestones.
+ */
 export const rulesSchema = z.looseObject({
   party: z.object({
     members: z.array(name).min(1),
@@ -62,6 +80,15 @@ export const rulesSchema = z.looseObject({
       placement: z.enum(['same', 'spawn']),
     }),
   }),
+  hp: z
+    .object({
+      // `shared` and `gameOver` come with M3-5.
+      scope: z.literal('perCharacter'),
+      onDeath: z.enum(['switchToAlive', 'respawnAtSavePoint']),
+      onAllDown: z.literal('respawnAtSavePoint'),
+    })
+    .optional(),
+  hazards: z.record(name, hazardSchema).optional(),
 });
 
 /** `feel.json` (docs/pack-spec.md 4.6). */
@@ -74,6 +101,10 @@ export const feelSchema = z.object({
       interpolation: z.enum(['linear', 'none']),
       socd: z.enum(['neutral', 'lastWins', 'leftWins']),
       ...feelMotionShape,
+      // Motion inside a medium (a tile's `medium`), ADR-0016.
+      media: z
+        .record(name, z.object({ ...feelMotionShape, swim: z.boolean() }).partial())
+        .optional(),
     }),
   ),
 });

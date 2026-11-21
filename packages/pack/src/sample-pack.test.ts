@@ -95,27 +95,45 @@ describe('packs/sample', () => {
     expect(new Set(credits.assets.map((a) => a.license))).toEqual(new Set(['CC0-1.0']));
   });
 
-  it('lets only the swimmer through the water column', () => {
-    // The water column is the only swim-only tile in the hub; find its left edge from the data.
+  it('lets everyone into the water, and drains the swimmer slower (ADR-0016)', () => {
+    // The water is the only tile class with a hazard in the hub; find its columns from the data.
     const hub = runtime.rooms.hub;
     if (hub === undefined) throw new Error('no hub');
-    const swimClass = hub.tileClasses.find((c) => c.requiresAnyTag?.includes('move:swim'));
-    if (swimClass === undefined) throw new Error('no swim-only tile class');
-    const cols = [...hub.collision.keys()]
-      .filter((i) => hub.collision[i] === swimClass.id)
-      .map((i) => i % hub.widthTiles);
-    const waterLeft = fromPx(Math.min(...cols) * runtime.tileSize);
+    const waterClass = hub.tileClasses.find((c) => c.hazard !== undefined);
+    if (waterClass === undefined) throw new Error('no water tile class');
+    expect(waterClass).toMatchObject({ solid: 'none', medium: waterClass.hazard });
+    const cells = [...hub.collision.keys()].filter((i) => hub.collision[i] === waterClass.id);
+    const cols = cells.map((i) => i % hub.widthTiles);
     const waterRight = fromPx((Math.max(...cols) + 1) * runtime.tileSize);
+    // Both get through now.
+    expect(walkRight(runtime, 'explorer', 600)).toBeGreaterThan(waterRight);
+    expect(walkRight(runtime, 'diver', 600)).toBeGreaterThan(waterRight);
 
-    const walker = runtime.characters.explorer;
-    const swimmer = runtime.characters.diver;
-    expect(walker?.abilityTags).not.toContain('move:swim');
-    expect(swimmer?.abilityTags).toContain('move:swim');
-
-    const ticks = 600;
-    const walkerX = walkRight(runtime, 'explorer', ticks);
-    const walkerRight = walkerX + (walker?.collider.ox ?? 0) + (walker?.collider.w ?? 0);
-    expect(walkerRight).toBe(waterLeft);
-    expect(walkRight(runtime, 'diver', ticks)).toBeGreaterThan(waterRight);
+    // Standing in the water: HP drops by the rules' interval, slower with `move:swim`.
+    const hazard = runtime.rules.hazards?.[waterClass.hazard as string];
+    if (hazard === undefined) throw new Error('no water hazard');
+    const swimInterval = hazard.byTag?.find((b) => b.anyTag.includes('move:swim'))?.intervalTicks;
+    expect(swimInterval).toBeGreaterThan(hazard.intervalTicks);
+    const lowest = Math.max(...cells.map((i) => Math.floor(i / hub.widthTiles)));
+    const ticks = hazard.intervalTicks * 3;
+    const hpAfter = (member: string) => {
+      const entry = runtime.entry as { roomId: string; spawnId: string };
+      const world = createWorld(runtime, {
+        ...entry,
+        party: [member],
+        seed: 1,
+        feelProfile: runtime.feelDefault as string,
+      });
+      const slot = world.entities.slotOf(world.party.entityId);
+      world.entities.x[slot] = fromPx(Math.min(...cols) * runtime.tileSize + runtime.tileSize);
+      world.entities.y[slot] = fromPx((lowest + 1) * runtime.tileSize);
+      for (const frame of script().build(ticks)) step(world, frame, runtime);
+      return world.party.hp[0];
+    };
+    const max = (id: string) => runtime.characters[id]?.hp?.max as number;
+    expect(hpAfter('explorer')).toBe(max('explorer') - 3 * hazard.damage);
+    expect(hpAfter('diver')).toBe(
+      max('diver') - Math.floor(ticks / (swimInterval as number)) * hazard.damage,
+    );
   });
 });

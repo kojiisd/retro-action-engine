@@ -1,4 +1,4 @@
-import type { FeelMotion, FeelProfile, Fx } from '@retro-action-engine/core';
+import type { FeelMedium, FeelMotion, FeelProfile, Fx } from '@retro-action-engine/core';
 
 /**
  * px (with decimals) to Fx, once at load time (ADR-0002): `Math.round(v * 256)`. The same in every
@@ -56,13 +56,24 @@ export function convertProfile(
     readonly name?: string | undefined;
     readonly interpolation: FeelProfile['interpolation'];
     readonly socd: FeelProfile['socd'];
+    readonly media?:
+      | Record<string, Partial<Record<keyof FeelMotion, number>> & { swim?: boolean | undefined }>
+      | undefined;
   },
 ): FeelProfile {
+  const media: Record<string, FeelMedium> = {};
+  for (const [medium, values] of Object.entries(profile.media ?? {})) {
+    media[medium] = {
+      ...convertMotion(values),
+      ...(values.swim === undefined ? {} : { swim: values.swim }),
+    };
+  }
   return {
     id,
     name: profile.name ?? id,
     interpolation: profile.interpolation,
     socd: profile.socd,
     ...(convertMotion(profile) as FeelMotion),
+    ...(profile.media === undefined ? {} : { media }),
   };
 }

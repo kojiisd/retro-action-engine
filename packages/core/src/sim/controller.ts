@@ -1,6 +1,6 @@
 import { CONTACT_GROUNDED, CONTACT_ONEWAY } from '../collision/move';
 import { FX_ONE, type Fx, mul } from '../fx/fx';
-import type { FeelProfile } from '../runtime/feel';
+import type { ActiveFeel, FeelProfile } from '../runtime/feel';
 import { NEVER, type World } from '../world/world';
 import type { Intent } from './intent';
 
@@ -22,8 +22,11 @@ function approach(v: Fx, target: Fx, rate: Fx): Fx {
  * - `down` + `jump` while standing only on oneway tiles drops through them for dropThroughTicks
  *   instead of jumping. On a full floor it is a normal jump.
  * - Velocity first, then position (8.3): gravity also applies on the take-off tick.
+ * - In a medium with `swim` (ADR-0016), a jump needs no ground and no coyote time: each one is a
+ *   stroke with the medium's `jumpVelocity`.
  */
-export function controllerStep(world: World, intent: Intent, feel: FeelProfile): void {
+export function controllerStep(world: World, intent: Intent, feel: FeelProfile | ActiveFeel): void {
+  const swim = 'swim' in feel && feel.swim;
   const c = world.controller;
   const t = world.tick;
   const s = world.entities;
@@ -74,7 +77,8 @@ export function controllerStep(world: World, intent: Intent, feel: FeelProfile):
     c.jumpPressedTick = NEVER;
   } else if (!locked && t - c.jumpPressedTick <= feel.jumpBufferTicks) {
     const coyoteAge = t - 1 - c.lastGroundedTick;
-    if (!c.jumpedSinceGrounded && coyoteAge <= feel.coyoteTicks) {
+    // In a medium with `swim`, every jump is a stroke, standing or not (ADR-0016).
+    if (swim || (!c.jumpedSinceGrounded && coyoteAge <= feel.coyoteTicks)) {
       vy = -feel.jumpVelocity;
       c.jumpedSinceGrounded = true;
       c.jumpStartTick = t;

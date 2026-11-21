@@ -10,8 +10,10 @@ export interface TileClass {
   /** slope: surface height per column in px (M5). */
   readonly heights?: readonly number[];
   readonly ladder?: boolean;
-  /** Contact damage (M3). */
-  readonly hazard?: number;
+  /** Kind of HP-draining tile: a key of `rules.hazards` (ADR-0016). */
+  readonly hazard?: string;
+  /** Medium the tile is made of: a key of the feel profiles' `media` (ADR-0016). */
+  readonly medium?: string;
   /** The tile is solid unless the entity has at least one of these ability tags. */
   readonly requiresAnyTag?: readonly string[];
 }

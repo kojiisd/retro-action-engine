@@ -23,7 +23,19 @@
       "coyoteTicks": 0,
       "jumpBufferTicks": 0,
       "dropThroughTicks": 8,
-      "landingLagTicks": 0
+      "landingLagTicks": 0,
+      "media": {
+        "water": {
+          "runSpeed": 0.5,
+          "airAccel": 0.1,
+          "airDecel": 0.05,
+          "airControl": 1,
+          "jumpVelocity": 1.6,
+          "gravity": 0.05,
+          "maxFallSpeed": 0.8,
+          "swim": true
+        }
+      }
     },
     "modern": {
       "name": "Modern",
@@ -47,7 +59,19 @@
       "coyoteTicks": 6,
       "jumpBufferTicks": 6,
       "dropThroughTicks": 8,
-      "landingLagTicks": 0
+      "landingLagTicks": 0,
+      "media": {
+        "water": {
+          "runSpeed": 0.5,
+          "airAccel": 0.1,
+          "airDecel": 0.05,
+          "airControl": 1,
+          "jumpVelocity": 1.6,
+          "gravity": 0.05,
+          "maxFallSpeed": 0.8,
+          "swim": true
+        }
+      }
     }
   }
 }

@@ -35,23 +35,31 @@
     },
     {
       "id": 5,
-      "type": "solid",
       "properties": [
         {
-          "name": "requiresAnyTag",
+          "name": "hazard",
           "type": "string",
-          "value": "move:swim"
+          "value": "water"
+        },
+        {
+          "name": "medium",
+          "type": "string",
+          "value": "water"
         }
       ]
     },
     {
       "id": 6,
-      "type": "solid",
       "properties": [
         {
-          "name": "requiresAnyTag",
+          "name": "hazard",
           "type": "string",
-          "value": "move:swim"
+          "value": "water"
+        },
+        {
+          "name": "medium",
+          "type": "string",
+          "value": "water"
         }
       ]
     }

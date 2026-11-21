@@ -5,6 +5,7 @@ export {
   createCollisionGrid,
   NO_ABILITIES,
   solidAt,
+  tileClassAt,
 } from './collision/grid';
 export {
   type Body,
@@ -70,7 +71,14 @@ export {
   startOf,
 } from './replay/replay';
 export { Script, script } from './replay/script';
-export { type FeelMotion, type FeelProfile, resolveFeel } from './runtime/feel';
+export {
+  type ActiveFeel,
+  activeFeel,
+  type FeelMedium,
+  type FeelMotion,
+  type FeelProfile,
+  resolveFeel,
+} from './runtime/feel';
 export type {
   GamepadInputId,
   InputDefaults,
@@ -82,6 +90,8 @@ export type {
   AssetManifest,
   CharacterDef,
   DisplayDef,
+  HazardDef,
+  HpRules,
   PackRuntime,
   PartyRules,
   RenderLayerData,
@@ -100,7 +110,7 @@ export {
   type RenderSprite,
   renderSnapshot,
 } from './sim/output';
-export { activeCharacter, canSwitch } from './sim/party';
+export { activeCharacter, canSwitch, isAlive } from './sim/party';
 export {
   createWorld,
   currentFeel,
@@ -108,6 +118,7 @@ export {
   type StepOutput,
   setFeelProfile,
   step,
+  type UiMember,
   type UiState,
 } from './sim/sim';
 export { effectiveTags } from './sim/tags';

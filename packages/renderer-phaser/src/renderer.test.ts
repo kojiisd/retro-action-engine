@@ -149,16 +149,18 @@ describe('hudIcons', () => {
   } as unknown as PackRuntime;
 
   it('shows every member, the active one marked', () => {
-    expect(hudIcons({ activeCharacterId: 'b', canSwitch: true }, ['a', 'b'], runtime)).toEqual([
+    expect(
+      hudIcons({ activeCharacterId: 'b', canSwitch: true, party: [] }, ['a', 'b'], runtime),
+    ).toEqual([
       { characterId: 'a', atlas: 'chars', frame: 'a-0', active: false },
       { characterId: 'b', atlas: 'chars', frame: 'b-0', active: true },
     ]);
   });
 
   it('shows only the active character when switching is off', () => {
-    expect(hudIcons({ activeCharacterId: 'a', canSwitch: false }, ['a', 'b'], runtime)).toEqual([
-      { characterId: 'a', atlas: 'chars', frame: 'a-0', active: true },
-    ]);
+    expect(
+      hudIcons({ activeCharacterId: 'a', canSwitch: false, party: [] }, ['a', 'b'], runtime),
+    ).toEqual([{ characterId: 'a', atlas: 'chars', frame: 'a-0', active: true }]);
   });
 });
 

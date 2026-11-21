@@ -62,12 +62,20 @@ const sameCollider = (a: CharacterDef, b: CharacterDef) =>
  */
 function proofRules(
   runtime: PackRuntime,
+  roomId: string,
   members: readonly CharacterDef[],
   feelProfile: string,
   switching: boolean,
 ): { region: boolean; riseBound: Fx } {
   const bounds = members.map((member) => measureRiseBound(runtime, member, feelProfile));
-  const riseBound = Math.max(...bounds);
+  // ADR-0016: a medium can change the jump and allow strokes without ground, and a party that
+  // goes down in an HP-draining tile comes back at the entry. Neither has a height bound.
+  const room = runtime.rooms[roomId];
+  const media = Object.keys(runtime.feel[feelProfile]?.media ?? {}).length > 0;
+  const comesBack =
+    runtime.rules.hp !== undefined &&
+    (room?.tileClasses.some((c) => c.hazard !== undefined) ?? false);
+  const riseBound = media || comesBack ? Number.POSITIVE_INFINITY : Math.max(...bounds);
   if (!switching) {
     return { region: true, riseBound };
   }
@@ -250,7 +258,7 @@ function solveScope(
   const runsOf = (indexes: readonly number[]) =>
     [...new Set(indexes.map((index) => runOf[index] as number))].sort((a, b) => a - b);
 
-  const rules = proofRules(runtime, members, scopeStart.feelProfile, switching);
+  const rules = proofRules(runtime, scopeStart.roomId, members, scopeStart.feelProfile, switching);
   const riseBound = rules.riseBound;
   const proofs = rules.region ? Proofs.of(grid, members, world, riseBound) : undefined;
   const activeAt = (state: World) => activeCharacter(state, runtime);

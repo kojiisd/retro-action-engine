@@ -4,6 +4,9 @@
       "id": "explorer",
       "name": "Explorer",
       "abilityTags": [],
+      "hp": {
+        "max": 8
+      },
       "collider": {
         "w": 10,
         "h": 20,
@@ -72,6 +75,9 @@
       "id": "diver",
       "name": "Diver",
       "abilityTags": ["move:swim"],
+      "hp": {
+        "max": 8
+      },
       "collider": {
         "w": 10,
         "h": 20,

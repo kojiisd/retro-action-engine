@@ -6,4 +6,5 @@ export {
   interpolateColliders,
   interpolateSprites,
 } from './interpolate';
+export { integerZoom, type Scaling } from './scaling';
 export { type TileLayerPlan, tileLayerPlans } from './tile-layers';

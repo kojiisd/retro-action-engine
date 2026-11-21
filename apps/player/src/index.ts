@@ -26,6 +26,16 @@ const coarse = window.matchMedia('(pointer: coarse)');
 // The same query as the page's CSS (index.html), so the pad's layout follows its place.
 const portrait = window.matchMedia('(orientation: portrait)');
 
+/**
+ * The game screen in the page (ADR-0010, revision 2026-11-21, the owner's choice): on a PC, a
+ * whole zoom up to 3x so every dot keeps its size and the screen never fills a large window; on a
+ * touch screen, stretched to fit (small screens need all the room).
+ */
+const PC_MAX_ZOOM = 3;
+const scaling = coarse.matches
+  ? ({ kind: 'fit' } as const)
+  : ({ kind: 'integer', maxZoom: PC_MAX_ZOOM } as const);
+
 const exposeHooks = import.meta.env.DEV || import.meta.env.VITE_E2E_HOOKS === '1';
 const warn = (message: string) => console.warn(`[settings] ${message}`);
 
@@ -41,6 +51,7 @@ openStore({
       fetch: (url) => window.fetch(url),
       focus: { window, document },
       getGamepads: () => navigator.getGamepads(),
+      scaling,
       onReady: () => {
         document.body.dataset.state = 'ready';
       },

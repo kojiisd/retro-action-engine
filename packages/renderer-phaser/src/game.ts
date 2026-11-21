@@ -3,6 +3,7 @@ import type { LoadedRuntime } from '@retro-action-engine/pack';
 import * as Phaser from 'phaser';
 import { HUD_PAD, hudIcons, hudLayout } from './hud';
 import { type Interpolation, interpolateColliders, interpolateSprites } from './interpolate';
+import { integerZoom, type Scaling } from './scaling';
 import { tileLayerPlans } from './tile-layers';
 
 export interface RendererOptions {
@@ -26,6 +27,8 @@ export interface RendererOptions {
   readonly afterDraw?: () => void;
   /** A desynchronized canvas context (lower latency on some devices; measured in M2-3). */
   readonly desynchronized?: boolean;
+  /** How the screen is scaled in `parent` (ADR-0010). Stretched to fit when absent. */
+  readonly scaling?: Scaling;
 }
 
 /** Debug collision boxes: a thin line above everything in the play area. */
@@ -196,10 +199,15 @@ class GameScene extends Phaser.Scene {
 
 /**
  * Starts Phaser in `parent` for a loaded pack. The canvas has the pack's display size and is
- * scaled to fit with whole pixels kept sharp. Returns a function that tears the game down.
+ * scaled in `parent` as `options.scaling` says, with whole pixels kept sharp. Returns a function
+ * that tears the game down.
  */
 export function startRenderer(parent: HTMLElement, options: RendererOptions): () => void {
   const { display } = options.runtime;
+  const scaling = options.scaling ?? { kind: 'fit' };
+  // A whole zoom, worked out from the parent's size and set again whenever it changes.
+  const zoomFor = (maxZoom: number) =>
+    integerZoom(display.width, display.height, parent.clientWidth, parent.clientHeight, maxZoom);
   const game = new Phaser.Game({
     type: Phaser.AUTO,
     parent,
@@ -213,8 +221,26 @@ export function startRenderer(parent: HTMLElement, options: RendererOptions): ()
     input: { keyboard: false, mouse: false, touch: false, gamepad: false },
     audio: { noAudio: true },
     fps: { smoothStep: false },
-    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+    scale:
+      scaling.kind === 'fit'
+        ? { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }
+        : {
+            mode: Phaser.Scale.NONE,
+            zoom: zoomFor(scaling.maxZoom),
+            autoCenter: Phaser.Scale.CENTER_BOTH,
+          },
     scene: new GameScene(options),
   });
-  return () => game.destroy(true);
+  let observer: ResizeObserver | undefined;
+  if (scaling.kind === 'integer' && typeof ResizeObserver !== 'undefined') {
+    observer = new ResizeObserver(() => {
+      const zoom = zoomFor(scaling.maxZoom);
+      if (zoom !== game.scale.zoom) game.scale.setZoom(zoom);
+    });
+    observer.observe(parent);
+  }
+  return () => {
+    observer?.disconnect();
+    game.destroy(true);
+  };
 }

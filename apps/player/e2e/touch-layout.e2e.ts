@@ -38,6 +38,29 @@ async function box(page: Page, selector: string): Promise<Box> {
 /** The box once it is drawn (the pad is placed on the first frames after loading). */
 const boxSoon = (page: Page, selector: string) => page.locator(selector).boundingBox();
 
+/**
+ * The box once the pad has settled: two reads in a row give the same box. The pad's elements
+ * are drawn again after a resize, so a single read can land on one that was just replaced (and
+ * has no box). With `unlike`, also waits until the box differs from it in y.
+ */
+async function settledBox(page: Page, selector: string, unlike?: Box): Promise<Box> {
+  let last: Box | null = null;
+  let settled: Box | undefined;
+  await expect
+    .poll(
+      async () => {
+        const b = await boxSoon(page, selector);
+        const same = b !== null && last !== null && JSON.stringify(b) === JSON.stringify(last);
+        last = b;
+        if (same && b !== null && (unlike === undefined || b.y !== unlike.y)) settled = b;
+        return settled !== undefined;
+      },
+      { intervals: [100] },
+    )
+    .toBe(true);
+  return settled as Box;
+}
+
 const center = (b: Box) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
 const JUMP = '.touch-button[data-action="jump"]';
 
@@ -87,11 +110,10 @@ test.describe('landscape phone', () => {
     const errors = await open(page);
     const touch = await finger(context, page);
     await expect(page.locator(JUMP)).toBeVisible();
-    const jump0 = await box(page, JUMP);
+    const jump0 = await settledBox(page, JUMP);
     // The portrait layout before anything is edited.
     await page.setViewportSize(PORTRAIT);
-    await expect.poll(async () => (await boxSoon(page, JUMP))?.y).not.toBe(jump0.y);
-    const portrait0 = await box(page, JUMP);
+    const portrait0 = await settledBox(page, JUMP, jump0);
     await page.setViewportSize(LANDSCAPE);
     await expect.poll(() => boxSoon(page, JUMP)).toEqual(jump0);
 
@@ -112,7 +134,7 @@ test.describe('landscape phone', () => {
         return b === null ? null : center(b).x;
       })
       .toBeCloseTo(to.x, 0);
-    expect(center(await box(page, JUMP)).y).toBeCloseTo(to.y, 0);
+    expect(center(await settledBox(page, JUMP)).y).toBeCloseTo(to.y, 0);
 
     // Tap it to select it, then make it 150 % of the pack's size.
     await touch.tap(to);
@@ -133,7 +155,7 @@ test.describe('landscape phone', () => {
       .getByRole('dialog', { name: 'Settings' })
       .getByRole('button', { name: 'Close' })
       .click();
-    const moved = await box(page, JUMP);
+    const moved = await settledBox(page, JUMP);
 
     // The button works where it now is.
     await touch.tap(center(moved), 200);
@@ -171,7 +193,7 @@ test.describe('landscape phone', () => {
     const errors = await open(page);
     const touch = await finger(context, page);
     await expect(page.locator(JUMP)).toBeVisible();
-    const from = center(await box(page, JUMP));
+    const from = center(await settledBox(page, JUMP));
     await openEditor(page);
     await touch.drag(from, { x: from.x - 150, y: from.y });
     await expect
@@ -180,7 +202,7 @@ test.describe('landscape phone', () => {
         return b === null ? null : center(b).x;
       })
       .toBeCloseTo(from.x - 150, 0);
-    const moved = await box(page, JUMP);
+    const moved = await settledBox(page, JUMP);
     await page.reload();
     await ready(page);
     await expect.poll(() => boxSoon(page, JUMP)).toEqual(moved);

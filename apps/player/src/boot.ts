@@ -12,7 +12,7 @@ import {
   touchOverrideOf,
 } from '@retro-action-engine/input';
 import { type FetchLike, loadPack } from '@retro-action-engine/pack';
-import { startRenderer } from '@retro-action-engine/renderer-phaser';
+import { type Scaling, startRenderer } from '@retro-action-engine/renderer-phaser';
 import type { Binding } from './bindings-edit';
 import { formatStats, LatencyMeter } from './debug';
 import { createEngineHooks, type EngineHooks } from './engine-hooks';
@@ -43,6 +43,8 @@ export interface BootOptions {
   readonly getGamepads: () => ArrayLike<GamepadLike | null>;
   /** Called once the first frame can be drawn. */
   readonly onReady?: () => void;
+  /** How the game screen is scaled in the page (ADR-0010). Stretched to fit when absent. */
+  readonly scaling?: Scaling;
   /** Called once the pack is loaded, before anything is drawn, with its display size in px. */
   readonly onDisplay?: (display: { readonly width: number; readonly height: number }) => void;
   /** The virtual pad (docs/input-and-feel.md 9). */
@@ -319,6 +321,19 @@ export async function bootGame(options: BootOptions): Promise<Game> {
 
   // Lay the page out for the pad before the renderer measures the game screen.
   updatePad(true);
+  // The gear sits at the top-right corner of the game screen (the HUD band), wherever the
+  // screen is in the page: with integer scaling it is smaller than the window and centered.
+  const win = options.touch.document.defaultView;
+  const placeGear = () => {
+    const canvas = options.parent.querySelector('canvas');
+    if (canvas === null || win === null) return;
+    const r = canvas.getBoundingClientRect();
+    gear.style.top = `${Math.max(0, r.top) + 2}px`;
+    gear.style.right = `${Math.max(0, win.innerWidth - r.right) + 4}px`;
+  };
+  win?.addEventListener('resize', placeGear);
+  const canvasObserver =
+    typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(() => placeGear());
   const stopRenderer = startRenderer(options.parent, {
     runtime,
     roomId: start.roomId,
@@ -366,7 +381,13 @@ export async function bootGame(options: BootOptions): Promise<Game> {
         });
       }
     },
-    ...(options.onReady === undefined ? {} : { onReady: options.onReady }),
+    ...(options.scaling === undefined ? {} : { scaling: options.scaling }),
+    onReady: () => {
+      const canvas = options.parent.querySelector('canvas');
+      if (canvas !== null) canvasObserver?.observe(canvas);
+      placeGear();
+      options.onReady?.();
+    },
   });
 
   return {
@@ -374,6 +395,8 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     stop: () => {
       stopRenderer();
       pad?.destroy();
+      win?.removeEventListener('resize', placeGear);
+      canvasObserver?.disconnect();
       gear.remove();
       editor?.element.remove();
       overlay.remove();

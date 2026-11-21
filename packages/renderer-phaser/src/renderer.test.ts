@@ -9,6 +9,7 @@ import type {
 import { describe, expect, it } from 'vitest';
 import { gaugeFill, HP_BAR, HUD_PAD, hudIcons, hudLayout } from './hud';
 import { interpolateColliders, interpolateSprites } from './interpolate';
+import { integerZoom } from './scaling';
 import { tileLayerPlans } from './tile-layers';
 
 // These tests cover the parts that do not touch Phaser. The scene itself is checked in the
@@ -274,5 +275,20 @@ describe('renderer boundary', () => {
       'input: { keyboard: false, mouse: false, touch: false, gamepad: false }',
     );
     expect(game).toContain('fps: { smoothStep: false }');
+  });
+});
+
+describe('integerZoom (ADR-0010)', () => {
+  it('takes the largest whole zoom that fits, up to the cap', () => {
+    expect(integerZoom(320, 180, 1920, 1080, 3)).toBe(3);
+    expect(integerZoom(320, 180, 1920, 1080, 6)).toBe(6);
+    expect(integerZoom(320, 180, 959, 1080, 3)).toBe(2);
+    expect(integerZoom(320, 180, 1920, 539, 3)).toBe(2);
+    expect(integerZoom(256, 192, 800, 600, 3)).toBe(3);
+  });
+
+  it('never goes below 1, even in a space smaller than the screen', () => {
+    expect(integerZoom(320, 180, 200, 100, 3)).toBe(1);
+    expect(integerZoom(0, 180, 200, 100, 3)).toBe(1);
   });
 });

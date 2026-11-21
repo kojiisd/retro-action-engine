@@ -7,7 +7,7 @@ import type {
   RoomData,
 } from '@retro-action-engine/core';
 import { describe, expect, it } from 'vitest';
-import { hudIcons } from './hud';
+import { HP_CELL, HUD_PAD, hudIcons, hudLayout } from './hud';
 import { interpolateColliders, interpolateSprites } from './interpolate';
 import { tileLayerPlans } from './tile-layers';
 
@@ -152,15 +152,79 @@ describe('hudIcons', () => {
     expect(
       hudIcons({ activeCharacterId: 'b', canSwitch: true, party: [] }, ['a', 'b'], runtime),
     ).toEqual([
-      { characterId: 'a', atlas: 'chars', frame: 'a-0', active: false },
-      { characterId: 'b', atlas: 'chars', frame: 'b-0', active: true },
+      { characterId: 'a', atlas: 'chars', frame: 'a-0', active: false, alive: true },
+      { characterId: 'b', atlas: 'chars', frame: 'b-0', active: true, alive: true },
     ]);
   });
 
   it('shows only the active character when switching is off', () => {
     expect(
       hudIcons({ activeCharacterId: 'a', canSwitch: false, party: [] }, ['a', 'b'], runtime),
-    ).toEqual([{ characterId: 'a', atlas: 'chars', frame: 'a-0', active: true }]);
+    ).toEqual([{ characterId: 'a', atlas: 'chars', frame: 'a-0', active: true, alive: true }]);
+  });
+});
+
+describe('HP in the HUD (ADR-0016)', () => {
+  const runtime = {
+    characters: Object.fromEntries(
+      ['a', 'b'].map((id) => [
+        id,
+        {
+          id,
+          abilityTags: [],
+          collider: { w: 1, h: 1, ox: 0, oy: 0 },
+          sprite: {
+            atlas: 'chars',
+            animations: { idle: { frames: [{ frame: `${id}-0`, ticks: 1 }], loop: true } },
+          },
+        },
+      ]),
+    ),
+  } as unknown as PackRuntime;
+  const ui = {
+    activeCharacterId: 'b',
+    canSwitch: true,
+    party: [
+      { id: 'a', hp: 0, hpMax: 2, alive: false },
+      { id: 'b', hp: 2, hpMax: 3, alive: true },
+    ],
+  };
+
+  it('gives each icon its HP and whether the member is down', () => {
+    expect(hudIcons(ui, ['a', 'b'], runtime).map((i) => [i.alive, i.hp])).toEqual([
+      [false, { value: 0, max: 2 }],
+      [true, { value: 2, max: 3 }],
+    ]);
+  });
+
+  it('puts one cell per HP after each icon, the lost ones not full, inside the band', () => {
+    const icons = hudIcons(ui, ['a', 'b'], runtime);
+    const band = 20;
+    const layout = hudLayout(icons, [16, 16], band);
+    expect(layout.icons[0]).toEqual({ x: HUD_PAD, y: HUD_PAD });
+    expect(layout.cells.map((c) => [c.icon, c.full])).toEqual([
+      [0, false],
+      [0, false],
+      [1, true],
+      [1, true],
+      [1, false],
+    ]);
+    // Cells follow their icon, in order, without overlapping the next icon.
+    const firstOfB = layout.cells[2] as (typeof layout.cells)[number];
+    const lastOfA = layout.cells[1] as (typeof layout.cells)[number];
+    expect(lastOfA.x).toBeGreaterThan((layout.icons[0]?.x ?? 0) + 16);
+    expect(layout.icons[1]?.x).toBeGreaterThan(lastOfA.x + HP_CELL.w);
+    expect(firstOfB.x).toBeGreaterThan((layout.icons[1]?.x ?? 0) + 16);
+    for (const cell of layout.cells) {
+      expect(cell.y).toBeGreaterThanOrEqual(0);
+      expect(cell.y + cell.h).toBeLessThanOrEqual(band);
+    }
+  });
+
+  it('draws no cells without HP', () => {
+    const icons = hudIcons({ ...ui, party: [] }, ['a', 'b'], runtime);
+    expect(icons.every((i) => i.alive && i.hp === undefined)).toBe(true);
+    expect(hudLayout(icons, [16, 16], 20).cells).toEqual([]);
   });
 });
 

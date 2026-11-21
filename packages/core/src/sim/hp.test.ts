@@ -184,9 +184,13 @@ describe('when HP reaches 0', () => {
     });
     expect(s.x[slot]).toBe(x0);
     expect(out[down - 1]?.render.sprites[0]?.teleported).toBe(false);
-    // A switch request finds no other living member.
-    run(world, runtime, script().wait(10).hold('switch', 1).wait(10).build());
+    // A switch request finds no other living member: nothing switches, not even for a tick (a
+    // switch would start the cooldown again).
+    run(world, runtime, idle(10));
+    expect(world.party.cooldownTicks).toBe(0);
+    run(world, runtime, script().hold('switch', 1).build(1));
     expect(world.party.activeIndex).toBe(1);
+    expect(world.party.cooldownTicks).toBe(0);
   });
 
   it('moves to the entry with placement "spawn"', () => {

@@ -1,4 +1,4 @@
-import type { GameSession, ReplayFile, WorldHash } from '@retro-action-engine/core';
+import type { GameSession, ReplayFile, UiState, WorldHash } from '@retro-action-engine/core';
 
 declare global {
   interface Window {
@@ -24,6 +24,9 @@ export interface EngineStats {
   readonly droppedFrames: number;
   readonly replaying: boolean;
   readonly feelProfile: string;
+  /** The active character and every member's HP (ADR-0016; empty without HP). */
+  readonly activeCharacter: string;
+  readonly party: UiState['party'];
 }
 
 /** `window.__engine` (docs/input-and-feel.md 12). Only in dev and e2e builds. */
@@ -94,6 +97,8 @@ export function createEngineHooks({
       droppedFrames: session.droppedFrames,
       replaying: session.replaying,
       feelProfile: session.startState.feelProfile,
+      activeCharacter: session.uiState.activeCharacterId,
+      party: session.uiState.party,
     }),
 
     setFeelProfile(id) {

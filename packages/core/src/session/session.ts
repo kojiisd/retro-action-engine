@@ -166,6 +166,11 @@ export class GameSession {
     this.observer?.(this.world.tick, hashWorld(this.world));
   }
 
+  /** The HUD state after the last tick (or at the start). */
+  get uiState(): UiState {
+    return this.ui;
+  }
+
   private initialUi(): UiState {
     return {
       activeCharacterId: activeCharacter(this.world, this.runtime).id,

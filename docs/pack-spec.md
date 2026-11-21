@@ -129,6 +129,8 @@ interface AnimationDef {
 type Box = { x: number; y: number; w: number; h: number }; // px。足元中央からの相対
 ```
 
+`attack` アニメーションを持つキャラクターは攻撃できる（M2-5、ADR-0017）。攻撃の長さは `attack` のコマの長さの合計で、`attack` は `loop: false` にする。`hitbox` は右向きのときの値で、左向きでは左右を反転する。コマの絵の大きさはコマごとに違ってよい（足元中央を基準に描く）。
+
 アニメーション名はエンジンが参照する固定の集合（`idle`, `run`, `jump`, `fall`, `attack`, `hurt`, `climb`, `dead`）と、振る舞いの `setAnim` から参照する任意の名前。
 
 ```json

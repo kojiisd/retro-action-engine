@@ -95,7 +95,9 @@ export function hashWorld(world: World): WorldHash {
     .int32(c.dropThroughUntilTick)
     .int32(c.landingLagUntilTick)
     .int32(c.leftPressedTick)
-    .int32(c.rightPressedTick);
+    .int32(c.rightPressedTick)
+    // ADR-0017 (M2-5).
+    .int32(c.attackUntilTick);
 
   const a = world.animation;
   h.string(a.name).int32(a.frame).int32(a.ticks);

@@ -67,3 +67,25 @@ export function interpolateColliders(
     };
   });
 }
+
+/**
+ * Attack hitboxes where to draw them (debug display, ADR-0017): moved by the same amount as the
+ * body box of their entity, so a hitbox stays on its sprite. Without a body box they stay put.
+ */
+export function interpolateHitboxes(
+  prev: RenderSnapshot,
+  curr: RenderSnapshot,
+  alpha: number,
+  mode: Interpolation,
+): RenderCollider[] {
+  const drawn = new Map<number, RenderCollider>();
+  for (const box of interpolateColliders(prev, curr, alpha, mode)) drawn.set(box.id, box);
+  const now = new Map<number, RenderCollider>();
+  for (const box of curr.colliders) now.set(box.id, box);
+  return curr.hitboxes.map((hit) => {
+    const a = drawn.get(hit.id);
+    const b = now.get(hit.id);
+    if (a === undefined || b === undefined) return { ...hit };
+    return { ...hit, x: hit.x + a.x - b.x, y: hit.y + a.y - b.y };
+  });
+}

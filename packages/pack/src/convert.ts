@@ -56,6 +56,7 @@ export function convertProfile(
     readonly name?: string | undefined;
     readonly interpolation: FeelProfile['interpolation'];
     readonly socd: FeelProfile['socd'];
+    readonly attackOnGround?: 'stop' | 'move' | undefined;
     readonly media?:
       | Record<string, Partial<Record<keyof FeelMotion, number>> & { swim?: boolean | undefined }>
       | undefined;
@@ -75,5 +76,6 @@ export function convertProfile(
     socd: profile.socd,
     ...(convertMotion(profile) as FeelMotion),
     ...(profile.media === undefined ? {} : { media }),
+    ...(profile.attackOnGround === undefined ? {} : { attackOnGround: profile.attackOnGround }),
   };
 }

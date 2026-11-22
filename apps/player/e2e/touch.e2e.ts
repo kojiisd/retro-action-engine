@@ -91,6 +91,26 @@ test.describe('landscape phone', () => {
   });
 });
 
+test.describe('landscape phone: attack', () => {
+  test.use(phone('Pixel 7 landscape'));
+
+  test('shows the sword button, and a tap swings (ADR-0017)', async ({ page, context }) => {
+    const errors = await open(page);
+    const attack = page.locator('.touch-button[data-action="attack"]');
+    await expect(attack).toBeVisible();
+    // The sword icon is drawn on the button.
+    await expect(attack.locator('path')).toHaveCount(1);
+    const send = await touches(context, page);
+    await send('touchStart', [
+      { ...center(await box(page, '.touch-button[data-action="attack"]')), id: 1 },
+    ]);
+    await page.waitForTimeout(150);
+    await send('touchEnd', []);
+    await expect.poll(() => heldSoFar(page)).toBe(actionMask('attack'));
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe('portrait phone', () => {
   test.use(phone('Pixel 7'));
 

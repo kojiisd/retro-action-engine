@@ -67,6 +67,35 @@
               }
             ],
             "loop": false
+          },
+          "attack": {
+            "frames": [
+              {
+                "frame": "explorer/attack-0",
+                "ticks": 4
+              },
+              {
+                "frame": "explorer/attack-1",
+                "ticks": 6,
+                "hitbox": {
+                  "x": 4,
+                  "y": -19,
+                  "w": 9,
+                  "h": 9
+                }
+              },
+              {
+                "frame": "explorer/attack-2",
+                "ticks": 5,
+                "hitbox": {
+                  "x": 6,
+                  "y": -13,
+                  "w": 9,
+                  "h": 3
+                }
+              }
+            ],
+            "loop": false
           }
         }
       }
@@ -135,6 +164,35 @@
               {
                 "frame": "diver/fall-0",
                 "ticks": 1
+              }
+            ],
+            "loop": false
+          },
+          "attack": {
+            "frames": [
+              {
+                "frame": "diver/attack-0",
+                "ticks": 4
+              },
+              {
+                "frame": "diver/attack-1",
+                "ticks": 6,
+                "hitbox": {
+                  "x": 4,
+                  "y": -19,
+                  "w": 9,
+                  "h": 9
+                }
+              },
+              {
+                "frame": "diver/attack-2",
+                "ticks": 5,
+                "hitbox": {
+                  "x": 6,
+                  "y": -13,
+                  "w": 9,
+                  "h": 3
+                }
               }
             ],
             "loop": false

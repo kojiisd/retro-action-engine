@@ -40,6 +40,8 @@ export interface RenderSnapshot {
   readonly sprites: readonly RenderSprite[];
   /** Collision boxes of the entities, in ascending id order. Drawn only by the debug display. */
   readonly colliders: readonly RenderCollider[];
+  /** Attack hitboxes out this tick (ADR-0017), in ascending id order. Debug display only. */
+  readonly hitboxes: readonly RenderCollider[];
 }
 
 /**
@@ -53,6 +55,7 @@ export function renderSnapshot(
 ): RenderSnapshot {
   const sprites: RenderSprite[] = [];
   const colliders: RenderCollider[] = [];
+  const hitboxes: RenderCollider[] = [];
   if (world.party.members.length > 0) {
     const character = activeCharacter(world, runtime);
     const s = world.entities;
@@ -72,6 +75,24 @@ export function renderSnapshot(
     });
     if (sprite !== undefined && resolved !== undefined) {
       const frame = resolved.def.frames[Math.min(anim.frame, resolved.def.frames.length - 1)];
+      // The frame's hitbox while a swing is on, mirrored for a character facing left.
+      const box = frame?.hitbox;
+      if (
+        box !== undefined &&
+        resolved.name === 'attack' &&
+        world.tick < world.controller.attackUntilTick
+      ) {
+        const x = world.controller.facing < 0 ? -(box.x + box.w) : box.x;
+        const bl = (s.x[slot] as number) + x;
+        const bt = (s.y[slot] as number) + box.y;
+        hitboxes.push({
+          id: world.party.entityId,
+          x: toPxFloor(bl),
+          y: toPxFloor(bt),
+          w: toPxFloor(bl + box.w - 1) - toPxFloor(bl) + 1,
+          h: toPxFloor(bt + box.h - 1) - toPxFloor(bt) + 1,
+        });
+      }
       sprites.push({
         id: world.party.entityId,
         atlas: sprite.atlas,
@@ -85,5 +106,5 @@ export function renderSnapshot(
       });
     }
   }
-  return { tick: world.tick, camera: { x: 0, y: 0 }, sprites, colliders };
+  return { tick: world.tick, camera: { x: 0, y: 0 }, sprites, colliders, hitboxes };
 }

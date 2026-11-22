@@ -404,6 +404,54 @@ describe('loadPack: HP, HP-draining tiles and media (ADR-0016)', () => {
   });
 });
 
+describe('loadPack: attack (ADR-0017)', () => {
+  function withAttack(): Files {
+    const files = edit(packFiles(), 'data/characters.json', (c) => {
+      const idle = c.characters[0].sprite.animations.idle.frames[0].frame;
+      c.characters[0].sprite.animations.attack = {
+        frames: [
+          { frame: idle, ticks: 3 },
+          { frame: idle, ticks: 5, hitbox: { x: 4.5, y: -20, w: 12, h: 10 } },
+        ],
+        loop: false,
+      };
+    });
+    edit(files, 'data/feel.json', (f) => {
+      f.profiles.smooth.attackOnGround = 'move';
+    });
+    return files;
+  }
+
+  it('reads hitboxes in Fx, and the ground rule of the profile', async () => {
+    const { runtime } = await loadPack(memoryFetch(withAttack()), BASE);
+    const frames = runtime.characters.runner?.sprite?.animations.attack?.frames;
+    expect(frames?.[0]?.hitbox).toBeUndefined();
+    expect(frames?.[1]?.hitbox).toEqual({
+      x: Math.round(4.5 * 256),
+      y: -20 * 256,
+      w: 12 * 256,
+      h: 10 * 256,
+    });
+    expect(runtime.feel.smooth?.attackOnGround).toBe('move');
+    expect(runtime.feel.crisp?.attackOnGround).toBeUndefined();
+  });
+
+  it('rejects a looping attack and an empty hitbox', async () => {
+    const files = edit(withAttack(), 'data/characters.json', (c) => {
+      c.characters[0].sprite.animations.attack.loop = true;
+    });
+    expect(await issuesOf(files)).toEqual([
+      'data/characters.json#/characters/0/sprite/animations/attack/loop: the "attack" animation must not loop (its length is the swing)',
+    ]);
+    const empty = edit(withAttack(), 'data/characters.json', (c) => {
+      c.characters[0].sprite.animations.attack.frames[1].hitbox.w = 0;
+    });
+    expect((await issuesOf(empty))[0]).toMatch(
+      /^data\/characters\.json#\/characters\/0\/sprite\/animations\/attack\/frames\/1\/hitbox\/w: /,
+    );
+  });
+});
+
 describe('loadPack errors', () => {
   it('reports schema errors as file#/pointer: message, from every file at once', async () => {
     const files = packFiles();

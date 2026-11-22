@@ -129,6 +129,8 @@ interface AnimationDef {
 type Box = { x: number; y: number; w: number; h: number }; // px。足元中央からの相対
 ```
 
+`attack` アニメーションを持つキャラクターは攻撃できる（M2-5、ADR-0017）。攻撃の長さは `attack` のコマの長さの合計で、`attack` は `loop: false` にする。`hitbox` は右向きのときの値で、左向きでは左右を反転する。コマの絵の大きさはコマごとに違ってよい（足元中央を基準に描く）。
+
 アニメーション名はエンジンが参照する固定の集合（`idle`, `run`, `jump`, `fall`, `attack`, `hurt`, `climb`, `dead`）と、振る舞いの `setAnim` から参照する任意の名前。
 
 ```json
@@ -340,6 +342,8 @@ interface ItemDef {
 ```
 
 操作感は「プロファイル → キャラクターの `feelOverrides` → 媒体の上書き」の順に重ねる（後ろが優先）。
+
+各プロファイルの `attackOnGround?: 'stop' | 'move'`（無ければ `move`）は、地上で攻撃している間にその場で止まるか、歩きながら振れるか（M2-5、ADR-0017）。
 
 `rules.json` の `hp` と `hazards`（M2-5、ADR-0016）:
 

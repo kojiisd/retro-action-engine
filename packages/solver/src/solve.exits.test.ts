@@ -42,8 +42,9 @@ describe('solveRoom with exits', () => {
 
   it('gives the same report as the room without its exits', () => {
     const start = { ...START, feelProfile: 'retro' };
-    const strip = (r: ReturnType<typeof solveRoom>) =>
-      JSON.stringify({ ...r, stats: { ...r.stats, elapsedMs: 0 } });
-    expect(strip(solveRoom(withExits, start))).toBe(strip(solveRoom(plain, start)));
+    // No clock is passed, so the report has no time in it and compares as a whole.
+    expect(JSON.stringify(solveRoom(withExits, start))).toBe(
+      JSON.stringify(solveRoom(plain, start)),
+    );
   });
 });

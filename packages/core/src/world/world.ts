@@ -25,6 +25,8 @@ export interface PartyState {
   hazardId: string;
   /** Ticks in a row in that kind of tile since the last damage. */
   hazardTicks: number;
+  /** The spawn (in `World.roomId`) the room was entered at: `spawnX`, `spawnY` (ADR-0018). */
+  spawnId: string;
 }
 
 /** Per-tick memory of the character controller (docs/input-and-feel.md 6, 8.4). */
@@ -148,6 +150,7 @@ export function newWorld(init: WorldInit): World {
       hp: [],
       hazardId: '',
       hazardTicks: 0,
+      spawnId: '',
     },
     controller: newControllerState(''),
     animation: { name: '', frame: 0, ticks: 0 },

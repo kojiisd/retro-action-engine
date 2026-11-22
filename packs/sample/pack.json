@@ -21,7 +21,7 @@
     "spawnId": "start"
   },
   "files": {
-    "rooms": ["rooms/hub.tmj"],
+    "rooms": ["rooms/hub.tmj", "rooms/hall.tmj", "rooms/cellar.tmj"],
     "tilesets": ["tilesets/main.json"],
     "atlases": {
       "characters": "atlases/characters.json"

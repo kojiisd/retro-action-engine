@@ -7,6 +7,7 @@ import type {
   RoomData,
 } from '@retro-action-engine/core';
 import { describe, expect, it } from 'vitest';
+import { fadeAmount } from './fade';
 import { gaugeFill, HP_BAR, HUD_PAD, hudIcons, hudLayout } from './hud';
 import { interpolateColliders, interpolateHitboxes, interpolateSprites } from './interpolate';
 import { integerZoom } from './scaling';
@@ -306,5 +307,30 @@ describe('integerZoom (ADR-0010)', () => {
   it('never goes below 1, even in a space smaller than the screen', () => {
     expect(integerZoom(320, 180, 200, 100, 3)).toBe(1);
     expect(integerZoom(0, 180, 200, 100, 3)).toBe(1);
+  });
+});
+
+describe('fadeAmount (ADR-0018)', () => {
+  const view = (
+    phase: 'out' | 'in',
+    tick: number,
+    ticks: number,
+    effect: 'fade' | 'cut' = 'fade',
+  ) => ({
+    effect,
+    phase,
+    tick,
+    ticks,
+  });
+
+  it('darkens over the first phase and clears over the second', () => {
+    expect([0, 5, 10].map((t) => fadeAmount(view('out', t, 10)))).toEqual([0, 0.5, 1]);
+    expect([0, 5, 10].map((t) => fadeAmount(view('in', t, 10)))).toEqual([1, 0.5, 0]);
+  });
+
+  it('draws nothing for a cut or without a room change', () => {
+    expect(fadeAmount(view('in', 0, 6, 'cut'))).toBe(0);
+    expect(fadeAmount(null)).toBe(0);
+    expect(fadeAmount(view('in', 0, 0))).toBe(0);
   });
 });

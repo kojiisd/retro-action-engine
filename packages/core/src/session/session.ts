@@ -110,6 +110,14 @@ export class GameSession {
     return this.dropped;
   }
 
+  /**
+   * Where the party entered the room it is in (ADR-0018): starting over "from the room's
+   * entrance" (a feel profile switch) starts there.
+   */
+  get roomEntrance(): { readonly roomId: string; readonly spawnId: string } {
+    return { roomId: this.world.roomId, spawnId: this.world.party.spawnId };
+  }
+
   /** The start of the current run (live or replay). */
   get startState(): StartState {
     return this.start;
@@ -171,6 +179,11 @@ export class GameSession {
     this.ui = out.ui;
     this.transition = out.transition;
     this.observer?.(this.world.tick, hashWorld(this.world));
+  }
+
+  /** The room change after the last tick (ADR-0018); null when none. */
+  get transitionState(): TransitionView | null {
+    return this.transition;
   }
 
   /** The HUD state after the last tick (or at the start). */

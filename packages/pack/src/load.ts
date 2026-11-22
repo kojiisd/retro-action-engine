@@ -19,7 +19,7 @@ import {
 } from './schema/data';
 import { type Manifest, manifestSchema } from './schema/manifest';
 import { type MapJson, mapSchema, type TilesetJson, tilesetSchema } from './schema/tiled';
-import { importRoom, type MapTileset } from './tiled';
+import { exitSource, importRoom, type MapTileset } from './tiled';
 
 /**
  * The part of `fetch` the loader needs. The app passes `window.fetch`; tests and Node pass a
@@ -131,7 +131,7 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
 
   const readParsed = async <S extends z.ZodType>(file: string | undefined, schema: S) =>
     file === undefined ? undefined : parse(file, schema, await read(file));
-  const [characters, rules, feel, input, , credits] = await Promise.all([
+  const [characters, rules, feel, input, camera, credits] = await Promise.all([
     readParsed(files.characters, charactersSchema),
     readParsed(files.rules, rulesSchema),
     readParsed(files.feel, feelSchema),
@@ -241,7 +241,15 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     });
     // Without all its tilesets the room cannot be read; the cause is already reported.
     if (!complete) continue;
-    const room = importRoom(id, file, map, used, manifest.tileSize, issues);
+    const room = importRoom(
+      id,
+      file,
+      map,
+      used,
+      manifest.tileSize,
+      issues,
+      camera?.roomTransition?.effect,
+    );
     if (room !== undefined) rooms[id] = room;
   }
 
@@ -389,6 +397,27 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
       `spawn "${manifest.entry.spawnId}" is not in room "${manifest.entry.roomId}"`,
     );
   }
+  // Where each exit leads (ADR-0018).
+  for (const [roomId, room] of Object.entries(rooms)) {
+    const file = roomFiles.find((f) => f !== undefined && roomIdOf(f) === roomId) as string;
+    for (const exit of room.exits ?? []) {
+      const where = exitSource.get(exit) ?? [];
+      const target = rooms[exit.toRoomId];
+      if (!listedRooms.has(exit.toRoomId)) {
+        issues.error(
+          file,
+          [...where, 'properties', 'toRoomId'],
+          `room "${exit.toRoomId}" is not defined`,
+        );
+      } else if (target !== undefined && target.spawns[exit.spawnId] === undefined) {
+        issues.error(
+          file,
+          [...where, 'properties', 'spawnId'],
+          `spawn "${exit.spawnId}" is not in room "${exit.toRoomId}"`,
+        );
+      }
+    }
+  }
   issues.throwIfAny();
 
   const atlasAssets: Record<string, AssetManifest['atlases'][string]> = {};
@@ -420,6 +449,7 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
       ...(rules.hp === undefined ? {} : { hp: rules.hp }),
       ...(rules.hazards === undefined ? {} : { hazards: rules.hazards }),
     },
+    ...(camera?.roomTransition === undefined ? {} : { roomTransition: camera.roomTransition }),
   };
   return { runtime, warnings: issues.warnings };
 }

@@ -348,7 +348,7 @@ interface FeelMotion {
 
 ### 8.5 プロファイルの切替と補間の上書き（M2-3）
 
-- 設定画面でパックのプロファイル（`feel.json` の `profiles`、表示名は各プロファイルの `name`）を選ぶ。切り替えると部屋の入口からやり直す。選んだプロファイルはパックごとに保存する（ADR-0011 の改訂履歴）。
+- 設定画面でパックのプロファイル（`feel.json` の `profiles`、表示名は各プロファイルの `name`）を選ぶ。切り替えると、いる部屋の入口（その部屋に入った spawn。ADR-0018）からやり直す（HP などは新しいゲームと同じに戻る）。選んだプロファイルはパックごとに保存する（ADR-0011 の改訂履歴）。
 - 補間は「プロファイルに従う / 滑らか（`linear`）/ なし（`none`）」をユーザが上書きできる。描画だけの設定で、tick の結果（hash）は変わらない（Determinism (c) を両方で確かめる）。
 
 ### 8.6 媒体の中の動き（M2-5）
@@ -469,7 +469,7 @@ interface ReplayFile {
 | --- | --- |
 | `hash()` | 現在の `World` の hash |
 | `runReplay(file)` | 実際の描画ループでリプレイを再生し、全 tick の hash を返す（Determinism (c)）。再生中と再生後はライブ入力を無視する |
-| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル、操作中のキャラクターと HP（M2-5） |
+| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル、操作中のキャラクターと HP（M2-5）、いる部屋と部屋の移動の段階（M3-1） |
 | `setFeelProfile(id)` | プロファイルを切り替えて最初からやり直す |
 | `restart()` | ライブ入力で最初からやり直す |
 | `recording()` | 最後に始めてからのライブ入力を `ReplayFile` で返す（デバイスの入力がゲームに届いたことの確認に使う。M2-1） |

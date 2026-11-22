@@ -1,6 +1,7 @@
 import type { FrameView, PackRuntime } from '@retro-action-engine/core';
 import type { LoadedRuntime } from '@retro-action-engine/pack';
 import * as Phaser from 'phaser';
+import { fadeAmount } from './fade';
 import { HUD_PAD, hudIcons, hudLayout } from './hud';
 import {
   type Interpolation,
@@ -13,7 +14,7 @@ import { tileLayerPlans } from './tile-layers';
 
 export interface RendererOptions {
   readonly runtime: LoadedRuntime;
-  /** The room to draw (one room per game as of M1-5). */
+  /** The room to draw first; after that, the room of each snapshot (ADR-0018). */
   readonly roomId: string;
   /** Party members in order, for the HUD. */
   readonly members: readonly string[];
@@ -41,6 +42,9 @@ const COLLIDER_COLOR = 0x40ff90;
 /** Debug attack hitboxes (ADR-0017), in another color than the bodies. */
 const HITBOX_COLOR = 0xff5040;
 const COLLIDER_DEPTH = 100;
+/** The room-change fade (ADR-0018): over everything in the play area, not over the HUD. */
+const FADE_COLOR = 0x000000;
+const FADE_DEPTH = 200;
 
 const HUD_INACTIVE_ALPHA = 0.4;
 /** A member whose HP is 0 (ADR-0016): darker than one that is only not active. */
@@ -58,8 +62,10 @@ class GameScene extends Phaser.Scene {
   private readonly hud: Phaser.GameObjects.Sprite[] = [];
   private hudCamera: Phaser.Cameras.Scene2D.Camera | undefined;
   private hpCells: Phaser.GameObjects.Graphics | undefined;
-  private readonly world: Phaser.GameObjects.GameObject[] = [];
+  private maps: Phaser.Tilemaps.Tilemap[] = [];
+  private roomId = '';
   private debug: Phaser.GameObjects.Graphics | undefined;
+  private fade: Phaser.GameObjects.Rectangle | undefined;
 
   constructor(private readonly options: RendererOptions) {
     super({ key: 'game' });
@@ -77,20 +83,9 @@ class GameScene extends Phaser.Scene {
 
   create(): void {
     const { runtime, roomId } = this.options;
-    const { display, tileSize } = runtime;
+    const { display } = runtime;
     const top = display.hudReserve.top;
     const playHeight = display.height - top - display.hudReserve.bottom;
-    const room = runtime.rooms[roomId];
-    if (room === undefined) throw new RangeError(`room "${roomId}" is not in the pack`);
-
-    for (const plan of tileLayerPlans(room, runtime.assets.tilesets)) {
-      const map = this.make.tilemap({ data: plan.data, tileWidth: tileSize, tileHeight: tileSize });
-      const tileset = map.addTilesetImage(plan.texture, plan.texture, tileSize, tileSize, 0, 0);
-      if (tileset === null) throw new RangeError(`tileset "${plan.texture}" could not be added`);
-      const layer = map.createLayer(0, tileset, 0, 0);
-      layer.setDepth(plan.depth);
-      this.world.push(layer);
-    }
 
     // The play area sits under the HUD band; a second camera draws the HUD band itself.
     this.cameras.main.setViewport(0, top, display.width, playHeight);
@@ -98,10 +93,16 @@ class GameScene extends Phaser.Scene {
     if (top > 0) {
       this.hudCamera = this.cameras.add(0, 0, display.width, top, false, 'hud');
       this.hudCamera.setRoundPixels(true);
-      this.hudCamera.ignore(this.world);
     }
+    this.showRoom(roomId);
     this.debug = this.add.graphics().setDepth(COLLIDER_DEPTH);
     this.hudCamera?.ignore(this.debug);
+    this.fade = this.add
+      .rectangle(0, 0, display.width, playHeight, FADE_COLOR, 1)
+      .setOrigin(0, 0)
+      .setDepth(FADE_DEPTH)
+      .setAlpha(0);
+    this.hudCamera?.ignore(this.fade);
     if (this.hudCamera !== undefined) {
       this.hpCells = this.add.graphics();
       this.cameras.main.ignore(this.hpCells);
@@ -109,8 +110,30 @@ class GameScene extends Phaser.Scene {
     this.options.onReady?.();
   }
 
+  /** Builds the tile layers of a room, in place of the previous room's. */
+  private showRoom(roomId: string): void {
+    const { runtime } = this.options;
+    const { tileSize } = runtime;
+    const room = runtime.rooms[roomId];
+    if (room === undefined) throw new RangeError(`room "${roomId}" is not in the pack`);
+    for (const map of this.maps) map.destroy();
+    this.maps = [];
+    for (const plan of tileLayerPlans(room, runtime.assets.tilesets)) {
+      const map = this.make.tilemap({ data: plan.data, tileWidth: tileSize, tileHeight: tileSize });
+      const tileset = map.addTilesetImage(plan.texture, plan.texture, tileSize, tileSize, 0, 0);
+      if (tileset === null) throw new RangeError(`tileset "${plan.texture}" could not be added`);
+      const layer = map.createLayer(0, tileset, 0, 0);
+      layer.setDepth(plan.depth);
+      this.hudCamera?.ignore(layer);
+      this.maps.push(map);
+    }
+    this.roomId = roomId;
+  }
+
   override update(_time: number, delta: number): void {
     const view = this.options.frame(delta);
+    if (view.curr.room !== this.roomId) this.showRoom(view.curr.room);
+    this.fade?.setAlpha(fadeAmount(view.transition));
     this.drawSprites(view);
     this.drawColliders(view);
     this.drawHud(view, this.options.runtime);

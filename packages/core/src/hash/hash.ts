@@ -83,6 +83,8 @@ export function hashWorld(world: World): WorldHash {
     h.int32(hp);
   }
   h.string(p.hazardId).int32(p.hazardTicks);
+  // ADR-0018 (M3-1): the spawn the room was entered at.
+  h.string(p.spawnId);
 
   const c = world.controller;
   h.string(c.feelProfileId)

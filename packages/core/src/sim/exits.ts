@@ -68,6 +68,7 @@ export function enterRoom(
   const party = world.party;
   party.spawnX = spawn.x;
   party.spawnY = spawn.y;
+  party.spawnId = spawnId;
   party.hazardId = '';
   party.hazardTicks = 0;
   world.controller.attackUntilTick = NEVER;

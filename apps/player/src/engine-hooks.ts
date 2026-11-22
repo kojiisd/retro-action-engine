@@ -27,6 +27,9 @@ export interface EngineStats {
   /** The active character and every member's HP (ADR-0016; empty without HP). */
   readonly activeCharacter: string;
   readonly party: UiState['party'];
+  /** The room the party is in, and the phase of a room change in progress (ADR-0018). */
+  readonly room: string;
+  readonly transition: 'none' | 'out' | 'in';
 }
 
 /** `window.__engine` (docs/input-and-feel.md 12). Only in dev and e2e builds. */
@@ -107,6 +110,8 @@ export function createEngineHooks({
       feelProfile: session.startState.feelProfile,
       activeCharacter: session.uiState.activeCharacterId,
       party: session.uiState.party,
+      room: session.roomEntrance.roomId,
+      transition: session.transitionState?.phase ?? 'none',
     }),
 
     setFeelProfile(id) {
@@ -116,7 +121,7 @@ export function createEngineHooks({
         );
       }
       cancelPending('the game was restarted');
-      session.restart({ ...session.startState, feelProfile: id });
+      session.restart({ ...session.startState, ...session.roomEntrance, feelProfile: id });
     },
 
     restart() {

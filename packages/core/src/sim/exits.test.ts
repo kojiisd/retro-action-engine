@@ -288,6 +288,28 @@ describe('room changes (ADR-0018)', () => {
     expect(world.transition).toMatchObject({ phase: 'out', kind: 'warp', toRoomId: 'a' });
   });
 
+  it('starts over from the entrance of the room the party is in', () => {
+    const runtime = world2(FADE);
+    const startState = { roomId: 'a', spawnId: 'east', seed: 1, feelProfile: 'retro' };
+    // Into `b` by the edge, then stand there (its warp back is further right).
+    const frames = script().hold('right', 40).wait(80).build();
+    let i = 0;
+    const live: InputSource = {
+      nextFrame: () => frames[i++] ?? { held: 0, pressed: 0, released: 0 },
+    };
+    const session = new GameSession(runtime, startState, live);
+    while (session.tick < frames.length) session.frame(1000 / 60);
+    expect(session.roomEntrance).toEqual({ roomId: 'b', spawnId: 'west' });
+    // A feel profile switch starts there, with the other profile.
+    session.restart({ ...session.startState, ...session.roomEntrance, feelProfile: 'modern' });
+    expect(session.startState).toMatchObject({
+      roomId: 'b',
+      spawnId: 'west',
+      feelProfile: 'modern',
+    });
+    expect(session.tick).toBe(0);
+  });
+
   it('gives the same hashes live, from a replay, and for any split of the frame times', () => {
     const runtime = world2(FADE);
     const frames = script()

@@ -303,14 +303,14 @@ describe('loadPack', () => {
 
   it('warns about layers outside the convention and objects it does not read yet', async () => {
     const files = edit(packFiles(), 'rooms/start.tmj', (m) => {
-      m.layers.push({ type: 'objectgroup', name: 'exits', objects: [] });
+      m.layers.push({ type: 'objectgroup', name: 'zones', objects: [] });
       m.layers.push({ type: 'tilelayer', name: 'decor', width: W, height: H, data: [] });
       m.layers[2].objects.push({ name: 'slime', class: 'enemy', x: 0, y: 0 });
     });
     const { warnings } = await loadPack(memoryFetch(files), BASE);
     expect(warnings).toEqual([
       'rooms/start.tmj#/layers/2/objects/1: object "slime" (enemy) is not read yet (M3)',
-      'rooms/start.tmj#/layers/3: layer "exits" is not read yet (M3)',
+      'rooms/start.tmj#/layers/3: layer "zones" is not read yet (M3)',
       'rooms/start.tmj#/layers/4: layer "decor" is not part of the convention; ignored',
     ]);
   });
@@ -400,6 +400,127 @@ describe('loadPack: HP, HP-draining tiles and media (ADR-0016)', () => {
     expect(await issuesOf(files)).toEqual([
       'tilesets/blocks.json#/tiles/1: the "hazard" class was replaced by the "hazard" property (docs/pack-spec.md 5.3)',
       'tilesets/blocks.json#/tiles/2: medium must be a non-empty string',
+    ]);
+  });
+});
+
+describe('loadPack: exits (ADR-0018)', () => {
+  /** A second room "side" (a copy of "start" with a spawn "back"), and exits between them. */
+  function withExits(exits: Json[], camera?: Json): Files {
+    const files = packFiles();
+    const manifest = files['pack.json'] as Json;
+    manifest.files.rooms.push('rooms/side.tmj');
+    if (camera !== undefined) {
+      manifest.files.camera = 'data/camera.json';
+      files['data/camera.json'] = camera;
+    }
+    const side = structuredClone(files['rooms/start.tmj']) as Json;
+    side.layers[2].objects = [{ name: 'back', class: 'spawn', x: 24, y: 24, width: 16, height: 8 }];
+    files['rooms/side.tmj'] = side;
+    edit(files, 'rooms/start.tmj', (m) => {
+      m.layers.push({ type: 'objectgroup', name: 'exits', objects: exits });
+    });
+    return files;
+  }
+  const prop = (name: string, value: string) => ({ name, type: 'string', value });
+  const exit = (x: number, y: number, w: number, h: number, props: Json[]) => ({
+    name: 'way',
+    class: 'exit',
+    x,
+    y,
+    width: w,
+    height: h,
+    properties: props,
+  });
+  const to = (kind: string, more: Json[] = []) => [
+    prop('kind', kind),
+    prop('toRoomId', 'side'),
+    prop('spawnId', 'back'),
+    ...more,
+  ];
+
+  it('reads exits in px to Fx, with the effect from camera.json when none is set', async () => {
+    const files = withExits(
+      [
+        exit(80, 16, 16, 32, to('edge')),
+        exit(32, 16, 16, 32, to('door', [prop('effect', 'cut')])),
+        exit(48, 16, 16, 32, to('warp', [prop('requiresAnyTag', 'move:swim, size:small')])),
+      ],
+      { mode: 'screenFlip', roomTransition: { effect: 'fade', lockTicks: 12 } },
+    );
+    const { runtime } = await loadPack(memoryFetch(files), BASE);
+    expect(runtime.rooms.start?.exits).toEqual([
+      {
+        kind: 'edge',
+        rect: { x: 80 * 256, y: 16 * 256, w: 16 * 256, h: 32 * 256 },
+        toRoomId: 'side',
+        spawnId: 'back',
+        effect: 'fade',
+      },
+      {
+        kind: 'door',
+        rect: { x: 32 * 256, y: 16 * 256, w: 16 * 256, h: 32 * 256 },
+        toRoomId: 'side',
+        spawnId: 'back',
+        effect: 'cut',
+      },
+      {
+        kind: 'warp',
+        rect: { x: 48 * 256, y: 16 * 256, w: 16 * 256, h: 32 * 256 },
+        toRoomId: 'side',
+        spawnId: 'back',
+        effect: 'fade',
+        requiresAnyTag: ['move:swim', 'size:small'],
+      },
+    ]);
+    expect(runtime.rooms.side?.exits).toEqual([]);
+    expect(runtime.roomTransition).toEqual({ effect: 'fade', lockTicks: 12 });
+  });
+
+  it('falls back to "cut" without camera.json', async () => {
+    const { runtime } = await loadPack(
+      memoryFetch(withExits([exit(32, 16, 16, 32, to('warp'))])),
+      BASE,
+    );
+    expect(runtime.rooms.start?.exits?.[0]?.effect).toBe('cut');
+    expect(runtime.roomTransition).toBeUndefined();
+  });
+
+  it('rejects broken exits, naming the object', async () => {
+    const files = withExits([
+      exit(32, 16, 16, 32, to('edge')),
+      exit(32, 16, 16, 32, [prop('kind', 'hole'), prop('effect', 'scroll')]),
+      exit(32, 16, 0, 32, [...to('warp'), prop('requiresFlag', 'open')]),
+      { name: 'x', class: 'zone', x: 0, y: 0, width: 16, height: 16 },
+    ]);
+    expect(await issuesOf(files)).toEqual([
+      'rooms/start.tmj#/layers/3/objects/0: an "edge" exit must touch the border of the room',
+      'rooms/start.tmj#/layers/3/objects/1/properties/kind: kind must be one of edge, door, warp',
+      'rooms/start.tmj#/layers/3/objects/1/properties/toRoomId: toRoomId is required',
+      'rooms/start.tmj#/layers/3/objects/1/properties/spawnId: spawnId is required',
+      'rooms/start.tmj#/layers/3/objects/1/properties/effect: effect "scroll" comes with the camera (M3-2); use "fade" or "cut"',
+      'rooms/start.tmj#/layers/3/objects/2/properties/requiresFlag: requiresFlag comes with flags (M3-3)',
+      'rooms/start.tmj#/layers/3/objects/2: an exit must be a rectangle with a size',
+      'rooms/start.tmj#/layers/3/objects/3/class: objects in "exits" must have the class "exit"',
+    ]);
+  });
+
+  it('rejects an exit to a room or spawn that does not exist', async () => {
+    const files = withExits([
+      exit(32, 16, 16, 32, [
+        prop('kind', 'door'),
+        prop('toRoomId', 'nowhere'),
+        prop('spawnId', 'back'),
+      ]),
+      exit(48, 16, 16, 32, [
+        prop('kind', 'door'),
+        prop('toRoomId', 'side'),
+        prop('spawnId', 'nope'),
+      ]),
+    ]);
+    expect(await issuesOf(files)).toEqual([
+      'rooms/start.tmj#/layers/3/objects/0/properties/toRoomId: room "nowhere" is not defined',
+      'rooms/start.tmj#/layers/3/objects/1/properties/spawnId: spawn "nope" is not in room "side"',
     ]);
   });
 });

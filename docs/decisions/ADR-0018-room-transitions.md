@@ -66,6 +66,8 @@ M3-1 で、部屋を増やし、`exits`（edge / door / warp）で部屋を移�
 - 向きは保つ。攻撃、すり抜け降下、触れている HP が減るタイルの状態は打ち切る。HP は保つ。
 - 新しい部屋で接地しているかを計算し直す（`createWorld` と同じ）。
 - スプライトは補間しない（`teleported`、ADR-0003）。
+- 入った spawn の id を `World.party.spawnId` に持つ。操作感の切替（M2-3）で「部屋の入口からやり直す」ときは、いる部屋のこの spawn から新しく始める（`GameSession.roomEntrance`）。
+- 止まっている間も `tick` は進むので、tick で数える時間（コヨーテタイム、着地の硬直など）は止まっている間も過ぎる。
 
 ### 出力
 
@@ -74,7 +76,7 @@ M3-1 で、部屋を増やし、`exits`（edge / door / warp）で部屋を移�
 
 ### hash（ADR-0002）
 
-`animation` の後、`flags` の前に `transition`（段階、残り tick、行き先の部屋、spawn、出口の種類、効果）と、入れない出口の番号の列を足す。
+`party` の最後に `spawnId`、`animation` の後、`flags` の前に `transition`（段階、残り tick、行き先の部屋、spawn、出口の種類、効果）と、入れない出口の番号の列を足す。
 
 ### ソルバー（ADR-0015）
 

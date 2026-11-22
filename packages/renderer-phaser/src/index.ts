@@ -1,3 +1,4 @@
+export { fadeAmount } from './fade';
 export { type RendererOptions, startRenderer } from './game';
 export { type HudIcon, hudIcons } from './hud';
 export {

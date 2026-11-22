@@ -1,3 +1,4 @@
 {
-  "mode": "screenFlip"
+  "mode": "screenFlip",
+  "roomTransition": { "effect": "fade", "lockTicks": 20 }
 }

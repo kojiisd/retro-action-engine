@@ -213,8 +213,9 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     feelProfile: () => session.startState.feelProfile,
     setFeelProfile: (id: string) => {
       if (runtime.feel[id] === undefined || id === session.startState.feelProfile) return;
-      // A feel profile holds for a whole run: switching starts the room over.
-      session.restart({ ...session.startState, feelProfile: id });
+      // A feel profile holds for a whole run: switching starts over from where the party entered
+      // the room it is in (ADR-0018).
+      session.restart({ ...session.startState, ...session.roomEntrance, feelProfile: id });
       savePack({ ...packSettings, feelProfile: id === runtime.feelDefault ? null : id });
     },
     interpolation: () => globalSettings.interpolation,

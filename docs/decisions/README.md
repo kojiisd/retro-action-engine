@@ -23,6 +23,7 @@
 | [ADR-0015](ADR-0015-reachability-solver.md) | 到達可能性ソルバー（健全性、探索の近似、完全性の範囲） | 解析ツール | Accepted |
 | [ADR-0016](ADR-0016-hp-hazards-media.md) | HP、触れると HP が減るタイル、水中の動き | M2-5 | Accepted |
 | [ADR-0017](ADR-0017-melee-attack.md) | 剣を振る攻撃（攻撃の動きと当たり判定の箱） | M2-5 | Accepted |
+| [ADR-0018](ADR-0018-room-transitions.md) | 部屋の出口と部屋の移動 | M3-1 | Accepted |
 
 ## 書式
 

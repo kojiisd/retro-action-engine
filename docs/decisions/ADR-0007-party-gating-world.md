@@ -100,3 +100,4 @@ Condition は ADR-0005 の集合に `hasTag`, `hasItem`, `partyIncludes` を加�
 | 日付 | 内容 |
 | --- | --- |
 | 2026-11-21（M2-5） | `RulesDef.hp` を一部だけ先に実装した（ADR-0016）: `scope` は `perCharacter` のみ、`onDeath` は `switchToAlive` と `respawnAtSavePoint`、`onAllDown` は `respawnAtSavePoint`（セーブポイントが無い間は、部屋に入った位置に戻る）。`shared` と `gameOver` は M3-5。`rules.hazards`（触れると HP が減るタイルの種類ごとの値と、能力タグによる上書き）を追加した。手動の交代は倒れたメンバーを飛ばす。サンプルパックの水は `move:swim` による通行の制限ではなく、全員が入れて HP が減る水になった（`move:swim` は減るのが遅い） |
+| 2026-11-23（M3-1） | 部屋の移動を ADR-0018 で決めた: 移動は `step` の中で完結させ、ドライバは `enterRoom` を呼ばない（`TransitionRequest` は描画の情報だけ）。扉は扉の前で `up` を押して入る（要確認だった `confirm` か `up` かは `up` に決定）。`requiresFlag` は M3-3 から。マップは、ひとつながりの場所を大きな 1 枚の部屋で書き、建物の中や別の地域を扉やワープでつなぐ別の部屋にするのを基本にする（所有者の判断）。はしご（M5-2）は M3-2 の後に前倒しする |

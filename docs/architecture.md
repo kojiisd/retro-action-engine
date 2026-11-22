@@ -122,7 +122,7 @@ sequenceDiagram
 ```
 
 - tick を回すのは core の `GameSession`（M1-5）。`renderer-phaser` は `input` を import できないため、Scene の `update` は `apps/player` が渡す `frame` 関数を呼ぶだけで、返った `FrameView`（スナップショット 2 つと `alpha` と `ui`）を描く。描画側は `World` に触れない。
-- `StepOutput` の `audio` と `transition` は M3 で追加する。
+- `StepOutput` の `audio` は M3 で追加する。`transition`（部屋の移動の段階、M3-1）は描画の演出のための情報で、部屋の移動そのものは `step` の中で完結する（ADR-0018）。ドライバは何もしない。
 - `ticks == 0` のフレーム（120Hz 以上の表示で起こる）は `alpha` だけが進み、前回と今回の `RenderSnapshot` の間を補間して描く。
 - `dropped == true` はフレーム時間をクランプして時間を捨てたことを意味し、InputBuffer の再同期トリガになる（[input-and-feel.md](input-and-feel.md) のエッジ規則 7）。
 
@@ -137,11 +137,13 @@ sequenceDiagram
 | 3 | `controller` | 操作中キャラクターの状態機械（grounded / airborne / climb / hitstun）と速度の更新 |
 | 4 | `behavior` | 敵とギミックの宣言的状態機械（BehaviorSpec）を 1 ステップ進める |
 | 5 | `movement` | 全エンティティの移動と衝突解決（X 軸 → Y 軸、サブステップ、能力タグによる通行判定） |
-| 6 | `interaction` | hit/hurt の重なり、拾得、ゾーン進入、出口接触。触れると HP が減るタイルと、HP が 0 になったときの交代と入口からのやり直し（M2-5、ADR-0016） |
+| 6 | `interaction` | hit/hurt の重なり、拾得、ゾーン進入。触れると HP が減るタイルと、HP が 0 になったときの交代と入口からのやり直し（M2-5、ADR-0016）。その後に出口接触（M3-1、ADR-0018） |
 | 7 | `events` | トリガから Action 列を実行し、フラグ・所持品・パーティ・spawn を更新 |
 | 8 | `camera` | カメラモードに従って位置を更新（screenFlip / scroll） |
 | 9 | `timers` | 無敵時間、アニメーションフレーム、cooldown の減算 |
-| 10 | `output` | `RenderSnapshot`、`AudioCue[]`、`UiState`、`TransitionRequest` を生成 |
+| 10 | `output` | `RenderSnapshot`、`AudioCue[]`、`UiState`、`TransitionView` を生成 |
+
+部屋の移動中（`World.transition` の段階が `out` か `in`、ADR-0018）は、1〜9 を行わずに段階の tick を進め、`output` だけを行う。消える段階が終わった tick に部屋を移る。
 
 ## 5. コアの内部モジュール（`packages/core/src/`）
 
@@ -245,7 +247,8 @@ export interface World {
   inventory: InventoryState; // scope に応じて shared または characterId ごと
   flags: Record<string, number | boolean>;
   entities: EntityStore;     // id 昇順で走査できるコンポーネント表
-  transitionLockTicks: number;
+  transition: TransitionState; // 部屋の移動の段階（M3-1、ADR-0018）
+  disarmedExits: number[];     // 部屋に着いたときに重なっていて、一度離れるまで入れない出口の番号
 }
 
 // ---- core/sim ----
@@ -260,7 +263,7 @@ export interface StartState {
 export interface Simulation {
   createWorld(runtime: PackRuntime, start: StartState): World;
   step(world: World, input: InputFrame, runtime: PackRuntime): StepOutput; // world を in-place 更新
-  enterRoom(world: World, roomId: string, spawnId: string, runtime: PackRuntime): void;
+  enterRoom(world: World, runtime: PackRuntime, roomId: string, spawnId: string, keepVelocity: boolean): void; // step が出口で呼ぶ（ADR-0018）
   snapshot(world: World): WorldSnapshot;
   restore(snapshot: WorldSnapshot): World;
   hash(world: World): WorldHash; // [hi, lo]
@@ -273,11 +276,12 @@ export interface StepOutput {
   render: RenderSnapshot;
   audio: AudioCue[];
   ui: UiState;
-  transition: TransitionRequest | null;
+  transition: TransitionView | null; // 部屋の移動中だけ（M3-1）
 }
 
 export interface RenderSnapshot {
   tick: number;
+  room: string;                     // 部屋 ID（M3-1。変わったら描画はタイルを作り直す）
   camera: { x: number; y: number }; // px（床関数済み）
   sprites: RenderSprite[];          // id 昇順
 }
@@ -307,12 +311,33 @@ export interface UiState {
   message: string | null;       // showText の表示要求（キーは strings で解決）
 }
 
-export interface TransitionRequest {
-  kind: 'room';
+// 部屋の移動（M3-1、ADR-0018）。移動は step の中で完結し、描画はこれで暗転を描くだけ。
+export interface TransitionView {
+  effect: 'cut' | 'fade';
+  phase: 'out' | 'in';
+  tick: number;  // その段階の何 tick 目か（1 から）
+  ticks: number; // その段階の長さ
+}
+
+export interface TransitionState {
+  phase: 'none' | 'out' | 'in';
+  tick: number;
+  outTicks: number;
+  inTicks: number;
   toRoomId: string;
   spawnId: string;
-  effect: 'cut' | 'fade' | 'scroll';
-  direction?: 'left' | 'right' | 'up' | 'down';
+  kind: '' | 'edge' | 'door' | 'warp';
+  effect: '' | 'cut' | 'fade';
+}
+
+export interface ExitDef {
+  kind: 'edge' | 'door' | 'warp';
+  rect: { x: Fx; y: Fx; w: Fx; h: Fx };
+  toRoomId: string;
+  spawnId: string;
+  effect: 'cut' | 'fade';        // パックで省略すると camera.json の roomTransition.effect
+  requiresAnyTag?: string[];
+  // requiresFlag は M3-3
 }
 
 // ---- core/loop（純粋） ----

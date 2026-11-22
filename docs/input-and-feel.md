@@ -226,6 +226,11 @@ tick の数え方（M1-3 で確定。`controller` は `movement` より前に動
 - `placement: 'same'` は位置と速度を保つ。`'spawn'` は部屋に入ったときの spawn へ移し、速度を 0 にする。
 - `mode: 'atPoints'` はゾーン（M3）が入るまで `never` と同じ扱い。
 
+### 6.6 扉と部屋の移動（M3-1）
+
+- 扉（出口の `kind: "door"`）には、扉の矩形と体が重なっていて、地上にいるときに `up` を押すと入る（ADR-0018。所有者の確認、2026-11-23）。`up` と `down` を同時に押しているときも、`up` の押下として扱う。
+- 部屋を移っている間（`camera.json` の `roomTransition.lockTicks` の tick 数）は入力を捨てる。ジャンプの先行入力や SOCD の押下 tick も記録しない。押し続けている入力は、止まり終えた tick からふつうに効く。
+
 ## 7. ループ連携
 
 - アキュムレータは `ms × 60` 単位（1 tick = 1000 units）。`frameMs` を 250ms でクランプ、1 フレーム最大 5 tick。超過分は捨てて `dropped = true`。

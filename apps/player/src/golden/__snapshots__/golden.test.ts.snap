@@ -3,8 +3,8 @@
 exports[`golden: sample pack representative replay > modern: the end hash is unchanged 1`] = `
 {
   "hash": [
-    2783487463,
-    1817564479,
+    1659889882,
+    3709197490,
   ],
   "tick": 417,
 }

@@ -51,7 +51,7 @@ export interface FeelProfile extends FeelMotion {
   readonly media?: Readonly<Record<string, FeelMedium>>;
   /**
    * While attacking on the ground (ADR-0017): `stop` stands still (no walking, no jump), `move`
-   * keeps walking. Absent is `stop`.
+   * keeps walking. Absent is `move`.
    */
   readonly attackOnGround?: 'stop' | 'move';
 }

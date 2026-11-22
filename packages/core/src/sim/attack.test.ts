@@ -89,8 +89,8 @@ describe('attack', () => {
     expect(frames[LENGTH]).toBe('idle');
   });
 
-  it('roots the character on the ground: no walking, no jump, no turning', () => {
-    const runtime = runtimeWith();
+  it('roots the character on the ground with "attackOnGround: stop": no walking, no jump, no turning', () => {
+    const runtime = runtimeWith('stop');
     const world = start(runtime);
     const s = world.entities;
     const slot = slotOf(world);
@@ -116,19 +116,21 @@ describe('attack', () => {
     expect(world.controller.facing).toBe(-1);
   });
 
-  it('keeps walking with "attackOnGround: move"', () => {
-    const runtime = runtimeWith('move');
-    const world = start(runtime);
-    const s = world.entities;
-    const slot = slotOf(world);
-    const x0 = s.x[slot] as number;
-    run(
-      world,
-      runtime,
-      script().hold('right', LENGTH).press('attack', { at: 0, ticks: 1 }).build(LENGTH),
-    );
-    expect(s.x[slot]).toBeGreaterThan(x0);
-    expect(world.tick < world.controller.attackUntilTick).toBe(false);
+  it('keeps walking and jumping by default and with "attackOnGround: move"', () => {
+    for (const setting of [undefined, 'move'] as const) {
+      const runtime = runtimeWith(setting);
+      const world = start(runtime);
+      const s = world.entities;
+      const slot = slotOf(world);
+      const x0 = s.x[slot] as number;
+      run(world, runtime, script().hold(['right', 'attack'], 1).hold('right', 4).build(5));
+      expect(world.tick < world.controller.attackUntilTick).toBe(true);
+      expect(s.x[slot]).toBeGreaterThan(x0);
+      // A jump in the middle of the swing leaves the ground.
+      run(world, runtime, script().hold('jump', 2).build(2));
+      expect(world.tick < world.controller.attackUntilTick).toBe(true);
+      expect((s.contact[slot] as number) & CONTACT_GROUNDED).toBe(0);
+    }
   });
 
   it('keeps the facing during a swing, even while walking the other way', () => {

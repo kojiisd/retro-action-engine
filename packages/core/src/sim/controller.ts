@@ -25,8 +25,8 @@ function approach(v: Fx, target: Fx, rate: Fx): Fx {
  * - In a medium with `swim` (ADR-0016), a jump needs no ground and no coyote time: each one is a
  *   stroke with the medium's `jumpVelocity`.
  * - Attack (ADR-0017): a press starts a swing of `attackTicks` when none is running. During it the
- *   facing stays; on the ground with `attackOnGround: 'stop'` the character stands still and takes
- *   no jump. In the air it keeps flying.
+ *   facing stays. On the ground it keeps walking (`attackOnGround: 'move'`, the default), or with
+ *   `'stop'` stands still and takes no jump. In the air it keeps flying.
  */
 export function controllerStep(
   world: World,
@@ -65,7 +65,7 @@ export function controllerStep(
     c.attackUntilTick = t + attackTicks;
   }
   const attacking = t < c.attackUntilTick;
-  const rooted = attacking && grounded && (feel.attackOnGround ?? 'stop') === 'stop';
+  const rooted = attacking && grounded && (feel.attackOnGround ?? 'move') === 'stop';
 
   const moveDir = locked || rooted ? 0 : intent.moveDir;
   // No turning round in the middle of a swing.

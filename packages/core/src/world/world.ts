@@ -63,6 +63,32 @@ export interface AnimationState {
   ticks: number;
 }
 
+/** A room change in progress (ADR-0018). `phase: 'none'` when there is none. */
+export interface TransitionState {
+  phase: 'none' | 'out' | 'in';
+  /** Ticks spent in the phase so far. */
+  tick: number;
+  outTicks: number;
+  inTicks: number;
+  toRoomId: string;
+  spawnId: string;
+  kind: '' | 'edge' | 'door' | 'warp';
+  effect: '' | 'cut' | 'fade';
+}
+
+export function noTransition(): TransitionState {
+  return {
+    phase: 'none',
+    tick: 0,
+    outTicks: 0,
+    inTicks: 0,
+    toRoomId: '',
+    spawnId: '',
+    kind: '',
+    effect: '',
+  };
+}
+
 /**
  * Mutable simulation state (docs/architecture.md). Fields are added together with the systems
  * that use them, and `hashWorld` covers each in the order ADR-0002 fixes. Camera and inventory
@@ -76,6 +102,10 @@ export interface World {
   party: PartyState;
   controller: ControllerState;
   animation: AnimationState;
+  /** Room change in progress (ADR-0018). */
+  transition: TransitionState;
+  /** Indices of the room's exits the body was on when it arrived: closed until it leaves them. */
+  disarmedExits: number[];
   flags: Record<string, number | boolean>;
   entities: EntityStore;
 }
@@ -121,6 +151,8 @@ export function newWorld(init: WorldInit): World {
     },
     controller: newControllerState(''),
     animation: { name: '', frame: 0, ticks: 0 },
+    transition: noTransition(),
+    disarmedExits: [],
     flags: {},
     entities: new EntityStore(),
   };
@@ -135,6 +167,8 @@ export function cloneWorld(world: World): World {
     party: { ...world.party, members: [...world.party.members], hp: [...world.party.hp] },
     controller: { ...world.controller },
     animation: { ...world.animation },
+    transition: { ...world.transition },
+    disarmedExits: [...world.disarmedExits],
     flags: { ...world.flags },
     entities: world.entities.clone(),
   };

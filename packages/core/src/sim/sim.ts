@@ -6,6 +6,7 @@ import type { PackRuntime, RoomData, StartState } from '../runtime/pack';
 import { newControllerState, newWorld, type World } from '../world/world';
 import { animationStep, attackTicks } from './anim';
 import { controllerStep } from './controller';
+import { enterRoom, exitStep, type TransitionView, transitionStep, transitionView } from './exits';
 import { hpStep, initialHp, tileAtBodyCenter } from './hp';
 import { inputIntent } from './intent';
 import { type RenderSnapshot, renderSnapshot } from './output';
@@ -29,10 +30,12 @@ export interface UiState {
   readonly party: readonly UiMember[];
 }
 
-/** The part of `StepOutput` available as of M1-5. Audio and transitions come with M3. */
+/** The part of `StepOutput` available as of M3-1. Audio comes later. */
 export interface StepOutput {
   readonly ui: UiState;
   readonly render: RenderSnapshot;
+  /** The room change in progress, for the renderer's fade (ADR-0018); null when none. */
+  readonly transition: TransitionView | null;
 }
 
 const grids = new WeakMap<RoomData, CollisionGrid>();
@@ -91,24 +94,9 @@ export function createWorld(runtime: PackRuntime, start: StartState): World {
     collider: character.collider,
   });
 
-  // Start with the contact flags of the spawn position, so that a character placed on a floor
-  // starts grounded.
-  const slot = world.entities.slotOf(world.party.entityId);
-  const s = world.entities;
-  s.contact[slot] = moveBody(
-    roomGrid(runtime, world.roomId),
-    {
-      x: spawn.x,
-      y: spawn.y,
-      vx: 0,
-      vy: 0,
-      w: character.collider.w,
-      h: character.collider.h,
-      ox: character.collider.ox,
-      oy: character.collider.oy,
-    },
-    { abilityTags: effectiveTags(character) },
-  );
+  // Enter the start room as through any exit: contact flags of the spawn position (a character
+  // placed on a floor starts grounded), and the exits it stands on stay closed until it leaves.
+  enterRoom(world, runtime, roomGrid, start.roomId, start.spawnId, false);
   return world;
 }
 
@@ -122,10 +110,16 @@ export function setFeelProfile(world: World, runtime: PackRuntime, profileId: st
 
 /**
  * One simulation tick. The system order is fixed (docs/architecture.md 4.3); systems that do not
- * exist yet are skipped: inputIntent, party, controller, movement, interaction (HP only),
- * timers, output.
+ * exist yet are skipped: inputIntent, party, controller, movement, interaction (HP, exits),
+ * timers, output. During a room change only the change moves on (ADR-0018).
  */
 export function step(world: World, input: InputFrame, runtime: PackRuntime): StepOutput {
+  // A room change stops the simulation: only its phase moves on, and the input is dropped.
+  if (world.transition.phase !== 'none') {
+    const moved = transitionStep(world, runtime, roomGrid);
+    world.tick++;
+    return output(world, runtime, moved);
+  }
   const intent = inputIntent(world, input, currentFeel(world, runtime));
   const activeBefore = world.party.activeIndex;
   partyStep(world, intent, runtime);
@@ -157,8 +151,10 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   s.vx[slot] = body.vx;
   s.vy[slot] = body.vy;
 
-  // interaction: HP-draining tiles, and a character whose HP reached 0 (ADR-0016).
+  // interaction: HP-draining tiles, and a character whose HP reached 0 (ADR-0016); then the
+  // exits, unless the character was just put back (ADR-0018).
   const placed = hpStep(world, runtime, roomGrid);
+  const entered = !placed && exitStep(world, runtime, roomGrid, intent);
 
   // timers
   if (world.party.cooldownTicks > 0) {
@@ -168,14 +164,19 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   animationStep(world, active);
 
   world.tick++;
-  // output
+  return output(world, runtime, teleported || placed || entered);
+}
+
+/** The `output` system. */
+function output(world: World, runtime: PackRuntime, teleported: boolean): StepOutput {
   return {
     ui: {
-      activeCharacterId: active.id,
+      activeCharacterId: activeCharacter(world, runtime).id,
       canSwitch: canSwitch(world, runtime),
       party: uiParty(world, runtime),
     },
-    render: renderSnapshot(world, runtime, teleported || placed),
+    render: renderSnapshot(world, runtime, teleported),
+    transition: transitionView(world),
   };
 }
 

@@ -31,7 +31,7 @@ function sprite(id: number, x: number, y: number, extra: Partial<RenderSprite> =
 }
 
 function snapshot(tick: number, sprites: RenderSprite[]): RenderSnapshot {
-  return { tick, camera: { x: 0, y: 0 }, sprites, colliders: [], hitboxes: [] };
+  return { tick, room: 'r', camera: { x: 0, y: 0 }, sprites, colliders: [], hitboxes: [] };
 }
 
 describe('interpolateSprites', () => {

@@ -34,6 +34,8 @@ export interface RenderCollider {
 
 export interface RenderSnapshot {
   readonly tick: number;
+  /** The room to draw (ADR-0018): its tiles change with it. */
+  readonly room: string;
   /** Top-left of the view in px. Always 0, 0 in M1-5 (one screen per room). */
   readonly camera: { readonly x: number; readonly y: number };
   /** In ascending id order. */
@@ -106,5 +108,12 @@ export function renderSnapshot(
       });
     }
   }
-  return { tick: world.tick, camera: { x: 0, y: 0 }, sprites, colliders, hitboxes };
+  return {
+    tick: world.tick,
+    room: world.roomId,
+    camera: { x: 0, y: 0 },
+    sprites,
+    colliders,
+    hitboxes,
+  };
 }

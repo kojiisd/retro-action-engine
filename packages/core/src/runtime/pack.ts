@@ -96,6 +96,26 @@ export interface RenderLayerData {
   readonly data: ReadonlyArray<ReadonlyArray<number>>;
 }
 
+/** A way out of a room (ADR-0018). */
+export interface ExitDef {
+  /** `edge`: on the room's border; `door`: `up` on the ground; `warp`: on touch. */
+  readonly kind: 'edge' | 'door' | 'warp';
+  /** Top-left and size, Fx. */
+  readonly rect: { readonly x: Fx; readonly y: Fx; readonly w: Fx; readonly h: Fx };
+  readonly toRoomId: string;
+  readonly spawnId: string;
+  readonly effect: 'cut' | 'fade';
+  /** Only a character with one of these effective tags can go through. */
+  readonly requiresAnyTag?: readonly string[];
+}
+
+/** How rooms change (ADR-0018): `camera.json`'s `roomTransition`. */
+export interface RoomTransitionDef {
+  readonly effect: 'cut' | 'fade';
+  /** Ticks the simulation stops for (fade: half dark, half light). */
+  readonly lockTicks: number;
+}
+
 export interface RoomData {
   readonly id: string;
   readonly widthTiles: number;
@@ -107,6 +127,8 @@ export interface RoomData {
   readonly spawns: Readonly<Record<string, { readonly x: Fx; readonly y: Fx }>>;
   /** Drawing only; `pack` fills it from the Tiled layers. */
   readonly renderLayers?: readonly RenderLayerData[];
+  /** Ways out, in the order they are checked (ADR-0018). */
+  readonly exits?: readonly ExitDef[];
 }
 
 /** Images the renderer loads (`pack` resolves the paths). Core never reads them. */
@@ -145,6 +167,8 @@ export interface PackRuntime {
   readonly characters: Readonly<Record<string, CharacterDef>>;
   readonly feel: Readonly<Record<string, FeelProfile>>;
   readonly rules: RulesDef;
+  /** Room changes (ADR-0018). Without it: `cut` with no stop. */
+  readonly roomTransition?: RoomTransitionDef;
 }
 
 export interface StartState {

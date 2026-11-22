@@ -90,12 +90,14 @@ export type {
   AssetManifest,
   CharacterDef,
   DisplayDef,
+  ExitDef,
   HazardDef,
   HpRules,
   PackRuntime,
   PartyRules,
   RenderLayerData,
   RoomData,
+  RoomTransitionDef,
   RulesDef,
   SpriteDef,
   StartState,
@@ -103,6 +105,7 @@ export type {
 export type { SolidKind, TileClass } from './runtime/tile';
 export { type FrameView, GameSession, type InputSource } from './session/session';
 export { animationStep, attackTicks, movementAnimation, resolveAnimation } from './sim/anim';
+export { enterRoom, type TransitionView, transitionView } from './sim/exits';
 export { type Intent, inputIntent } from './sim/intent';
 export {
   type RenderCollider,
@@ -129,7 +132,9 @@ export {
   cloneWorld,
   NEVER,
   newWorld,
+  noTransition,
   type PartyState,
+  type TransitionState,
   type World,
   type WorldInit,
 } from './world/world';

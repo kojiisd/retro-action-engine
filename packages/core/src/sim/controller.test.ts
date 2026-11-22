@@ -14,6 +14,7 @@ const IDLE: Intent = {
   downHeld: false,
   switchRequested: false,
   attackPressed: false,
+  upPressed: false,
 };
 
 /** A world with one airborne (or grounded) entity, at tick 10. */

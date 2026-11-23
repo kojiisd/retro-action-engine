@@ -1,4 +1,4 @@
-import { fromPx, runReplayHeadless } from '@retro-action-engine/core';
+import { runReplayHeadless } from '@retro-action-engine/core';
 import type { LoadedRuntime } from '@retro-action-engine/pack';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadSamplePack } from '../test-support';
@@ -23,17 +23,17 @@ describe('golden: sample pack representative replay', () => {
 
   // Not golden: checks that the replay still covers what it is meant to cover, so that a pack
   // change cannot silently turn it into a replay of standing still.
-  it.each(PROFILES)('%s: ends with the swimmer past the water column', (profile) => {
+  it.each(PROFILES)('%s: ends with the swimmer in the next room, past the edge', (profile) => {
+    const entry = runtime.entry as { roomId: string };
+    const edge = runtime.rooms[entry.roomId]?.exits?.find((e) => e.kind === 'edge');
+    if (edge === undefined) throw new Error('no edge exit in the entry room');
     const { world } = runReplayHeadless(representativeReplay(runtime, profile), runtime);
-    const room = runtime.rooms[world.roomId];
-    if (room === undefined) throw new Error('no room');
-    const swim = room.tileClasses.find((c) => c.requiresAnyTag?.includes('move:swim'));
-    const cols = [...room.collision.keys()]
-      .filter((i) => room.collision[i] === swim?.id)
-      .map((i) => i % room.widthTiles);
-    const waterRight = fromPx((Math.max(...cols) + 1) * runtime.tileSize);
-    const slot = world.entities.slotOf(world.party.entityId);
+    // Getting to the east edge takes crossing the water column first.
+    expect(world.roomId).toBe(edge.toRoomId);
+    expect(world.transition.phase).toBe('none');
     expect(world.party.members[world.party.activeIndex]).toBe('diver');
-    expect(world.entities.x[slot]).toBeGreaterThan(waterRight);
+    const slot = world.entities.slotOf(world.party.entityId);
+    const spawn = runtime.rooms[edge.toRoomId]?.spawns[edge.spawnId];
+    expect(world.entities.x[slot]).toBeGreaterThan(spawn?.x as number);
   });
 });

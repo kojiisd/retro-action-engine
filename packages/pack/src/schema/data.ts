@@ -176,8 +176,16 @@ export const inputSchema = z
     path: ['analog', 'release'],
   });
 
-/** `camera.json`. Not used before M3 (one screen per room); checked only for its shape. */
-export const cameraSchema = z.looseObject({ mode: z.enum(['scroll', 'screenFlip']) });
+/**
+ * `camera.json`. The camera itself comes with M3-2 (one screen per room until then); as of M3-1
+ * only `roomTransition` (ADR-0018) is read.
+ */
+export const cameraSchema = z.looseObject({
+  mode: z.enum(['scroll', 'screenFlip']),
+  roomTransition: z
+    .object({ effect: z.enum(['fade', 'cut']), lockTicks: z.int().nonnegative() })
+    .optional(),
+});
 
 /** A JSON Hash atlas (TexturePacker, free-tex-packer, Aseprite). */
 export const atlasSchema = z.object({

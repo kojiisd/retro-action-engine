@@ -1,4 +1,4 @@
-import type { RenderLayerData, RoomData, TileClass } from '@retro-action-engine/core';
+import type { ExitDef, RenderLayerData, RoomData, TileClass } from '@retro-action-engine/core';
 import { toFx } from './convert';
 import type { IssueList } from './errors';
 import type { MapJson, TilesetJson } from './schema/tiled';
@@ -13,7 +13,11 @@ export interface MapTileset {
 /** Tile layers drawn (in this order); `main` also makes the collision grid. */
 const RENDER_LAYERS = ['bg', 'main', 'fg'] as const;
 /** Object layers of the convention that the importer does not read yet (M3). */
-const LATER_LAYERS = ['zones', 'exits'] as const;
+const LATER_LAYERS = ['zones'] as const;
+const EXIT_KINDS = ['edge', 'door', 'warp'] as const;
+
+/** Where each imported exit is in its map file, for the loader's messages. */
+export const exitSource = new WeakMap<ExitDef, ReadonlyArray<string | number>>();
 /** Tiled stores flips in the top three bits of a gid. */
 const GID_MASK = 0x1fffffff;
 
@@ -104,6 +108,8 @@ export function importRoom(
   tilesets: readonly MapTileset[],
   tileSize: number,
   issues: IssueList,
+  /** `camera.json`'s `roomTransition.effect`, for exits that set none (ADR-0018). */
+  defaultEffect: ExitDef['effect'] = 'cut',
 ): RoomData | undefined {
   const errorsBefore = issues.errors.length;
   if (map.tilewidth !== tileSize || map.tileheight !== tileSize) {
@@ -118,19 +124,40 @@ export function importRoom(
   const collision = new Uint16Array(width * height);
   const renderLayers: RenderLayerData[] = [];
   const spawns: Record<string, { x: number; y: number }> = {};
+  const exits: ExitDef[] = [];
   const metaCache = new Map<string, TileMeta>();
   let mainSeen = false;
 
   map.layers.forEach((layer, li) => {
     const where = ['layers', li];
     const known =
-      (RENDER_LAYERS as readonly string[]).includes(layer.name) || layer.name === 'entities';
+      (RENDER_LAYERS as readonly string[]).includes(layer.name) ||
+      layer.name === 'entities' ||
+      layer.name === 'exits';
     if (!known) {
       if ((LATER_LAYERS as readonly string[]).includes(layer.name)) {
         issues.warn(file, where, `layer "${layer.name}" is not read yet (M3)`);
       } else {
         issues.warn(file, where, `layer "${layer.name}" is not part of the convention; ignored`);
       }
+      return;
+    }
+    if (layer.name === 'exits') {
+      if (layer.type !== 'objectgroup' || !('objects' in layer)) {
+        issues.error(file, where, 'layer "exits" must be an object layer');
+        return;
+      }
+      (layer.objects as MapObjects).forEach((obj, oi) => {
+        const exit = importExit(obj, [...where, 'objects', oi], width, height, tileSize, {
+          file,
+          issues,
+          defaultEffect,
+        });
+        if (exit !== undefined) {
+          exits.push(exit);
+          exitSource.set(exit, [...where, 'objects', oi]);
+        }
+      });
       return;
     }
     if (layer.name === 'entities') {
@@ -249,6 +276,85 @@ export function importRoom(
     tileClasses,
     spawns,
     renderLayers,
+    exits,
+  };
+}
+
+/**
+ * One object of the `exits` layer (docs/pack-spec.md 5.4, ADR-0018). Where it leads is checked
+ * by the loader, which knows every room.
+ */
+function importExit(
+  obj: MapObjects[number],
+  where: ReadonlyArray<string | number>,
+  widthTiles: number,
+  heightTiles: number,
+  tileSize: number,
+  context: { file: string; issues: IssueList; defaultEffect: ExitDef['effect'] },
+): ExitDef | undefined {
+  const { file, issues } = context;
+  const cls = obj.class ?? obj.type ?? '';
+  if (cls !== 'exit') {
+    issues.error(file, [...where, 'class'], `objects in "exits" must have the class "exit"`);
+    return undefined;
+  }
+  const props = obj.properties;
+  const text = (name: string): string | undefined => {
+    const value = propertyOf(props, name);
+    return typeof value === 'string' && value.trim() !== '' ? value.trim() : undefined;
+  };
+  let ok = true;
+  const fail = (name: string, message: string) => {
+    issues.error(file, [...where, 'properties', name], message);
+    ok = false;
+  };
+  const kind = text('kind');
+  if (kind === undefined || !(EXIT_KINDS as readonly string[]).includes(kind)) {
+    fail('kind', `kind must be one of ${EXIT_KINDS.join(', ')}`);
+  }
+  const toRoomId = text('toRoomId');
+  if (toRoomId === undefined) fail('toRoomId', 'toRoomId is required');
+  const spawnId = text('spawnId');
+  if (spawnId === undefined) fail('spawnId', 'spawnId is required');
+  const effectText = text('effect');
+  if (effectText === 'scroll') {
+    fail('effect', 'effect "scroll" comes with the camera (M3-2); use "fade" or "cut"');
+  } else if (effectText !== undefined && effectText !== 'fade' && effectText !== 'cut') {
+    fail('effect', 'effect must be "fade" or "cut"');
+  }
+  if (propertyOf(props, 'requiresFlag') !== undefined) {
+    fail('requiresFlag', 'requiresFlag comes with flags (M3-3)');
+  }
+  const tagsText = text('requiresAnyTag');
+  const tags = tagsText
+    ?.split(',')
+    .map((t) => t.trim())
+    .filter((t) => t !== '');
+  const w = obj.width ?? 0;
+  const h = obj.height ?? 0;
+  if (w <= 0 || h <= 0) {
+    issues.error(file, where, 'an exit must be a rectangle with a size');
+    ok = false;
+  }
+  const roomW = widthTiles * tileSize;
+  const roomH = heightTiles * tileSize;
+  if (
+    kind === 'edge' &&
+    w > 0 &&
+    h > 0 &&
+    !(obj.x <= 0 || obj.y <= 0 || obj.x + w >= roomW || obj.y + h >= roomH)
+  ) {
+    issues.error(file, where, 'an "edge" exit must touch the border of the room');
+    ok = false;
+  }
+  if (!ok) return undefined;
+  return {
+    kind: kind as ExitDef['kind'],
+    rect: { x: toFx(obj.x), y: toFx(obj.y), w: toFx(w), h: toFx(h) },
+    toRoomId: toRoomId as string,
+    spawnId: spawnId as string,
+    effect: (effectText as ExitDef['effect'] | undefined) ?? context.defaultEffect,
+    ...(tags === undefined || tags.length === 0 ? {} : { requiresAnyTag: tags }),
   };
 }
 
@@ -260,4 +366,5 @@ type MapObjects = ReadonlyArray<{
   y: number;
   width?: number | undefined;
   height?: number | undefined;
+  properties?: ReadonlyArray<{ name: string; value: unknown }> | undefined;
 }>;

@@ -4,6 +4,7 @@ import { DEFAULT_LOOP_CONFIG, type LoopConfig } from '../loop/advance';
 import { LoopDriver } from '../loop/driver';
 import { checkReplayPack, Player, Recorder, type ReplayFile, startOf } from '../replay/replay';
 import type { PackRuntime, StartState } from '../runtime/pack';
+import type { TransitionView } from '../sim/exits';
 import { type RenderSnapshot, renderSnapshot } from '../sim/output';
 import { activeCharacter, canSwitch } from '../sim/party';
 import { createWorld, step, type UiState, uiParty } from '../sim/sim';
@@ -26,6 +27,8 @@ export interface FrameView {
   /** Ticks run in this frame. */
   readonly ticks: number;
   readonly ui: UiState;
+  /** The room change at `curr` (ADR-0018); null when none. */
+  readonly transition: TransitionView | null;
 }
 
 /**
@@ -43,6 +46,7 @@ export class GameSession {
   private prev: RenderSnapshot;
   private curr: RenderSnapshot;
   private ui: UiState;
+  private transition: TransitionView | null = null;
   private observer: ((tick: number, hash: WorldHash) => void) | undefined;
   private dropped = 0;
 
@@ -69,6 +73,7 @@ export class GameSession {
       alpha: result.alpha,
       ticks: result.ticks,
       ui: this.ui,
+      transition: this.transition,
     };
   }
 
@@ -105,6 +110,14 @@ export class GameSession {
     return this.dropped;
   }
 
+  /**
+   * Where the party entered the room it is in (ADR-0018): starting over "from the room's
+   * entrance" (a feel profile switch) starts there.
+   */
+  get roomEntrance(): { readonly roomId: string; readonly spawnId: string } {
+    return { roomId: this.world.roomId, spawnId: this.world.party.spawnId };
+  }
+
   /** The start of the current run (live or replay). */
   get startState(): StartState {
     return this.start;
@@ -135,6 +148,7 @@ export class GameSession {
     this.curr = renderSnapshot(this.world, this.runtime);
     this.prev = this.curr;
     this.ui = this.initialUi();
+    this.transition = null;
   }
 
   private newDriver(): LoopDriver {
@@ -163,7 +177,13 @@ export class GameSession {
     this.prev = this.curr;
     this.curr = out.render;
     this.ui = out.ui;
+    this.transition = out.transition;
     this.observer?.(this.world.tick, hashWorld(this.world));
+  }
+
+  /** The room change after the last tick (ADR-0018); null when none. */
+  get transitionState(): TransitionView | null {
+    return this.transition;
   }
 
   /** The HUD state after the last tick (or at the start). */

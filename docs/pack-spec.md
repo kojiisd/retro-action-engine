@@ -428,6 +428,9 @@ type GamepadInputId =
 }
 ```
 
+- `roomTransition?: { effect: "fade" | "cut", lockTicks: int >= 0 }`（M3-1、ADR-0018）: 部屋を移るときの演出と、その間に入力を無視して止める tick 数。`fade` は前半で暗くなり、後半で明るくなる。`cut` は演出なしで、`lockTicks` の間だけ止まる。無ければ `{ "effect": "cut", "lockTicks": 0 }`。
+- M3-1 の時点で読むのは `mode` と `roomTransition` だけ（カメラは M3-2）。
+
 ### 4.9 `audio.json`
 
 ```ts
@@ -508,11 +511,13 @@ interface AudioDef {
 | `entities` | `gimmick` | `gimmickId`, 種別ごとの追加（`toRoomId`, `spawnId`, `itemId`, `key` など。`gimmicks.json` の定義を上書きできる） |
 | `zones` | `event` | `trigger: "onZoneEnter" \| "onZoneExit"`, `conditions`（JSON 文字列）, `actions`（JSON 文字列） |
 | `zones` | `camera` | `lockY: bool` などの部屋内オーバーライド（M3） |
-| `exits` | `exit` | `kind: "edge" \| "door" \| "warp"`, `toRoomId`, `spawnId`, `effect`, `requiresAnyTag?`, `requiresFlag?` |
+| `exits` | `exit` | `kind: "edge" \| "door" \| "warp"`, `toRoomId`, `spawnId`, `effect?: "fade" \| "cut"`, `requiresAnyTag?`, `requiresFlag?`（M3-3） |
 
 - オブジェクトの位置は Tiled の矩形左上。エンティティの初期位置は矩形の底辺中央に変換する。
 - `name` は Tiled 上の識別に使い、エンジンは `spawn` 以外では参照しない。
-- 部屋外周は solid。`kind: "edge"` の exit は外周に接する矩形として置く。
+- 部屋外周は solid。`kind: "edge"` の exit は外周（左右上下のどれか）に接する矩形として置く（読み込み時に検査する）。抜けられるように、出口の部分の `main` のタイルは空けておく。
+- 出口（M3-1、ADR-0018）: 体が矩形と重なると入る。`edge` と `warp` は重なっただけで、`door` は地上で `up` を押したとき。`requiresAnyTag` があれば、そのどれかのタグを持つキャラクターだけが入れる。部屋に着いたときに体と重なっていた出口は、一度離れるまで入れない。`effect` が無ければ `camera.json` の `roomTransition.effect`。`effect: "scroll"` は M3-2、`requiresFlag` は M3-3 で、それまでは読み込み時に拒否する。
+- `toRoomId` と `spawnId` は存在しなければならない（同じ部屋でもよい）。
 
 ### 5.5 タイルセット JSON
 

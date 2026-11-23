@@ -72,8 +72,9 @@ M1 完了時の状態: 1 画面で、2 人パーティの切替、移動、ジ�
 
 | サブステップ | 内容 | 受け入れ条件 |
 | --- | --- | --- |
-| M3-1 | 複数部屋、`exits`（edge / door / warp）、部屋遷移、`transitionLockTicks` | 部屋遷移を含むリプレイの Determinism (a)(b)(c)。遷移中は入力が無視される scenario |
+| M3-1 | 複数部屋、`exits`（edge / door / warp）、部屋遷移、`transitionLockTicks`。設計は ADR-0018 | 部屋遷移を含むリプレイの Determinism (a)(b)(c)。遷移中は入力が無視される scenario |
 | M3-2 | カメラ 2 モード（screenFlip / scroll）、活性化判定 | カメラ scenario を 2 モード × 2 解像度。端数スクリーンのクランプ |
+| M3-2b | 梯子、`climb` 状態（M5-2 を前倒し。所有者の判断、2026-11-23）。部屋の上端の出口へ梯子で上がれる | 梯子の昇降と上端の oneway scenario。梯子で上端の出口から上の部屋へ移るリプレイ |
 | M3-3 | フラグ、イベント（トリガ / Condition / Action）、アイテムと `grants`、ゲートギミック | 「タグ無しで通れない → アイテム取得で通れる」「スイッチでフラグ → 扉が開く」の scenario。`gating.subject` の 2 値 |
 | M3-4 | 敵の宣言的振る舞い（全 Primitive / Condition）、hit / hurt、ダメージ、無敵、ノックバック、ドロップ | 各 Primitive の Unit、`walker` の scenario、被弾からの復帰 |
 | M3-5 | HP と所持品のスコープ、`onDeath` / `onAllDown`、セーブポイント、セーブ / ロード（3 + auto）、オートセーブ | スコープ 2 × 2 の組合せ scenario。セーブ往復（保存 → 読込 → 同じリプレイで同じ hash）。`saveCompat` 外の拒否 |
@@ -94,7 +95,7 @@ M1 完了時の状態: 1 画面で、2 人パーティの切替、移動、ジ�
 | サブステップ | 内容 | 受け入れ条件 |
 | --- | --- | --- |
 | M5-1 | 坂（`heights`）、`slopeSnapPx` | 坂の昇降 scenario、坂上での鏡像 Property |
-| M5-2 | 梯子、`climb` 状態 | 梯子の昇降と上端の oneway scenario |
+| M5-2 | （M3-2b に前倒し） | |
 | M5-3 | 移動床（carrier / rider）、`movingPlatform` | 乗ったまま運ばれる scenario、床から落ちる scenario |
 | M5-4 | ボス（`bossDoor`、複数フェーズの BehaviorSpec）、`cave-boss` 部屋 | ボス撃破 → フラグ → 扉のリプレイ |
 | M5-5 | パック同梱コードの再検討（ADR-0005 の Deferred を解除するか判断） | ADR の更新 |

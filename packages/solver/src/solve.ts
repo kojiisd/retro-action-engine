@@ -434,11 +434,22 @@ function solveScope(
  * checked; "proven" holds for every input sequence. Anything else means "not found within the
  * macros and limits", not that it cannot be done.
  */
+/**
+ * The runtime with the solved room's exits taken out: the solver explores one room, and a path
+ * that leaves it through an exit belongs to A-3 (ADR-0018).
+ */
+function withoutExits(runtime: PackRuntime, roomId: string): PackRuntime {
+  const room = runtime.rooms[roomId];
+  if (room?.exits === undefined || room.exits.length === 0) return runtime;
+  return { ...runtime, rooms: { ...runtime.rooms, [roomId]: { ...room, exits: [] } } };
+}
+
 export function solveRoom(
-  runtime: PackRuntime,
+  packRuntime: PackRuntime,
   start: StartState,
   options: SolverOptions = {},
 ): SolveReport {
+  const runtime = withoutExits(packRuntime, start.roomId);
   const startedAt = options.now?.();
   const limits: SolveReport['limits'] = {
     xQuantum: options.xQuantum ?? Math.max(FX_ONE, Math.floor((runtime.tileSize * FX_ONE) / 8)),

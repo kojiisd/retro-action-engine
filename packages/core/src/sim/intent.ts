@@ -12,6 +12,8 @@ export interface Intent {
   readonly switchRequested: boolean;
   /** `attack` pressed this tick (no buffer; ADR-0017). */
   readonly attackPressed: boolean;
+  /** `up` pressed this tick: enters a door (ADR-0018). */
+  readonly upPressed: boolean;
 }
 
 /**
@@ -48,5 +50,6 @@ export function inputIntent(world: World, frame: InputFrame, feel: FeelProfile):
     downHeld: isHeld(frame, 'down') && !isHeld(frame, 'up'),
     switchRequested: isPressed(frame, 'switch'),
     attackPressed: isPressed(frame, 'attack'),
+    upPressed: isPressed(frame, 'up'),
   };
 }

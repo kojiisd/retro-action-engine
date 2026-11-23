@@ -62,7 +62,7 @@ const FLAG_BOOLEAN = 1;
 /**
  * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, party (with hp and the
  * hazard state last, ADR-0016), controller,
- * animation, flags
+ * animation, transition and the closed exits (ADR-0018), flags
  * (keys sorted by UTF-16 code units), entities (live ones in ascending id order, columns in
  * `COLUMNS` order).
  * Tombstones and slot positions do not affect the result, so `compact` keeps the hash.
@@ -83,6 +83,8 @@ export function hashWorld(world: World): WorldHash {
     h.int32(hp);
   }
   h.string(p.hazardId).int32(p.hazardTicks);
+  // ADR-0018 (M3-1): the spawn the room was entered at.
+  h.string(p.spawnId);
 
   const c = world.controller;
   h.string(c.feelProfileId)
@@ -101,6 +103,21 @@ export function hashWorld(world: World): WorldHash {
 
   const a = world.animation;
   h.string(a.name).int32(a.frame).int32(a.ticks);
+
+  // ADR-0018 (M3-1): the room change in progress, then the exits closed until the body leaves.
+  const tr = world.transition;
+  h.string(tr.phase)
+    .int32(tr.tick)
+    .int32(tr.outTicks)
+    .int32(tr.inTicks)
+    .string(tr.toRoomId)
+    .string(tr.spawnId)
+    .string(tr.kind)
+    .string(tr.effect);
+  h.int32(world.disarmedExits.length);
+  for (const index of world.disarmedExits) {
+    h.int32(index);
+  }
 
   const keys = Object.keys(world.flags).sort();
   h.int32(keys.length);

@@ -85,6 +85,8 @@ describe('window.__engine hooks', () => {
       feelProfile: 'retro',
       activeCharacter: session.uiState.activeCharacterId,
       party: session.uiState.party,
+      room: start.roomId,
+      transition: 'none',
     });
     expect(() => hooks.setFeelProfile('turbo')).toThrow(/not in the pack/);
   });

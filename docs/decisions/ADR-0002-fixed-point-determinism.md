@@ -66,7 +66,7 @@
 ### hash
 
 - `hash(world)` は FNV-1a 32bit を 2 レーン（異なる offset basis）で計算し `[hi, lo]` を返す。
-- 走査順は固定: `tick`、`rng`、`roomId`（UTF-16 code unit）、`camera`、`party`、`controller`、`animation`、`inventory`、`flags`（キーをソート）、`entities`（id 昇順、各コンポーネントはフィールド順固定）。
+- 走査順は固定: `tick`、`rng`、`roomId`（UTF-16 code unit）、`camera`、`party`、`controller`、`animation`、`transition`、`inventory`、`flags`（キーをソート）、`entities`（id 昇順、各コンポーネントはフィールド順固定）。
 - 文字列は code unit を、真偽値は 0/1 を、`Fx` と整数は int32 の 4 バイトを投入する。
 - 入力のバイト列は次のとおり固定する（M1-2 で実装）。
   - int32: 4 バイト、リトルエンディアン。`rng` のような uint32 も同じビット列で投入する。
@@ -91,6 +91,7 @@
 
 | 日付 | 内容 |
 | --- | --- |
+| 2026-11-23（M3-1） | `party` の最後（`hazardTicks` の後）に、部屋に入った spawn の id（`spawnId`、文字列）を追加した。`animation` の後に `transition`（部屋の移動の段階 `phase`（文字列）、段階内の tick、消える段階と明るくなる段階の長さ、行き先の部屋と spawn、出口の種類、効果（文字列））と、入れない出口の番号の列（件数と各値）を追加した（ADR-0018） |
 | 2026-11-21（M2-5 後半） | `controller` の `rightPressedTick` の後に `attackUntilTick` を追加した（ADR-0017） |
 | 2026-11-21（M2-5） | `party` の `spawnY` の後に、`hp`（件数と各値）、`hazardId`（文字列）、`hazardTicks` を追加した（ADR-0016） |
 | 2026-11-17（M1-5） | 走査順に `animation`（操作中キャラクターのスプライトのアニメーション。名前、コマ番号、コマ内の tick）を `controller` の直後に追加した。アニメーションのコマ送りは core が tick 単位で行う（ADR-0001） |

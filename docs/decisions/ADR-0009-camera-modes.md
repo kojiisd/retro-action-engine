@@ -60,3 +60,9 @@ interface ScrollConfig {
 ## 要確認
 
 - なし。
+
+## 改訂履歴
+
+| 日付 | 内容 |
+| --- | --- |
+| 2026-11-23（M3-1） | 部屋を移るときの演出と停止を `camera.json` の `roomTransition: { effect: 'fade' \| 'cut', lockTicks }` で決める（ADR-0018）。移っている間（`lockTicks`）、コアは入力を無視して止まる。`scroll` の効果は M3-2 で決める。画面切替（`screenFlip`）の越境は部屋の中の話で、部屋の移動とは別に M3-2 で扱う |

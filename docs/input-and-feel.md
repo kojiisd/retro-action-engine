@@ -280,6 +280,8 @@ interface FeelMotion {
   // はしご（M3-2b、ADR-0019）。climbSpeed が無いプロファイルでははしごにつかめない
   climbSpeed?: number;           // px/tick
   climbJumpVelocity?: number;    // px/tick。はしごから跳んで離れるとき。無ければ 0
+  // 攻撃の先行入力（M3-2c、ADR-0017）。無ければ 0（同じ tick の押下だけ）
+  attackBufferTicks?: number;    // tick
 }
 ```
 
@@ -320,6 +322,7 @@ interface FeelMotion {
 | `slopeSnapPx`（M5） | px | 4 | 4 | |
 | `climbSpeed`（M3-2b） | px/tick | 1.0 | 1.0 | はしごの昇り降り |
 | `climbJumpVelocity`（M3-2b） | px/tick | 2.0 | 2.0 | はしごから跳んで離れる |
+| `attackBufferTicks`（M3-2c） | tick | 5 | 5 | 振りの後半の押下を覚えて、振り終わりに次を振る |
 
 例値はサンプルパックの出発点であり、調整して構わない。Feel scenario テストは固定値ではなくプロファイルから期待値を導出する。
 
@@ -364,7 +367,8 @@ interface FeelMotion {
 
 ### 8.7 攻撃（M2-5）
 
-- `attack` を押した tick に、攻撃できるキャラクター（`attack` アニメーションを持つ）が攻撃していなければ、攻撃を始める。長さは `attack` アニメーションのコマの長さの合計。空中でも水の中でも出せる。先行入力は持たない。
+- `attack` を押した tick に、攻撃できるキャラクター（`attack` アニメーションを持つ）が攻撃していなければ、攻撃を始める。長さは `attack` アニメーションのコマの長さの合計。空中でも水の中でも、はしごにつかまっていても出せる。押しっぱなしでは振り続けない。
+- 先行入力（M3-2c）: tick p の押下は、攻撃を始められる最初の tick t で `t − p ≤ attackBufferTicks` なら有効。振り終わる tick u の `attackBufferTicks` 前の押下で u に次を振り、`attackBufferTicks + 1` 前では振らない（振りの後半の押下だけを覚える）。連打すれば途切れずに振り続ける。
 - 攻撃中は向きを変えない。地上では、操作感の `attackOnGround` が `move`（既定）なら歩きながら振れる（ジャンプもできる）。`stop` ならその場で止まり、左右の入力とジャンプを受け付けない。空中ではそのまま飛び続ける。
 - 当たり判定の箱は、`attack` の各コマの `hitbox`（右向きの値。左向きでは左右を反転）。決定の記録は ADR-0017。
 

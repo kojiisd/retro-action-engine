@@ -2,6 +2,7 @@ import { type CollisionGrid, isLadderAt, isLadderTopAt } from '../collision/grid
 import { CONTACT_GROUNDED, moveBody } from '../collision/move';
 import type { PackRuntime } from '../runtime/pack';
 import { NEVER, type World } from '../world/world';
+import { attackStep } from './attack';
 import type { Intent } from './intent';
 import { activeCharacter } from './party';
 import { effectiveTags } from './tags';
@@ -10,6 +11,7 @@ type ClimbFeel = {
   readonly climbSpeed?: number;
   readonly climbJumpVelocity?: number;
   readonly runSpeed: number;
+  readonly attackBufferTicks?: number;
 };
 
 /** The body's box in Fx, and the column of its center (ladders are judged there, ADR-0019). */
@@ -82,15 +84,14 @@ export function climbStep(
   }
 
   // A swing from the ladder (ADR-0017): it holds the climb while it lasts.
-  if (
-    intent.attackPressed &&
-    t >= c.attackUntilTick &&
-    attackTicks !== undefined &&
-    attackTicks > 0
-  ) {
-    c.attackUntilTick = t + attackTicks;
-  }
-  const attacking = t < c.attackUntilTick;
+  const attacking = attackStep(
+    c,
+    t,
+    intent.attackPressed,
+    feel.attackBufferTicks ?? 0,
+    attackTicks,
+    true,
+  );
   if (!attacking && intent.moveDir !== 0) c.facing = intent.moveDir;
 
   if (intent.jumpPressed) {

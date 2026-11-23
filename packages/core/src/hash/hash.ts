@@ -113,7 +113,9 @@ export function hashWorld(world: World): WorldHash {
     // ADR-0017 (M2-5).
     .int32(c.attackUntilTick)
     // ADR-0019 (M3-2b).
-    .bool(c.climbing);
+    .bool(c.climbing)
+    // ADR-0017 revision (M3-2c).
+    .int32(c.attackPressedTick);
 
   const a = world.animation;
   h.string(a.name).int32(a.frame).int32(a.ticks);

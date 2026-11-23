@@ -2,6 +2,7 @@ import type { CollisionGrid } from '../collision/grid';
 import { CONTACT_GROUNDED, moveBody } from '../collision/move';
 import type { ExitDef, PackRuntime } from '../runtime/pack';
 import { NEVER, noTransition, type World } from '../world/world';
+import { cancelAttack } from './attack';
 import { snapCamera } from './camera';
 import type { Intent } from './intent';
 import { climbOnEnter } from './ladder';
@@ -73,7 +74,7 @@ export function enterRoom(
   party.spawnId = spawnId;
   party.hazardId = '';
   party.hazardTicks = 0;
-  world.controller.attackUntilTick = NEVER;
+  cancelAttack(world.controller);
   world.controller.dropThroughUntilTick = NEVER;
   climbOnEnter(world, gridOf(runtime, roomId), runtime.tileSize);
   // What the body stands on there, without moving it.

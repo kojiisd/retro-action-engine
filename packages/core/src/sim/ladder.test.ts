@@ -178,6 +178,30 @@ describe('ladders (ADR-0019)', () => {
     expect(body(world).y).toBeLessThan(y);
   });
 
+  it('takes a remembered press on the ladder too (M3-2c)', () => {
+    const swing = climber.sprite?.animations.attack?.frames.reduce((n, f) => n + f.ticks, 0) ?? 0;
+    const base = runtimeWith([LADDER_COL, H - 2]);
+    const runtime: PackRuntime = {
+      ...base,
+      feel: { ...base.feel, retro: { ...(base.feel.retro as typeof RETRO), attackBufferTicks: 2 } },
+    };
+    const world = start(runtime);
+    run(world, runtime, script().wait(5).build(5));
+    run(world, runtime, script().hold('up', 20).build(20));
+    expect(world.controller.climbing).toBe(true);
+    const t0 = world.tick;
+    run(
+      world,
+      runtime,
+      script()
+        .tap('attack', { at: 0 })
+        .tap('attack', { at: swing - 2 })
+        .build(swing + 1),
+    );
+    expect(world.controller.climbing).toBe(true);
+    expect(world.controller.attackUntilTick).toBe(t0 + 2 * swing);
+  });
+
   it('moves the climb frames only while moving', () => {
     const { runtime, world } = atLadderFoot();
     const frames = run(world, runtime, script().hold('up', 12).wait(12).build()).map(

@@ -59,6 +59,7 @@ export function convertProfile(
     readonly attackOnGround?: 'stop' | 'move' | undefined;
     readonly climbSpeed?: number | undefined;
     readonly climbJumpVelocity?: number | undefined;
+    readonly attackBufferTicks?: number | undefined;
     readonly media?:
       | Record<string, Partial<Record<keyof FeelMotion, number>> & { swim?: boolean | undefined }>
       | undefined;
@@ -83,5 +84,8 @@ export function convertProfile(
     ...(profile.climbJumpVelocity === undefined
       ? {}
       : { climbJumpVelocity: toFx(profile.climbJumpVelocity) }),
+    ...(profile.attackBufferTicks === undefined
+      ? {}
+      : { attackBufferTicks: profile.attackBufferTicks }),
   };
 }

@@ -72,11 +72,11 @@
             "frames": [
               {
                 "frame": "explorer/attack-0",
-                "ticks": 4
+                "ticks": 2
               },
               {
                 "frame": "explorer/attack-1",
-                "ticks": 6,
+                "ticks": 5,
                 "hitbox": {
                   "x": 4,
                   "y": -19,
@@ -86,7 +86,7 @@
               },
               {
                 "frame": "explorer/attack-2",
-                "ticks": 5,
+                "ticks": 3,
                 "hitbox": {
                   "x": 6,
                   "y": -13,
@@ -185,11 +185,11 @@
             "frames": [
               {
                 "frame": "diver/attack-0",
-                "ticks": 4
+                "ticks": 2
               },
               {
                 "frame": "diver/attack-1",
-                "ticks": 6,
+                "ticks": 5,
                 "hitbox": {
                   "x": 4,
                   "y": -19,
@@ -199,7 +199,7 @@
               },
               {
                 "frame": "diver/attack-2",
-                "ticks": 5,
+                "ticks": 3,
                 "hitbox": {
                   "x": 6,
                   "y": -13,

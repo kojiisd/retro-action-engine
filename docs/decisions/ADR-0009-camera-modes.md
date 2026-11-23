@@ -45,6 +45,7 @@ interface ScrollConfig {
   lerpShift: number;                   // 追従の強さ。差分 >> lerpShift を毎 tick 加える（整数、0 で即時）
   lockY: boolean;                      // 横スクロールのみ
   snapToTileRows: boolean;             // 縦の端数行を隠す等の用途
+  followY?: 'always' | 'grounded';     // 縦の追い方（M3-2 で追加。既定 always）
 }
 ```
 
@@ -66,3 +67,4 @@ interface ScrollConfig {
 | 日付 | 内容 |
 | --- | --- |
 | 2026-11-23（M3-1） | 部屋を移るときの演出と停止を `camera.json` の `roomTransition: { effect: 'fade' \| 'cut', lockTicks }` で決める（ADR-0018）。移っている間（`lockTicks`）、コアは入力を無視して止まる。`scroll` の効果は M3-2 で決める。画面切替（`screenFlip`）の越境は部屋の中の話で、部屋の移動とは別に M3-2 で扱う |
+| 2026-11-23（M3-2） | 実装に合わせて次を決めた（所有者の確認: サンプルパックはスクロール型で、横 5 × 縦 3 画面の大きな部屋にする。カメラは「少し遅れて追う」）。<br>・**状態**: `World.camera` は `x`、`y`（ビューの左上、部屋の px、整数）、画面切替の今の画面 `screenX`、`screenY`、画面切替のスクロール演出（`fromX`、`fromY`、`toX`、`toY`、`tick`、`ticks`）。hash は `roomId` の後（ADR-0002）<br>・**ビュー**: 大きさはプレイ領域（`display` − `hudReserve`）。`display` の無いパック（テスト用）はカメラが 0, 0 のまま<br>・**クランプ**: `0 ≤ x ≤ 部屋の幅 − ビューの幅`（縦も同じ）。部屋がビューより小さい向きは 0<br>・**追う点**: 体（当たり判定の箱）の中心の px（床関数）。scroll は横に `facing × lookahead.x`、縦に `lookahead.y` を足す<br>・**scroll**: 追う点がビューの中心から `deadzone` の半分を超えて離れたら、その分だけ目標を動かす。`followY: 'grounded'`（追加。既定は `'always'`）は、地上にいるときは縦の目標を追う点そのものにし（着地したら合わせる）、空中ではデッドゾーンを出たときだけ追う。`lockY` は縦を部屋に入ったときの位置に固定する。毎 tick `(目標 − 今)` を 2^`lerpShift` で割って 0 方向に切り捨てた量だけ動かす。切り捨てで 0 になっても差が残るときは 1 px 動かす（止まりきらずに残るずれを無くすため）。`snapToTileRows` はまだ実装しない（読み込み時に拒否する。少しずつ動くカメラの位置を切り下げると動けなくなるので、必要になったら描画だけで丸める方法を決める）<br>・**screenFlip**: 部屋をビューの大きさの画面に分け（端数の画面はクランプ）、追う点がいまの画面の境界を `triggerInsetPx` 以上越えたら隣の画面へ移る。`transition: 'cut'` はすぐ、`'scroll'` は `transitionTicks` かけて直線で動かす（整数の割り算は 0 方向に切り捨て）。`pauseSimulation: true` なら、その間は部屋の移動（ADR-0018）と同じく、シミュレーションを止めて入力を捨てる<br>・**部屋に入ったとき**（`createWorld` を含む）: カメラは目標に一度で合わせる（デッドゾーンも演出も無し）。描画は部屋が変わった tick のカメラを補間しない<br>・**活性化**: ビューの矩形を `activationMarginPx`（既定 0）広げた矩形と重なるものを活性とする判定を core に置く（使うのは M3-4 の敵とギミック）<br>・**描画**: `RenderSnapshot.camera` を prev と curr で補間して `Camera.setScroll` に渡す（補間 `none` では curr）。暗転の矩形はカメラに固定する（`setScrollFactor(0)`） |

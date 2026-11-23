@@ -30,6 +30,8 @@ export interface EngineStats {
   /** The room the party is in, and the phase of a room change in progress (ADR-0018). */
   readonly room: string;
   readonly transition: 'none' | 'out' | 'in';
+  /** The view's top-left in room px (ADR-0009). */
+  readonly camera: { readonly x: number; readonly y: number };
 }
 
 /** `window.__engine` (docs/input-and-feel.md 12). Only in dev and e2e builds. */
@@ -112,6 +114,7 @@ export function createEngineHooks({
       party: session.uiState.party,
       room: session.roomEntrance.roomId,
       transition: session.transitionState?.phase ?? 'none',
+      camera: session.camera,
     }),
 
     setFeelProfile(id) {

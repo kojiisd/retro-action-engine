@@ -4,6 +4,7 @@ export { type HudIcon, hudIcons } from './hud';
 export {
   type DrawSprite,
   type Interpolation,
+  interpolateCamera,
   interpolateColliders,
   interpolateHitboxes,
   interpolateSprites,

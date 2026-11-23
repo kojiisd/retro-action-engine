@@ -9,7 +9,12 @@ import type {
 import { describe, expect, it } from 'vitest';
 import { fadeAmount } from './fade';
 import { gaugeFill, HP_BAR, HUD_PAD, hudIcons, hudLayout } from './hud';
-import { interpolateColliders, interpolateHitboxes, interpolateSprites } from './interpolate';
+import {
+  interpolateCamera,
+  interpolateColliders,
+  interpolateHitboxes,
+  interpolateSprites,
+} from './interpolate';
 import { integerZoom } from './scaling';
 import { tileLayerPlans } from './tile-layers';
 
@@ -332,5 +337,31 @@ describe('fadeAmount (ADR-0018)', () => {
     expect(fadeAmount(view('in', 0, 6, 'cut'))).toBe(0);
     expect(fadeAmount(null)).toBe(0);
     expect(fadeAmount(view('in', 0, 0))).toBe(0);
+  });
+});
+
+describe('interpolateCamera (ADR-0009)', () => {
+  const at = (tick: number, room: string, x: number, y: number) => ({
+    ...snapshot(tick, []),
+    room,
+    camera: { x, y },
+  });
+
+  it('blends between ticks and floors to whole pixels', () => {
+    expect(interpolateCamera(at(1, 'r', 10, 40), at(2, 'r', 13, 36), 0.5, 'linear')).toEqual({
+      x: 11,
+      y: 38,
+    });
+    expect(interpolateCamera(at(1, 'r', 10, 40), at(2, 'r', 13, 36), 0.5, 'none')).toEqual({
+      x: 13,
+      y: 36,
+    });
+  });
+
+  it('does not blend across a room change', () => {
+    expect(interpolateCamera(at(1, 'a', 500, 0), at(2, 'b', 0, 0), 0.5, 'linear')).toEqual({
+      x: 0,
+      y: 0,
+    });
   });
 });

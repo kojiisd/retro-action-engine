@@ -181,6 +181,11 @@ export class GameSession {
     this.observer?.(this.world.tick, hashWorld(this.world));
   }
 
+  /** The view's top-left in room px after the last tick (ADR-0009). */
+  get camera(): { readonly x: number; readonly y: number } {
+    return { ...this.curr.camera };
+  }
+
   /** The room change after the last tick (ADR-0018); null when none. */
   get transitionState(): TransitionView | null {
     return this.transition;

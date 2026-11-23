@@ -65,6 +65,37 @@ export interface AnimationState {
   ticks: number;
 }
 
+/** The camera (ADR-0009): the view's top-left in room px, and the screen-flip state. */
+export interface CameraState {
+  x: number;
+  y: number;
+  /** screenFlip: the screen the view is on. */
+  screenX: number;
+  screenY: number;
+  /** screenFlip `scroll`: the move to the next screen; `ticks` is 0 when none. */
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  tick: number;
+  ticks: number;
+}
+
+export function newCamera(): CameraState {
+  return {
+    x: 0,
+    y: 0,
+    screenX: 0,
+    screenY: 0,
+    fromX: 0,
+    fromY: 0,
+    toX: 0,
+    toY: 0,
+    tick: 0,
+    ticks: 0,
+  };
+}
+
 /** A room change in progress (ADR-0018). `phase: 'none'` when there is none. */
 export interface TransitionState {
   phase: 'none' | 'out' | 'in';
@@ -101,6 +132,7 @@ export interface World {
   /** xorshift32 state, a non-zero uint32. Only `fx/rng` touches it. */
   rng: number;
   roomId: string;
+  camera: CameraState;
   party: PartyState;
   controller: ControllerState;
   animation: AnimationState;
@@ -140,6 +172,7 @@ export function newWorld(init: WorldInit): World {
     tick: 0,
     rng: seedRng(init.seed),
     roomId: init.roomId,
+    camera: newCamera(),
     party: {
       members: [],
       activeIndex: 0,
@@ -167,6 +200,7 @@ export function cloneWorld(world: World): World {
     tick: world.tick,
     rng: world.rng,
     roomId: world.roomId,
+    camera: { ...world.camera },
     party: { ...world.party, members: [...world.party.members], hp: [...world.party.hp] },
     controller: { ...world.controller },
     animation: { ...world.animation },

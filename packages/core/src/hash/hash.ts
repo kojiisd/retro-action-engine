@@ -60,7 +60,7 @@ const FLAG_NUMBER = 0;
 const FLAG_BOOLEAN = 1;
 
 /**
- * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, party (with hp and the
+ * Deterministic hash of the World. Order (ADR-0002): tick, rng, roomId, camera, party (with hp and the
  * hazard state last, ADR-0016), controller,
  * animation, transition and the closed exits (ADR-0018), flags
  * (keys sorted by UTF-16 code units), entities (live ones in ascending id order, columns in
@@ -70,6 +70,18 @@ const FLAG_BOOLEAN = 1;
 export function hashWorld(world: World): WorldHash {
   const h = new Hasher();
   h.int32(world.tick).int32(world.rng).string(world.roomId);
+  // ADR-0009 (M3-2): the camera.
+  const cam = world.camera;
+  h.int32(cam.x)
+    .int32(cam.y)
+    .int32(cam.screenX)
+    .int32(cam.screenY)
+    .int32(cam.fromX)
+    .int32(cam.fromY)
+    .int32(cam.toX)
+    .int32(cam.toY)
+    .int32(cam.tick)
+    .int32(cam.ticks);
 
   const p = world.party;
   h.int32(p.members.length);

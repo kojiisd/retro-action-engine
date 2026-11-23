@@ -1,5 +1,6 @@
 import type {
   AssetManifest,
+  CameraDef,
   CharacterDef,
   FeelProfile,
   PackRuntime,
@@ -450,6 +451,28 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
       ...(rules.hazards === undefined ? {} : { hazards: rules.hazards }),
     },
     ...(camera?.roomTransition === undefined ? {} : { roomTransition: camera.roomTransition }),
+    ...(camera === undefined ? {} : { camera: cameraDef(camera) }),
   };
   return { runtime, warnings: issues.warnings };
+}
+
+/** `camera.json` as core reads it (ADR-0009): defaults filled in. */
+function cameraDef(camera: z.infer<typeof cameraSchema>): CameraDef {
+  const { scroll, screenFlip } = camera;
+  return {
+    mode: camera.mode,
+    activationMarginPx: camera.activationMarginPx ?? 0,
+    ...(scroll === undefined
+      ? {}
+      : {
+          scroll: {
+            deadzone: scroll.deadzone,
+            lookahead: scroll.lookahead,
+            lerpShift: scroll.lerpShift,
+            lockY: scroll.lockY,
+            followY: scroll.followY ?? 'always',
+          },
+        }),
+    ...(screenFlip === undefined ? {} : { screenFlip }),
+  };
 }

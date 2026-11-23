@@ -446,7 +446,16 @@ describe('loadPack: exits (ADR-0018)', () => {
         exit(32, 16, 16, 32, to('door', [prop('effect', 'cut')])),
         exit(48, 16, 16, 32, to('warp', [prop('requiresAnyTag', 'move:swim, size:small')])),
       ],
-      { mode: 'screenFlip', roomTransition: { effect: 'fade', lockTicks: 12 } },
+      {
+        mode: 'screenFlip',
+        screenFlip: {
+          transition: 'cut',
+          transitionTicks: 0,
+          pauseSimulation: false,
+          triggerInsetPx: 0,
+        },
+        roomTransition: { effect: 'fade', lockTicks: 12 },
+      },
     );
     const { runtime } = await loadPack(memoryFetch(files), BASE);
     expect(runtime.rooms.start?.exits).toEqual([
@@ -521,6 +530,44 @@ describe('loadPack: exits (ADR-0018)', () => {
     expect(await issuesOf(files)).toEqual([
       'rooms/start.tmj#/layers/3/objects/0/properties/toRoomId: room "nowhere" is not defined',
       'rooms/start.tmj#/layers/3/objects/1/properties/spawnId: spawn "nope" is not in room "side"',
+    ]);
+  });
+});
+
+describe('loadPack: camera (ADR-0009)', () => {
+  function withCamera(camera: Json): Files {
+    const files = packFiles();
+    (files['pack.json'] as Json).files.camera = 'data/camera.json';
+    files['data/camera.json'] = camera;
+    return files;
+  }
+  const scroll = {
+    deadzone: { w: 32, h: 48 },
+    lookahead: { x: 24, y: 0 },
+    lerpShift: 3,
+    lockY: false,
+  };
+
+  it('reads a scroll camera, with the defaults filled in', async () => {
+    const { runtime } = await loadPack(memoryFetch(withCamera({ mode: 'scroll', scroll })), BASE);
+    expect(runtime.camera).toEqual({
+      mode: 'scroll',
+      activationMarginPx: 0,
+      scroll: { ...scroll, followY: 'always' },
+    });
+  });
+
+  it('rejects a mode without its settings, and snapToTileRows', async () => {
+    expect(await issuesOf(withCamera({ mode: 'scroll' }))).toEqual([
+      'data/camera.json#/scroll: mode "scroll" needs "scroll"',
+    ]);
+    expect(await issuesOf(withCamera({ mode: 'screenFlip' }))).toEqual([
+      'data/camera.json#/screenFlip: mode "screenFlip" needs "screenFlip"',
+    ]);
+    expect(
+      await issuesOf(withCamera({ mode: 'scroll', scroll: { ...scroll, snapToTileRows: true } })),
+    ).toEqual([
+      'data/camera.json#/scroll/snapToTileRows: snapToTileRows is not supported yet (ADR-0009)',
     ]);
   });
 });

@@ -143,7 +143,7 @@ sequenceDiagram
 | 9 | `timers` | 無敵時間、アニメーションフレーム、cooldown の減算 |
 | 10 | `output` | `RenderSnapshot`、`AudioCue[]`、`UiState`、`TransitionView` を生成 |
 
-部屋の移動中（`World.transition` の段階が `out` か `in`、ADR-0018）は、1〜9 を行わずに段階の tick を進め、`output` だけを行う。消える段階が終わった tick に部屋を移る。
+部屋の移動中（`World.transition` の段階が `out` か `in`、ADR-0018）は、1〜9 を行わずに段階の tick を進め、`output` だけを行う。消える段階が終わった tick に部屋を移る。画面切替のスクロール演出で `pauseSimulation` のときも同じく、カメラの演出だけを進める（M3-2、ADR-0009 の改訂履歴）。
 
 ## 5. コアの内部モジュール（`packages/core/src/`）
 
@@ -240,7 +240,7 @@ export interface World {
   tick: number;
   rng: number;               // xorshift32 の状態
   roomId: string;
-  camera: CameraState;
+  camera: CameraState;       // ビューの左上（整数 px）と画面切替の状態（M3-2、ADR-0009）
   party: PartyState;         // members, activeIndex, cooldownTicks, perCharacter HP など
   controller: ControllerState;
   animation: AnimationState; // 操作中キャラクターのスプライトの name, frame, ticks（M1-5）
@@ -282,7 +282,7 @@ export interface StepOutput {
 export interface RenderSnapshot {
   tick: number;
   room: string;                     // 部屋 ID（M3-1。変わったら描画はタイルを作り直す）
-  camera: { x: number; y: number }; // px（床関数済み）
+  camera: { x: number; y: number }; // ビューの左上の px（M3-2。World.camera の値）
   sprites: RenderSprite[];          // id 昇順
 }
 

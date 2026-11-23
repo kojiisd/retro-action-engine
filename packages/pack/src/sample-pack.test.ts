@@ -69,7 +69,7 @@ describe('packs/sample', () => {
     expect(warnings).toEqual([]);
     expect(runtime.id).toBe('sample');
     expect(runtime.entry).toEqual({ roomId: 'hub', spawnId: 'start' });
-    expect(Object.keys(runtime.rooms)).toEqual(['hub', 'hall', 'cellar']);
+    expect(Object.keys(runtime.rooms)).toEqual(['hub', 'cellar']);
     expect(runtime.rules.party.members).toEqual(['explorer', 'diver']);
     expect(Object.keys(runtime.feel)).toEqual(['retro', 'modern']);
   });
@@ -79,14 +79,18 @@ describe('packs/sample', () => {
     const playHeight = display.height - display.hudReserve.top - display.hudReserve.bottom;
     expect(display.width % tileSize).toBe(0);
     expect(playHeight % tileSize).toBe(0);
-    // One screen per room until the camera moves (M3-2).
+    // Rooms are whole screens; the hub is 5 x 3 of them and scrolls (M3-2, owner's decision).
+    const screen = { w: display.width / tileSize, h: playHeight / tileSize };
     for (const room of Object.values(runtime.rooms)) {
-      expect(room.widthTiles).toBe(display.width / tileSize);
-      expect(room.heightTiles).toBe(playHeight / tileSize);
+      expect(room.widthTiles % screen.w).toBe(0);
+      expect(room.heightTiles % screen.h).toBe(0);
     }
+    expect(runtime.rooms.hub?.widthTiles).toBe(screen.w * 5);
+    expect(runtime.rooms.hub?.heightTiles).toBe(screen.h * 3);
+    expect(runtime.camera?.mode).toBe('scroll');
   });
 
-  it('goes round the rooms: an edge, a door, then a warp back (ADR-0018)', () => {
+  it('goes round the rooms: a door down, then a warp back (ADR-0018)', () => {
     const entry = runtime.entry as { roomId: string; spawnId: string };
     const world = createWorld(runtime, {
       ...entry,
@@ -101,34 +105,51 @@ describe('packs/sample', () => {
     // Each leg: walk to the room's way on (up on a door), then wait out the change.
     const visited: string[] = [world.roomId];
     const kinds: string[] = [];
-    for (let leg = 0; leg < 3; leg++) {
+    for (let leg = 0; leg < 2; leg++) {
       const room = runtime.rooms[world.roomId];
       const exit = room?.exits?.find((e) => e.kind !== 'edge' || e.rect.x > 0);
       if (exit === undefined) throw new Error(`no way on from ${world.roomId}`);
       const center = exit.rect.x + (exit.rect.w >> 1);
-      for (let i = 0; i < 1200 && world.transition.phase === 'none'; i++) {
+      // Walk there; where a step stops the body on the ground, back off and take a run-up (the
+      // retro profile cannot steer in the air).
+      let backOff = 0;
+      let runUp = 0;
+      let still = 0;
+      let lastX = x();
+      for (let i = 0; i < 3000 && world.transition.phase === 'none'; i++) {
         const dir =
           x() < center - fromPx(2) ? 'right' : x() > center + fromPx(2) ? 'left' : undefined;
-        if (dir !== undefined) {
-          // Walk there, hopping over steps.
-          const hop = i % 30 < 20;
+        if (dir === undefined) {
+          // On a door: settle, then up.
+          tick(script().wait(30).tap('up', { at: 0 }).build(1));
+          continue;
+        }
+        const back = dir === 'right' ? 'left' : 'right';
+        if (backOff > 0) {
+          backOff--;
+          tick(script().hold(back, 1).build(1));
+          if (backOff === 0) runUp = 30;
+        } else if (runUp > 0) {
+          runUp--;
           tick(
             script()
-              .hold(hop ? [dir, 'jump'] : dir, 1)
+              .hold(runUp < 22 ? [dir, 'jump'] : dir, 1)
               .build(1),
           );
         } else {
-          // On a door: settle, then up.
-          tick(script().wait(30).tap('up', { at: 0 }).build(1));
+          tick(script().hold(dir, 1).build(1));
+          still = x() === lastX ? still + 1 : 0;
+          if (still >= 3) backOff = 12;
         }
+        lastX = x();
       }
       kinds.push(world.transition.kind);
       tick(script().build(runtime.roomTransition?.lockTicks ?? 0));
       expect(world.transition.phase).toBe('none');
       visited.push(world.roomId);
     }
-    expect(kinds).toEqual(['edge', 'door', 'warp']);
-    expect(visited).toEqual(['hub', 'hall', 'cellar', 'hub']);
+    expect(kinds).toEqual(['door', 'warp']);
+    expect(visited).toEqual(['hub', 'cellar', 'hub']);
   });
 
   it('holds data only: no code files (issue #3)', () => {
@@ -150,13 +171,18 @@ describe('packs/sample', () => {
   });
 
   it('lets everyone into the water, and drains the swimmer slower (ADR-0016)', () => {
-    // The water is the only tile class with a hazard in the hub; find its columns from the data.
+    // The water is the only tile class with a hazard in the hub; find the first pool on the way
+    // right from the start (the one nearest the left wall) from the data.
     const hub = runtime.rooms.hub;
     if (hub === undefined) throw new Error('no hub');
     const waterClass = hub.tileClasses.find((c) => c.hazard !== undefined);
     if (waterClass === undefined) throw new Error('no water tile class');
     expect(waterClass).toMatchObject({ solid: 'none', medium: waterClass.hazard });
-    const cells = [...hub.collision.keys()].filter((i) => hub.collision[i] === waterClass.id);
+    const allCells = [...hub.collision.keys()].filter((i) => hub.collision[i] === waterClass.id);
+    const firstCol = Math.min(...allCells.map((i) => i % hub.widthTiles));
+    const poolCols = new Set<number>();
+    for (let c = firstCol; allCells.some((i) => i % hub.widthTiles === c); c++) poolCols.add(c);
+    const cells = allCells.filter((i) => poolCols.has(i % hub.widthTiles));
     const cols = cells.map((i) => i % hub.widthTiles);
     const waterRight = fromPx((Math.max(...cols) + 1) * runtime.tileSize);
     // Both get through now.

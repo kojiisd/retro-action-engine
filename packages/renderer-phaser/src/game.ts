@@ -5,6 +5,7 @@ import { fadeAmount } from './fade';
 import { HUD_PAD, hudIcons, hudLayout } from './hud';
 import {
   type Interpolation,
+  interpolateCamera,
   interpolateColliders,
   interpolateHitboxes,
   interpolateSprites,
@@ -101,6 +102,7 @@ class GameScene extends Phaser.Scene {
       .rectangle(0, 0, display.width, playHeight, FADE_COLOR, 1)
       .setOrigin(0, 0)
       .setDepth(FADE_DEPTH)
+      .setScrollFactor(0)
       .setAlpha(0);
     this.hudCamera?.ignore(this.fade);
     if (this.hudCamera !== undefined) {
@@ -133,6 +135,13 @@ class GameScene extends Phaser.Scene {
   override update(_time: number, delta: number): void {
     const view = this.options.frame(delta);
     if (view.curr.room !== this.roomId) this.showRoom(view.curr.room);
+    const camera = interpolateCamera(
+      view.prev,
+      view.curr,
+      view.alpha,
+      this.options.interpolation(),
+    );
+    this.cameras.main.setScroll(camera.x, camera.y);
     this.fade?.setAlpha(fadeAmount(view.transition));
     this.drawSprites(view);
     this.drawColliders(view);

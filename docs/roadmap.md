@@ -73,7 +73,7 @@ M1 完了時の状態: 1 画面で、2 人パーティの切替、移動、ジ�
 | サブステップ | 内容 | 受け入れ条件 |
 | --- | --- | --- |
 | M3-1 | 複数部屋、`exits`（edge / door / warp）、部屋遷移、`transitionLockTicks`。設計は ADR-0018 | 部屋遷移を含むリプレイの Determinism (a)(b)(c)。遷移中は入力が無視される scenario |
-| M3-2 | カメラ 2 モード（screenFlip / scroll）、活性化判定 | カメラ scenario を 2 モード × 2 解像度。端数スクリーンのクランプ |
+| M3-2 | カメラ 2 モード（screenFlip / scroll）、活性化判定。サンプルパックは横 5 × 縦 3 画面の部屋をスクロール（所有者の判断、2026-11-23。ADR-0009 の改訂履歴） | カメラ scenario を 2 モード × 2 解像度。端数スクリーンのクランプ |
 | M3-2b | 梯子、`climb` 状態（M5-2 を前倒し。所有者の判断、2026-11-23）。部屋の上端の出口へ梯子で上がれる | 梯子の昇降と上端の oneway scenario。梯子で上端の出口から上の部屋へ移るリプレイ |
 | M3-3 | フラグ、イベント（トリガ / Condition / Action）、アイテムと `grants`、ゲートギミック | 「タグ無しで通れない → アイテム取得で通れる」「スイッチでフラグ → 扉が開く」の scenario。`gating.subject` の 2 値 |
 | M3-4 | 敵の宣言的振る舞い（全 Primitive / Condition）、hit / hurt、ダメージ、無敵、ノックバック、ドロップ | 各 Primitive の Unit、`walker` の scenario、被弾からの復帰 |

@@ -109,6 +109,36 @@ export interface ExitDef {
   readonly requiresAnyTag?: readonly string[];
 }
 
+/** Scroll camera (ADR-0009). Values in px. */
+export interface ScrollCameraDef {
+  readonly deadzone: { readonly w: number; readonly h: number };
+  readonly lookahead: { readonly x: number; readonly y: number };
+  /** Each tick the camera moves by (target - now) / 2^lerpShift, toward zero; 0 is at once. */
+  readonly lerpShift: number;
+  readonly lockY: boolean;
+  /** `grounded`: vertical follows on the ground only, and in the air out of the deadzone. */
+  readonly followY: 'always' | 'grounded';
+}
+
+/** Screen-by-screen camera (ADR-0009). */
+export interface ScreenFlipCameraDef {
+  readonly transition: 'cut' | 'scroll';
+  readonly transitionTicks: number;
+  /** Stop the simulation (and drop the input) while the camera scrolls to the next screen. */
+  readonly pauseSimulation: boolean;
+  /** How far past a screen's edge (px) the followed point goes before the screen changes. */
+  readonly triggerInsetPx: number;
+}
+
+/** `camera.json` (ADR-0009). */
+export interface CameraDef {
+  readonly mode: 'scroll' | 'screenFlip';
+  readonly scroll?: ScrollCameraDef;
+  readonly screenFlip?: ScreenFlipCameraDef;
+  /** Margin around the view within which enemies and gimmicks are active (M3-4). */
+  readonly activationMarginPx: number;
+}
+
 /** How rooms change (ADR-0018): `camera.json`'s `roomTransition`. */
 export interface RoomTransitionDef {
   readonly effect: 'cut' | 'fade';
@@ -141,7 +171,7 @@ export interface AssetManifest {
   >;
 }
 
-/** Screen layout (docs/pack-spec.md 3). Core never reads it. */
+/** Screen layout (docs/pack-spec.md 3). Core reads only the play area, for the camera (M3-2). */
 export interface DisplayDef {
   readonly width: number;
   readonly height: number;
@@ -169,6 +199,8 @@ export interface PackRuntime {
   readonly rules: RulesDef;
   /** Room changes (ADR-0018). Without it: `cut` with no stop. */
   readonly roomTransition?: RoomTransitionDef;
+  /** The camera (ADR-0009). Without it, or without `display`, the view stays at 0, 0. */
+  readonly camera?: CameraDef;
 }
 
 export interface StartState {

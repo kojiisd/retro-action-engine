@@ -89,3 +89,20 @@ export function interpolateHitboxes(
     return { ...hit, x: hit.x + a.x - b.x, y: hit.y + a.y - b.y };
   });
 }
+
+/**
+ * Where the view is this display frame (ADR-0009): blended like the sprites, floored to whole
+ * pixels. Not blended across a room change (the new room's camera is where it is).
+ */
+export function interpolateCamera(
+  prev: RenderSnapshot,
+  curr: RenderSnapshot,
+  alpha: number,
+  mode: Interpolation,
+): { x: number; y: number } {
+  if (mode !== 'linear' || prev.room !== curr.room) return { ...curr.camera };
+  return {
+    x: Math.floor(prev.camera.x + (curr.camera.x - prev.camera.x) * alpha),
+    y: Math.floor(prev.camera.y + (curr.camera.y - prev.camera.y) * alpha),
+  };
+}

@@ -10,8 +10,8 @@ import {
  * The representative replay of the sample pack (ADR-0012 Golden, Determinism (c)): walk, jump
  * onto a one-way floor, drop through it, switch to the swimmer, swing the sword on the ground
  * (ADR-0017), cross the water column, jumping over the step on the way and swinging once in
- * the air, and go on through the east edge into the next room (ADR-0018). The same inputs are
- * played with each feel profile.
+ * the air, and go on along the floor of the large room, the view scrolling after the party
+ * (ADR-0009). The same inputs are played with each feel profile.
  */
 export function representativeInputs() {
   const s = script()

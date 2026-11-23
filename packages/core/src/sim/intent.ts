@@ -9,6 +9,8 @@ export interface Intent {
   readonly jumpPressed: boolean;
   readonly jumpHeld: boolean;
   readonly downHeld: boolean;
+  /** `up` held without `down` (ladders, ADR-0019). */
+  readonly upHeld: boolean;
   readonly switchRequested: boolean;
   /** `attack` pressed this tick (no buffer; ADR-0017). */
   readonly attackPressed: boolean;
@@ -48,6 +50,7 @@ export function inputIntent(world: World, frame: InputFrame, feel: FeelProfile):
     jumpPressed,
     jumpHeld: isHeld(frame, 'jump'),
     downHeld: isHeld(frame, 'down') && !isHeld(frame, 'up'),
+    upHeld: isHeld(frame, 'up') && !isHeld(frame, 'down'),
     switchRequested: isPressed(frame, 'switch'),
     attackPressed: isPressed(frame, 'attack'),
     upPressed: isPressed(frame, 'up'),

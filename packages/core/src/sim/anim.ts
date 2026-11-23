@@ -6,9 +6,10 @@ import type { World } from '../world/world';
  * The animation for the movement state of the party entity. These four names are the fixed set
  * core refers to (docs/pack-spec.md 4.1); a sprite without one of them shows `idle` instead.
  */
-export function movementAnimation(world: World): 'idle' | 'run' | 'jump' | 'fall' {
+export function movementAnimation(world: World): 'idle' | 'run' | 'jump' | 'fall' | 'climb' {
   const s = world.entities;
   const slot = s.slotOf(world.party.entityId);
+  if (world.controller.climbing) return 'climb';
   if (((s.contact[slot] as number) & CONTACT_GROUNDED) !== 0) {
     return (s.vx[slot] as number) !== 0 ? 'run' : 'idle';
   }
@@ -68,6 +69,13 @@ export function animationStep(world: World, character: CharacterDef): void {
     anim.name = name;
     anim.frame = 0;
     anim.ticks = 0;
+    return;
+  }
+  // On a ladder the frames move only while the body does (ADR-0019).
+  if (
+    name === 'climb' &&
+    (world.entities.vy[world.entities.slotOf(world.party.entityId)] as number) === 0
+  ) {
     return;
   }
   anim.ticks++;

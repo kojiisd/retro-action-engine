@@ -275,9 +275,11 @@ interface FeelMotion {
   knockback: { x: number; y: number }; // px/tick
   hitstunTicks: number;
   invincibleTicks: number;
-  // 坂と梯子（M5）
+  // 坂（M5）
   slopeSnapPx: number;
-  climbSpeed: number;            // px/tick
+  // はしご（M3-2b、ADR-0019）。climbSpeed が無いプロファイルでははしごにつかめない
+  climbSpeed?: number;           // px/tick
+  climbJumpVelocity?: number;    // px/tick。はしごから跳んで離れるとき。無ければ 0
 }
 ```
 
@@ -316,7 +318,8 @@ interface FeelMotion {
 | `interpolation` | — | none | linear | |
 | `socd` | — | neutral | lastWins | |
 | `slopeSnapPx`（M5） | px | 4 | 4 | |
-| `climbSpeed`（M5） | px/tick | 1.0 | 1.0 | |
+| `climbSpeed`（M3-2b） | px/tick | 1.0 | 1.0 | はしごの昇り降り |
+| `climbJumpVelocity`（M3-2b） | px/tick | 2.0 | 2.0 | はしごから跳んで離れる |
 
 例値はサンプルパックの出発点であり、調整して構わない。Feel scenario テストは固定値ではなくプロファイルから期待値を導出する。
 
@@ -337,9 +340,11 @@ interface FeelMotion {
 | 状態 | 遷移先 | 条件 |
 | --- | --- | --- |
 | `grounded` | `airborne` | ジャンプ、足場を失う（コヨーテ開始） |
-| `grounded` | `climb` | 梯子タイル上で `up/down`（M5） |
+| `grounded` | `climb` | はしごに重なって `up`、はしごの最上段に立って `down`（M3-2b、ADR-0019） |
 | `airborne` | `grounded` | 下向き衝突（`landingLagTicks` を開始） |
-| `airborne` | `climb` | 梯子タイル上で `up`（M5） |
+| `airborne` | `climb` | はしごに重なって `up`（M3-2b） |
+| `climb` | `airborne` | ジャンプ（`climbJumpVelocity` で跳ぶ）、はしごの下端から抜ける |
+| `climb` | `grounded` | 昇りきって最上段の上に立つ、降りて床に着く |
 | 任意 | `hitstun` | 被弾（無敵中は除く） |
 | `hitstun` | `airborne` / `grounded` | `hitstunTicks` 経過 |
 | 任意 | `dead` | HP 0 |

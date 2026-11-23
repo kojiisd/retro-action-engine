@@ -219,6 +219,55 @@ describe('packs/sample', () => {
     );
   });
 
+  it('climbs both ladders from the middle shelf up to the top shelf (ADR-0019)', () => {
+    const hub = runtime.rooms.hub;
+    if (hub === undefined) throw new Error('no hub');
+    const T = runtime.tileSize;
+    const W = hub.widthTiles;
+    const ladderIds = new Set(hub.tileClasses.filter((c) => c.ladder === true).map((c) => c.id));
+    const isLadder = (col: number, row: number) =>
+      row >= 0 && ladderIds.has(hub.collision[row * W + col] as number);
+    // Each ladder from the data: its top rung, and the floor under its last tile.
+    const ladders: Array<{ col: number; top: number; floor: number }> = [];
+    for (let i = 0; i < hub.collision.length; i++) {
+      const col = i % W;
+      const row = Math.floor(i / W);
+      if (!isLadder(col, row) || isLadder(col, row - 1)) continue;
+      let floor = row;
+      while (isLadder(col, floor)) floor++;
+      ladders.push({ col, top: row, floor });
+    }
+    expect(ladders).toHaveLength(2);
+    for (const profile of Object.keys(runtime.feel)) {
+      for (const member of runtime.rules.party.members) {
+        for (const ladder of ladders) {
+          const entry = runtime.entry as { roomId: string; spawnId: string };
+          const world = createWorld(runtime, {
+            ...entry,
+            party: [member],
+            seed: 1,
+            feelProfile: profile,
+          });
+          const slot = world.entities.slotOf(world.party.entityId);
+          // Stand on the floor at the foot of the ladder, a little off its center.
+          world.entities.x[slot] = fromPx(ladder.col * T + 5);
+          world.entities.y[slot] = fromPx(ladder.floor * T);
+          for (const frame of script().build(10)) step(world, frame, runtime);
+          const rise = (ladder.floor - ladder.top) * T;
+          const speed = runtime.feel[profile]?.climbSpeed as number;
+          const ticks = Math.ceil(fromPx(rise) / speed) + 10;
+          for (const frame of script().hold('up', ticks).build(ticks)) step(world, frame, runtime);
+          // Standing on the top rung, level with the top shelf, and walking off onto it.
+          expect(world.controller.climbing).toBe(false);
+          expect(world.entities.y[slot]).toBe(fromPx(ladder.top * T));
+          for (const frame of script().hold('right', 30).build(30)) step(world, frame, runtime);
+          expect(world.entities.y[slot]).toBe(fromPx(ladder.top * T));
+          expect(world.entities.x[slot]).toBeGreaterThan(fromPx((ladder.col + 1) * T));
+        }
+      }
+    }
+  });
+
   it('lets both characters swing, with a hitbox on the slash frames (ADR-0017)', () => {
     const entry = runtime.entry as { roomId: string; spawnId: string };
     for (const member of runtime.rules.party.members) {

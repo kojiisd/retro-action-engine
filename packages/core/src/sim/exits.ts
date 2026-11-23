@@ -4,6 +4,7 @@ import type { ExitDef, PackRuntime } from '../runtime/pack';
 import { NEVER, noTransition, type World } from '../world/world';
 import { snapCamera } from './camera';
 import type { Intent } from './intent';
+import { climbOnEnter } from './ladder';
 import { activeCharacter } from './party';
 import { effectiveTags } from './tags';
 
@@ -74,6 +75,7 @@ export function enterRoom(
   party.hazardTicks = 0;
   world.controller.attackUntilTick = NEVER;
   world.controller.dropThroughUntilTick = NEVER;
+  climbOnEnter(world, gridOf(runtime, roomId), runtime.tileSize);
   // What the body stands on there, without moving it.
   s.contact[slot] = moveBody(
     gridOf(runtime, roomId),

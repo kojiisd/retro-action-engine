@@ -116,6 +116,9 @@ export const feelSchema = z.object({
         .optional(),
       // While attacking on the ground (ADR-0017). Absent is `stop`.
       attackOnGround: z.enum(['stop', 'move']).optional(),
+      // Ladders (ADR-0019). Without `climbSpeed` the profile cannot hold on to a ladder.
+      climbSpeed: px.positive().optional(),
+      climbJumpVelocity: px.nonnegative().optional(),
     }),
   ),
 });

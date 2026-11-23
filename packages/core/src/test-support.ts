@@ -7,13 +7,14 @@ import type { CharacterDef, PackRuntime, PartyRules, RoomData } from './runtime/
 import type { TileClass } from './runtime/tile';
 
 /** Tile class ids used by `buildRoom`. */
-export const TILE = { empty: 0, full: 1, oneway: 2, water: 3 } as const;
+export const TILE = { empty: 0, full: 1, oneway: 2, water: 3, ladder: 4 } as const;
 
 export const TEST_TILE_CLASSES: readonly TileClass[] = [
   { id: TILE.empty, solid: 'none' },
   { id: TILE.full, solid: 'full' },
   { id: TILE.oneway, solid: 'oneway' },
   { id: TILE.water, solid: 'full', requiresAnyTag: ['move:swim'] },
+  { id: TILE.ladder, solid: 'none', ladder: true },
 ];
 
 const LEGEND: Record<string, number> = {
@@ -21,11 +22,12 @@ const LEGEND: Record<string, number> = {
   '#': TILE.full,
   '=': TILE.oneway,
   '~': TILE.water,
+  H: TILE.ladder,
 };
 
 /**
  * Builds a collision grid from rows of characters:
- * `.` empty, `#` full, `=` oneway, `~` full unless the entity has `move:swim`.
+ * `.` empty, `#` full, `=` oneway, `~` full unless the entity has `move:swim`, `H` ladder.
  */
 export function buildRoom(rows: readonly string[], tileSize = 16): CollisionGrid {
   const heightTiles = rows.length;

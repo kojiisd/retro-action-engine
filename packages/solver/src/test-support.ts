@@ -27,7 +27,7 @@ import {
 import type { Foothold, FootholdReport, ScopeReport, SolveReport } from './types';
 
 export interface RoomFixture {
-  /** `.` empty, `#` full, `=` oneway, `~` full unless the character has `move:swim`. */
+  /** `.` empty, `#` full, `=` oneway, `~` full unless the character has `move:swim`, `H` ladder. */
   readonly rows: readonly string[];
   readonly tileSize: number;
   /** Spawn tile: the character starts with its feet on the bottom edge of this tile. */

@@ -57,6 +57,8 @@ export function convertProfile(
     readonly interpolation: FeelProfile['interpolation'];
     readonly socd: FeelProfile['socd'];
     readonly attackOnGround?: 'stop' | 'move' | undefined;
+    readonly climbSpeed?: number | undefined;
+    readonly climbJumpVelocity?: number | undefined;
     readonly media?:
       | Record<string, Partial<Record<keyof FeelMotion, number>> & { swim?: boolean | undefined }>
       | undefined;
@@ -77,5 +79,9 @@ export function convertProfile(
     ...(convertMotion(profile) as FeelMotion),
     ...(profile.media === undefined ? {} : { media }),
     ...(profile.attackOnGround === undefined ? {} : { attackOnGround: profile.attackOnGround }),
+    ...(profile.climbSpeed === undefined ? {} : { climbSpeed: toFx(profile.climbSpeed) }),
+    ...(profile.climbJumpVelocity === undefined
+      ? {}
+      : { climbJumpVelocity: toFx(profile.climbJumpVelocity) }),
   };
 }

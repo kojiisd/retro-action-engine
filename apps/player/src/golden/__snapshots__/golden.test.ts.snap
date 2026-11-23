@@ -3,8 +3,8 @@
 exports[`golden: sample pack representative replay > modern: the end hash is unchanged 1`] = `
 {
   "hash": [
-    3313742916,
-    962625932,
+    3478373926,
+    901823774,
   ],
   "tick": 507,
 }
@@ -13,8 +13,8 @@ exports[`golden: sample pack representative replay > modern: the end hash is unc
 exports[`golden: sample pack representative replay > retro: the end hash is unchanged 1`] = `
 {
   "hash": [
-    4154317946,
-    2481052546,
+    2839983458,
+    1607340154,
   ],
   "tick": 507,
 }

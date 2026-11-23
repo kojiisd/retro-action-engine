@@ -87,6 +87,7 @@ describe('window.__engine hooks', () => {
       party: session.uiState.party,
       room: start.roomId,
       transition: 'none',
+      camera: session.camera,
     });
     expect(() => hooks.setFeelProfile('turbo')).toThrow(/not in the pack/);
   });

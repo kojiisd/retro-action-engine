@@ -14,9 +14,9 @@ import {
 import type { ReplayResult } from '../src/engine-hooks';
 import { loadSamplePack } from '../src/test-support';
 
-// Rooms in the browser (M3-1, ADR-0018): a replay that goes round the sample pack's rooms (an
-// edge, a door, then a warp back) gives the same hash every tick as Node, and live keys take the
-// party through the east edge.
+// Rooms and the camera in the browser (M3-1, M3-2): a replay that goes round the sample pack's
+// rooms (a door down at the far end of the large room, then a warp back) gives the same hash every
+// tick as Node, and live keys make the view scroll after the party.
 
 async function open(page: Page): Promise<string[]> {
   const errors: string[] = [];
@@ -31,8 +31,8 @@ async function open(page: Page): Promise<string[]> {
 }
 
 /**
- * Records a run round the rooms in Node: walk to the next exit of each room (hopping over steps),
- * press up on a door, and wait out each change. Returns the replay and the rooms on the way.
+ * Records a run round the rooms in Node: walk to the exit of each room, press up on a door, and
+ * wait out each change. Returns the replay and the rooms on the way.
  */
 function roundTrip(runtime: PackRuntime): { file: ReplayFile; rooms: string[] } {
   const entry = runtime.entry as { roomId: string; spawnId: string };
@@ -46,21 +46,43 @@ function roundTrip(runtime: PackRuntime): { file: ReplayFile; rooms: string[] } 
       step(world, frame, runtime);
     }
   };
+  const x = () => world.entities.x[slot] as number;
   const rooms = [world.roomId];
-  for (let leg = 0; leg < 3; leg++) {
-    const exit = runtime.rooms[world.roomId]?.exits?.find((e) => e.kind !== 'edge' || e.rect.x > 0);
+  for (let leg = 0; leg < 2; leg++) {
+    const exit = runtime.rooms[world.roomId]?.exits?.[0];
     if (exit === undefined) throw new Error(`no way on from ${world.roomId}`);
     const center = exit.rect.x + (exit.rect.w >> 1);
-    for (let i = 0; i < 1200 && world.transition.phase === 'none'; i++) {
-      const x = world.entities.x[slot] as number;
-      const dir = x < center - fromPx(2) ? 'right' : x > center + fromPx(2) ? 'left' : undefined;
-      if (dir === undefined) play(script().wait(30).tap('up', { at: 0 }).build(1));
-      else
+    // Where a step stops the body on the ground, back off and take a run-up (the retro profile
+    // cannot steer in the air).
+    let backOff = 0;
+    let runUp = 0;
+    let still = 0;
+    let lastX = x();
+    for (let i = 0; i < 3000 && world.transition.phase === 'none'; i++) {
+      const dir =
+        x() < center - fromPx(2) ? 'right' : x() > center + fromPx(2) ? 'left' : undefined;
+      if (dir === undefined) {
+        play(script().wait(30).tap('up', { at: 0 }).build(1));
+        continue;
+      }
+      const back = dir === 'right' ? 'left' : 'right';
+      if (backOff > 0) {
+        backOff--;
+        play(script().hold(back, 1).build(1));
+        if (backOff === 0) runUp = 30;
+      } else if (runUp > 0) {
+        runUp--;
         play(
           script()
-            .hold(i % 30 < 20 ? [dir, 'jump'] : dir, 1)
+            .hold(runUp < 22 ? [dir, 'jump'] : dir, 1)
             .build(1),
         );
+      } else {
+        play(script().hold(dir, 1).build(1));
+        still = x() === lastX ? still + 1 : 0;
+        if (still >= 3) backOff = 12;
+      }
+      lastX = x();
     }
     play(script().build((runtime.roomTransition?.lockTicks ?? 0) + 10));
     rooms.push(world.roomId);
@@ -74,7 +96,7 @@ test('Determinism (c): a run round the rooms gives the same hash every tick as N
   const errors = await open(page);
   const runtime = await loadSamplePack();
   const { file, rooms } = roundTrip(runtime);
-  expect(rooms).toEqual(['hub', 'hall', 'cellar', 'hub']);
+  expect(rooms).toEqual(['hub', 'cellar', 'hub']);
   const expected = runReplayHeadless(file, runtime, { checkpointEvery: 1 }).checkpoints.map(
     ({ tick, hash }) => ({ tick, hash: [...hash] }),
   );
@@ -87,27 +109,15 @@ test('Determinism (c): a run round the rooms gives the same hash every tick as N
   expect(errors).toEqual([]);
 });
 
-test('live keys take the party through the east edge into the next room', async ({ page }) => {
+test('live keys make the view scroll after the party', async ({ page }) => {
   const errors = await open(page);
-  const runtime = await loadSamplePack();
-  const edge = runtime.rooms.hub?.exits?.find((e) => e.kind === 'edge');
+  const before = await page.evaluate(() => window.__engine?.getStats().camera);
+  expect(before?.x).toBe(0);
   await page.keyboard.down('ArrowRight');
-  // Hop now and then to get over the step and through the water.
-  const hopping = (async () => {
-    for (let i = 0; i < 40; i++) {
-      const room = await page.evaluate(() => window.__engine?.getStats().room);
-      if (room !== 'hub') return;
-      await page.keyboard.down('KeyZ');
-      await page.waitForTimeout(200);
-      await page.keyboard.up('KeyZ');
-      await page.waitForTimeout(150);
-    }
-  })();
   await expect
-    .poll(() => page.evaluate(() => window.__engine?.getStats().room), { timeout: 15_000 })
-    .toBe(edge?.toRoomId);
-  await hopping;
+    .poll(() => page.evaluate(() => window.__engine?.getStats().camera.x), { timeout: 10_000 })
+    .toBeGreaterThan(0);
   await page.keyboard.up('ArrowRight');
-  await expect.poll(() => page.evaluate(() => window.__engine?.getStats().transition)).toBe('none');
+  expect(await page.evaluate(() => window.__engine?.getStats().room)).toBe('hub');
   expect(errors).toEqual([]);
 });

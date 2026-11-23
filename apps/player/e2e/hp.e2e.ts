@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 import {
   createWorld,
+  type InputFrame,
   Recorder,
   runReplayHeadless,
   type StartState,
@@ -46,7 +47,7 @@ async function countColor(page: Page, rgb: readonly [number, number, number]): P
 }
 
 /**
- * Walks right (jumping over the step) until the body is in the water, then waits there until
+ * Walks right (hopping over the step) until the body is in the water, then waits there until
  * the explorer's HP is gone and a little more. Built against the Node simulation, so it follows
  * the pack's data rather than fixed tile positions.
  */
@@ -60,17 +61,34 @@ async function drownReplay() {
     for (let at = 0; at < ticks; at += 32) s.press('jump', { at, ticks: 12 });
     return s.build(ticks);
   };
-  let inWater = 0;
-  for (const frame of walk(600)) {
+  // Hop along until a few tiles before the first water, then walk in without jumping so the body
+  // stays in it (the pool is shallow and a jump would carry it across).
+  const room = runtime.rooms[entry.roomId];
+  if (room === undefined) throw new Error('no entry room');
+  const water = room.tileClasses.find((c) => c.hazard !== undefined);
+  const firstWaterCol = Math.min(
+    ...[...room.collision.keys()]
+      .filter((i) => room.collision[i] === water?.id)
+      .map((i) => i % room.widthTiles),
+  );
+  const slot = world.entities.slotOf(world.party.entityId);
+  const frames: InputFrame[] = [];
+  const hops = walk(600);
+  for (let i = 0; i < 600 && world.party.hazardId === ''; i++) {
+    const near = (world.entities.x[slot] as number) >> 8 >= (firstWaterCol - 3) * runtime.tileSize;
+    const grounded = ((world.entities.contact[slot] as number) & 1) !== 0;
+    const frame =
+      near && grounded
+        ? (script().hold('right', 1).build(1)[0] as InputFrame)
+        : (hops[i] as InputFrame);
+    frames.push(frame);
     step(world, frame, runtime);
-    inWater++;
-    if (world.party.hazardId !== '') break;
   }
   const hazard = runtime.rules.hazards?.[world.party.hazardId];
   const hp = runtime.characters.explorer?.hp?.max ?? 0;
   if (hazard === undefined || hp === 0) throw new Error('the explorer did not reach the water');
   const recorder = new Recorder();
-  for (const frame of [...walk(inWater), ...script().build(hazard.intervalTicks * (hp + 1))]) {
+  for (const frame of [...frames, ...script().build(hazard.intervalTicks * (hp + 1))]) {
     recorder.push(frame);
   }
   const file = recorder.toFile(runtime, start);

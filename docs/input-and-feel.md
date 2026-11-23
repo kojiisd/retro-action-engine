@@ -469,7 +469,7 @@ interface ReplayFile {
 | --- | --- |
 | `hash()` | 現在の `World` の hash |
 | `runReplay(file)` | 実際の描画ループでリプレイを再生し、全 tick の hash を返す（Determinism (c)）。再生中と再生後はライブ入力を無視する |
-| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル、操作中のキャラクターと HP（M2-5）、いる部屋と部屋の移動の段階（M3-1） |
+| `getStats()` | `resyncCount`、`droppedFrames`、tick 数、再生中か、操作感プロファイル、操作中のキャラクターと HP（M2-5）、いる部屋と部屋の移動の段階（M3-1）、カメラの位置（M3-2） |
 | `setFeelProfile(id)` | プロファイルを切り替えて最初からやり直す |
 | `restart()` | ライブ入力で最初からやり直す |
 | `recording()` | 最後に始めてからのライブ入力を `ReplayFile` で返す（デバイスの入力がゲームに届いたことの確認に使う。M2-1） |

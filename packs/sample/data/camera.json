@@ -1,4 +1,12 @@
 {
-  "mode": "screenFlip",
+  "mode": "scroll",
+  "activationMarginPx": 32,
+  "scroll": {
+    "deadzone": { "w": 32, "h": 96 },
+    "lookahead": { "x": 24, "y": 0 },
+    "lerpShift": 3,
+    "lockY": false,
+    "followY": "grounded"
+  },
   "roomTransition": { "effect": "fade", "lockTicks": 20 }
 }

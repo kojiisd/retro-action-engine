@@ -23,17 +23,27 @@ describe('golden: sample pack representative replay', () => {
 
   // Not golden: checks that the replay still covers what it is meant to cover, so that a pack
   // change cannot silently turn it into a replay of standing still.
-  it.each(PROFILES)('%s: ends with the swimmer in the next room, past the edge', (profile) => {
-    const entry = runtime.entry as { roomId: string };
-    const edge = runtime.rooms[entry.roomId]?.exits?.find((e) => e.kind === 'edge');
-    if (edge === undefined) throw new Error('no edge exit in the entry room');
-    const { world } = runReplayHeadless(representativeReplay(runtime, profile), runtime);
-    // Getting to the east edge takes crossing the water column first.
-    expect(world.roomId).toBe(edge.toRoomId);
-    expect(world.transition.phase).toBe('none');
-    expect(world.party.members[world.party.activeIndex]).toBe('diver');
-    const slot = world.entities.slotOf(world.party.entityId);
-    const spawn = runtime.rooms[edge.toRoomId]?.spawns[edge.spawnId];
-    expect(world.entities.x[slot]).toBeGreaterThan(spawn?.x as number);
-  });
+  it.each(PROFILES)(
+    '%s: ends with the swimmer past the first water, the view scrolled',
+    (profile) => {
+      const entry = runtime.entry as { roomId: string };
+      const room = runtime.rooms[entry.roomId];
+      if (room === undefined) throw new Error('no entry room');
+      const water = room.tileClasses.find((c) => c.hazard !== undefined);
+      const firstWaterCol = Math.min(
+        ...[...room.collision.keys()]
+          .filter((i) => room.collision[i] === water?.id)
+          .map((i) => i % room.widthTiles),
+      );
+      const { world } = runReplayHeadless(representativeReplay(runtime, profile), runtime);
+      expect(world.roomId).toBe(entry.roomId);
+      expect(world.party.members[world.party.activeIndex]).toBe('diver');
+      const slot = world.entities.slotOf(world.party.entityId);
+      // Past the first pool (it is a few tiles wide), and the camera has moved right (M3-2).
+      expect((world.entities.x[slot] as number) >> 8).toBeGreaterThan(
+        (firstWaterCol + 4) * runtime.tileSize,
+      );
+      expect(world.camera.x).toBeGreaterThan(0);
+    },
+  );
 });

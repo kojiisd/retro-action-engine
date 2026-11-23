@@ -108,8 +108,21 @@ export function solidAt(
       }
     }
   }
-  if (tileClass.solid === 'oneway' && context.ignoreOneway === true) {
+  // The top rung of a ladder (nothing of the ladder above it) is a one-way floor (ADR-0019).
+  const solid =
+    tileClass.ladder === true && !isLadderAt(grid, col, row - 1) ? 'oneway' : tileClass.solid;
+  if (solid === 'oneway' && context.ignoreOneway === true) {
     return 'none';
   }
-  return tileClass.solid;
+  return solid;
+}
+
+/** Whether the cell is a ladder tile (ADR-0019); outside the room it is not. */
+export function isLadderAt(grid: CollisionGrid, col: number, row: number): boolean {
+  return tileClassAt(grid, col, row)?.ladder === true;
+}
+
+/** Whether the cell is the top rung of a ladder: a ladder tile with no ladder above it. */
+export function isLadderTopAt(grid: CollisionGrid, col: number, row: number): boolean {
+  return isLadderAt(grid, col, row) && !isLadderAt(grid, col, row - 1);
 }

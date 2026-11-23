@@ -53,6 +53,8 @@ export interface ControllerState {
   rightPressedTick: number;
   /** Attacking while tick < this (ADR-0017); NEVER when not attacking. */
   attackUntilTick: number;
+  /** Holding on to a ladder (ADR-0019). */
+  climbing: boolean;
 }
 
 /** Animation of the party entity's sprite. Advanced by the `timers` system, one tick at a time. */
@@ -163,6 +165,7 @@ export function newControllerState(feelProfileId: string): ControllerState {
     leftPressedTick: NEVER,
     rightPressedTick: NEVER,
     attackUntilTick: NEVER,
+    climbing: false,
   };
 }
 

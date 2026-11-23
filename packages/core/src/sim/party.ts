@@ -68,6 +68,7 @@ export function partyStep(world: World, intent: Intent, runtime: PackRuntime): v
   party.cooldownTicks = rules.cooldownTicks;
   // A swing does not carry over to the next character (ADR-0017).
   world.controller.attackUntilTick = NEVER;
+  world.controller.climbing = false;
   applyCharacter(world, activeCharacter(world, runtime));
   if (rules.placement === 'spawn') {
     s.x[slot] = party.spawnX;

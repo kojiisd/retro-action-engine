@@ -54,6 +54,10 @@ export interface FeelProfile extends FeelMotion {
    * keeps walking. Absent is `move`.
    */
   readonly attackOnGround?: 'stop' | 'move';
+  /** Ladder climbing speed (ADR-0019). Without it the character cannot hold on to a ladder. */
+  readonly climbSpeed?: Fx;
+  /** Upward speed when jumping off a ladder; absent is 0 (letting go). */
+  readonly climbJumpVelocity?: Fx;
 }
 
 /** The feel in effect at one tick: the profile, then the character's, then the medium's. */

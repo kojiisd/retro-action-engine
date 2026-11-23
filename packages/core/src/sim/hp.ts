@@ -122,6 +122,7 @@ export function hpStep(world: World, runtime: PackRuntime, gridOf: GridOf): bool
     party.activeIndex = next;
     party.cooldownTicks = switchRules.cooldownTicks;
     world.controller.attackUntilTick = NEVER;
+    world.controller.climbing = false;
     applyCharacter(world, activeCharacter(world, runtime));
     if (switchRules.placement === 'spawn') {
       s.x[slot] = party.spawnX;

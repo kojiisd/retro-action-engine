@@ -10,6 +10,7 @@ import { controllerStep } from './controller';
 import { enterRoom, exitStep, type TransitionView, transitionStep, transitionView } from './exits';
 import { hpStep, initialHp, tileAtBodyCenter } from './hp';
 import { inputIntent } from './intent';
+import { climbAfterMove, climbStep } from './ladder';
 import { type RenderSnapshot, renderSnapshot } from './output';
 import { activeCharacter, canSwitch, isAlive, partyStep } from './party';
 import { effectiveTags } from './tags';
@@ -133,7 +134,12 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   const teleported =
     world.party.activeIndex !== activeBefore && runtime.rules.party.switch.placement === 'spawn';
   const feel = currentFeel(world, runtime);
-  controllerStep(world, intent, feel, attackTicks(activeCharacter(world, runtime)));
+  const swing = attackTicks(activeCharacter(world, runtime));
+  // A character on a ladder is driven by the ladder, not by the controller (ADR-0019).
+  const grid = roomGrid(runtime, world.roomId);
+  if (!climbStep(world, intent, feel, grid, runtime.tileSize, swing)) {
+    controllerStep(world, intent, feel, swing);
+  }
 
   // movement: only the party entity exists as of M1-3.
   const s = world.entities;
@@ -151,12 +157,14 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   };
   s.contact[slot] = moveBody(roomGrid(runtime, world.roomId), body, {
     abilityTags: effectiveTags(character),
-    ignoreOneway: world.tick < world.controller.dropThroughUntilTick,
+    ignoreOneway: world.tick < world.controller.dropThroughUntilTick || world.controller.climbing,
   });
   s.x[slot] = body.x;
   s.y[slot] = body.y;
   s.vx[slot] = body.vx;
   s.vy[slot] = body.vy;
+
+  climbAfterMove(world, runtime, grid);
 
   // interaction: HP-draining tiles, and a character whose HP reached 0 (ADR-0016); then the
   // exits, unless the character was just put back (ADR-0018).

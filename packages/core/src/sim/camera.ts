@@ -65,7 +65,8 @@ function followed(world: World): Followed {
     x: ((s.x[slot] as number) + (s.colOx[slot] as number) + ((s.colW[slot] as number) >> 1)) >> 8,
     y: ((s.y[slot] as number) + (s.colOy[slot] as number) + ((s.colH[slot] as number) >> 1)) >> 8,
     facing: world.controller.facing,
-    grounded: ((s.contact[slot] as number) & CONTACT_GROUNDED) !== 0,
+    // Holding on to a ladder counts as standing (ADR-0019).
+    grounded: ((s.contact[slot] as number) & CONTACT_GROUNDED) !== 0 || world.controller.climbing,
   };
 }
 

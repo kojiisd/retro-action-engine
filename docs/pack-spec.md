@@ -343,6 +343,8 @@ interface ItemDef {
 
 操作感は「プロファイル → キャラクターの `feelOverrides` → 媒体の上書き」の順に重ねる（後ろが優先）。
 
+各プロファイルの `climbSpeed?`（px/tick）と `climbJumpVelocity?`（px/tick）は、はしごの昇り降りの速さと、跳んで離れるときの上向きの速さ（M3-2b、ADR-0019）。`climbSpeed` の無いプロファイルでははしごにつかめない。
+
 各プロファイルの `attackOnGround?: 'stop' | 'move'`（無ければ `move`）は、地上で攻撃している間にその場で止まるか、歩きながら振れるか（M2-5、ADR-0017）。
 
 `rules.json` の `hp` と `hazards`（M2-5、ADR-0016）:
@@ -496,7 +498,7 @@ interface AudioDef {
 | `solid` | なし | `solid: 'full'` |
 | `oneway` | なし | `solid: 'oneway'` |
 | `slope` | `heights: "0,1,2,...,15"`（文字列。tileSize 個） | `solid: 'slope'`（M5） |
-| `ladder` | なし | `ladder: true` |
+| `ladder` | なし | `ladder: true`。最上段（真上がはしごでない）は上に立てるすり抜け床として扱う（M3-2b、ADR-0019） |
 | 任意 | `requiresAnyTag: "move:swim,size:small"` | `requiresAnyTag`（カンマ区切り） |
 | 任意 | `hazard: "water"` | `hazard`（触れると HP が減る種類。`rules.json` の `hazards` のキー。ADR-0016） |
 | 任意 | `medium: "water"` | `medium`（媒体。`feel.json` の各プロファイルの `media` のキー。ADR-0016） |

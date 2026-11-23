@@ -2,6 +2,7 @@ import type { CollisionGrid } from '../collision/grid';
 import { CONTACT_GROUNDED, moveBody } from '../collision/move';
 import type { ExitDef, PackRuntime } from '../runtime/pack';
 import { NEVER, noTransition, type World } from '../world/world';
+import { snapCamera } from './camera';
 import type { Intent } from './intent';
 import { activeCharacter } from './party';
 import { effectiveTags } from './tags';
@@ -92,6 +93,7 @@ export function enterRoom(
   exitsOf(runtime, roomId).forEach((exit, index) => {
     if (overlaps(world, exit.rect)) world.disarmedExits.push(index);
   });
+  snapCamera(world, runtime);
 }
 
 /**

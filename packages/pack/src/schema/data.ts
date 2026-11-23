@@ -176,16 +176,44 @@ export const inputSchema = z
     path: ['analog', 'release'],
   });
 
-/**
- * `camera.json`. The camera itself comes with M3-2 (one screen per room until then); as of M3-1
- * only `roomTransition` (ADR-0018) is read.
- */
-export const cameraSchema = z.looseObject({
-  mode: z.enum(['scroll', 'screenFlip']),
-  roomTransition: z
-    .object({ effect: z.enum(['fade', 'cut']), lockTicks: z.int().nonnegative() })
-    .optional(),
-});
+/** `camera.json` (ADR-0009, ADR-0018). */
+export const cameraSchema = z
+  .looseObject({
+    mode: z.enum(['scroll', 'screenFlip']),
+    activationMarginPx: z.int().nonnegative().optional(),
+    scroll: z
+      .object({
+        deadzone: z.object({ w: z.int().nonnegative(), h: z.int().nonnegative() }),
+        lookahead: z.object({ x: z.int(), y: z.int() }),
+        lerpShift: z.int().min(0).max(8),
+        lockY: z.boolean(),
+        snapToTileRows: z
+          .boolean()
+          .refine((v) => !v, 'snapToTileRows is not supported yet (ADR-0009)')
+          .optional(),
+        followY: z.enum(['always', 'grounded']).optional(),
+      })
+      .optional(),
+    screenFlip: z
+      .object({
+        transition: z.enum(['cut', 'scroll']),
+        transitionTicks: z.int().nonnegative(),
+        pauseSimulation: z.boolean(),
+        triggerInsetPx: z.int().nonnegative(),
+      })
+      .optional(),
+    roomTransition: z
+      .object({ effect: z.enum(['fade', 'cut']), lockTicks: z.int().nonnegative() })
+      .optional(),
+  })
+  .refine((c) => c.mode !== 'scroll' || c.scroll !== undefined, {
+    message: 'mode "scroll" needs "scroll"',
+    path: ['scroll'],
+  })
+  .refine((c) => c.mode !== 'screenFlip' || c.screenFlip !== undefined, {
+    message: 'mode "screenFlip" needs "screenFlip"',
+    path: ['screenFlip'],
+  });
 
 /** A JSON Hash atlas (TexturePacker, free-tex-packer, Aseprite). */
 export const atlasSchema = z.object({

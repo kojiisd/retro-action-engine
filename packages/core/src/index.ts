@@ -88,6 +88,7 @@ export type {
 export type {
   AnimationDef,
   AssetManifest,
+  CameraDef,
   CharacterDef,
   DisplayDef,
   ExitDef,
@@ -99,12 +100,15 @@ export type {
   RoomData,
   RoomTransitionDef,
   RulesDef,
+  ScreenFlipCameraDef,
+  ScrollCameraDef,
   SpriteDef,
   StartState,
 } from './runtime/pack';
 export type { SolidKind, TileClass } from './runtime/tile';
 export { type FrameView, GameSession, type InputSource } from './session/session';
 export { animationStep, attackTicks, movementAnimation, resolveAnimation } from './sim/anim';
+export { cameraView, isActive, type PxRect, snapCamera, viewSize } from './sim/camera';
 export { enterRoom, type TransitionView, transitionView } from './sim/exits';
 export { type Intent, inputIntent } from './sim/intent';
 export {
@@ -128,9 +132,11 @@ export { effectiveTags } from './sim/tags';
 export { type ColliderFx, type EntityInit, EntityStore } from './world/entity-store';
 export {
   type AnimationState,
+  type CameraState,
   type ControllerState,
   cloneWorld,
   NEVER,
+  newCamera,
   newWorld,
   noTransition,
   type PartyState,

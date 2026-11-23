@@ -5,6 +5,7 @@ import { type ActiveFeel, activeFeel } from '../runtime/feel';
 import type { PackRuntime, RoomData, StartState } from '../runtime/pack';
 import { newControllerState, newWorld, type World } from '../world/world';
 import { animationStep, attackTicks } from './anim';
+import { cameraHoldsSimulation, cameraStep, flipProgress } from './camera';
 import { controllerStep } from './controller';
 import { enterRoom, exitStep, type TransitionView, transitionStep, transitionView } from './exits';
 import { hpStep, initialHp, tileAtBodyCenter } from './hp';
@@ -120,6 +121,12 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
     world.tick++;
     return output(world, runtime, moved);
   }
+  // So does a screen-flip scroll with `pauseSimulation` (ADR-0009): only the camera moves.
+  if (cameraHoldsSimulation(world, runtime)) {
+    flipProgress(world);
+    world.tick++;
+    return output(world, runtime, false);
+  }
   const intent = inputIntent(world, input, currentFeel(world, runtime));
   const activeBefore = world.party.activeIndex;
   partyStep(world, intent, runtime);
@@ -155,6 +162,9 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   // exits, unless the character was just put back (ADR-0018).
   const placed = hpStep(world, runtime, roomGrid);
   const entered = !placed && exitStep(world, runtime, roomGrid, intent);
+
+  // camera (a room just entered has its camera in place already)
+  if (!entered && world.transition.phase === 'none') cameraStep(world, runtime);
 
   // timers
   if (world.party.cooldownTicks > 0) {

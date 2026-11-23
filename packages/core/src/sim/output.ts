@@ -36,7 +36,7 @@ export interface RenderSnapshot {
   readonly tick: number;
   /** The room to draw (ADR-0018): its tiles change with it. */
   readonly room: string;
-  /** Top-left of the view in px. Always 0, 0 in M1-5 (one screen per room). */
+  /** Top-left of the view in room px (ADR-0009). */
   readonly camera: { readonly x: number; readonly y: number };
   /** In ascending id order. */
   readonly sprites: readonly RenderSprite[];
@@ -111,7 +111,7 @@ export function renderSnapshot(
   return {
     tick: world.tick,
     room: world.roomId,
-    camera: { x: 0, y: 0 },
+    camera: { x: world.camera.x, y: world.camera.y },
     sprites,
     colliders,
     hitboxes,

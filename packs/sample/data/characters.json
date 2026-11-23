@@ -96,6 +96,19 @@
               }
             ],
             "loop": false
+          },
+          "climb": {
+            "frames": [
+              {
+                "frame": "explorer/climb-0",
+                "ticks": 8
+              },
+              {
+                "frame": "explorer/climb-1",
+                "ticks": 8
+              }
+            ],
+            "loop": true
           }
         }
       }
@@ -196,6 +209,19 @@
               }
             ],
             "loop": false
+          },
+          "climb": {
+            "frames": [
+              {
+                "frame": "diver/climb-0",
+                "ticks": 8
+              },
+              {
+                "frame": "diver/climb-1",
+                "ticks": 8
+              }
+            ],
+            "loop": true
           }
         }
       },

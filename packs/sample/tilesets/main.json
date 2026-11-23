@@ -5,10 +5,10 @@
   "name": "main",
   "tilewidth": 16,
   "tileheight": 16,
-  "tilecount": 12,
-  "columns": 12,
+  "tilecount": 14,
+  "columns": 14,
   "image": "main.png",
-  "imagewidth": 192,
+  "imagewidth": 224,
   "imageheight": 16,
   "margin": 0,
   "spacing": 0,
@@ -62,6 +62,14 @@
           "value": "water"
         }
       ]
+    },
+    {
+      "id": 12,
+      "type": "ladder"
+    },
+    {
+      "id": 13,
+      "type": "ladder"
     }
   ]
 }

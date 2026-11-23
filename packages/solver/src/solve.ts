@@ -75,7 +75,10 @@ function proofRules(
   const comesBack =
     runtime.rules.hp !== undefined &&
     (room?.tileClasses.some((c) => c.hazard !== undefined) ?? false);
-  const riseBound = media || comesBack ? Number.POSITIVE_INFINITY : Math.max(...bounds);
+  // ADR-0019: the macros do not climb, and a ladder lifts the feet without a jump.
+  const ladderIds = new Set(room?.tileClasses.filter((c) => c.ladder === true).map((c) => c.id));
+  const ladders = room?.collision.some((id) => ladderIds.has(id)) ?? false;
+  const riseBound = media || comesBack || ladders ? Number.POSITIVE_INFINITY : Math.max(...bounds);
   if (!switching) {
     return { region: true, riseBound };
   }

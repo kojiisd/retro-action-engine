@@ -24,6 +24,8 @@
       "jumpBufferTicks": 0,
       "dropThroughTicks": 8,
       "landingLagTicks": 0,
+      "climbSpeed": 1,
+      "climbJumpVelocity": 2,
       "media": {
         "water": {
           "runSpeed": 0.5,
@@ -60,6 +62,8 @@
       "jumpBufferTicks": 6,
       "dropThroughTicks": 8,
       "landingLagTicks": 0,
+      "climbSpeed": 1,
+      "climbJumpVelocity": 2,
       "media": {
         "water": {
           "runSpeed": 0.5,

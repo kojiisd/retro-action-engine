@@ -620,6 +620,29 @@ describe('loadPack: attack (ADR-0017)', () => {
   });
 });
 
+describe('loadPack: ladders (ADR-0019)', () => {
+  it('reads the climbing values of a profile in Fx, absent where not given', async () => {
+    const files = edit(packFiles(), 'data/feel.json', (f) => {
+      f.profiles.smooth.climbSpeed = 1.25;
+      f.profiles.smooth.climbJumpVelocity = 2;
+    });
+    const { runtime } = await loadPack(memoryFetch(files), BASE);
+    expect(runtime.feel.smooth?.climbSpeed).toBe(Math.round(1.25 * 256));
+    expect(runtime.feel.smooth?.climbJumpVelocity).toBe(2 * 256);
+    expect(runtime.feel.crisp?.climbSpeed).toBeUndefined();
+    expect(runtime.feel.crisp?.climbJumpVelocity).toBeUndefined();
+  });
+
+  it('rejects a climbing speed that is not positive', async () => {
+    const files = edit(packFiles(), 'data/feel.json', (f) => {
+      f.profiles.smooth.climbSpeed = 0;
+    });
+    expect((await issuesOf(files))[0]).toMatch(
+      /^data\/feel\.json#\/profiles\/smooth\/climbSpeed: /,
+    );
+  });
+});
+
 describe('loadPack errors', () => {
   it('reports schema errors as file#/pointer: message, from every file at once', async () => {
     const files = packFiles();

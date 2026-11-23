@@ -91,6 +91,7 @@
 
 | 日付 | 内容 |
 | --- | --- |
+| 2026-11-23（M3-2） | `roomId` の後に `camera`（`x`、`y`、`screenX`、`screenY`、画面切替の演出の `fromX`、`fromY`、`toX`、`toY`、`tick`、`ticks`。すべて int32）を追加した（ADR-0009 の改訂履歴） |
 | 2026-11-23（M3-1） | `party` の最後（`hazardTicks` の後）に、部屋に入った spawn の id（`spawnId`、文字列）を追加した。`animation` の後に `transition`（部屋の移動の段階 `phase`（文字列）、段階内の tick、消える段階と明るくなる段階の長さ、行き先の部屋と spawn、出口の種類、効果（文字列））と、入れない出口の番号の列（件数と各値）を追加した（ADR-0018） |
 | 2026-11-21（M2-5 後半） | `controller` の `rightPressedTick` の後に `attackUntilTick` を追加した（ADR-0017） |
 | 2026-11-21（M2-5） | `party` の `spawnY` の後に、`hp`（件数と各値）、`hazardId`（文字列）、`hazardTicks` を追加した（ADR-0016） |

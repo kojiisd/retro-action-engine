@@ -429,7 +429,9 @@ type GamepadInputId =
 ```
 
 - `roomTransition?: { effect: "fade" | "cut", lockTicks: int >= 0 }`（M3-1、ADR-0018）: 部屋を移るときの演出と、その間に入力を無視して止める tick 数。`fade` は前半で暗くなり、後半で明るくなる。`cut` は演出なしで、`lockTicks` の間だけ止まる。無ければ `{ "effect": "cut", "lockTicks": 0 }`。
-- M3-1 の時点で読むのは `mode` と `roomTransition` だけ（カメラは M3-2）。
+- カメラ（M3-2、ADR-0009 の改訂履歴）: `mode` が `scroll` なら `scroll`、`screenFlip` なら `screenFlip` が必要。`activationMarginPx?`（既定 0）は敵とギミックを活性にする範囲の広げ幅（M3-4 で使う）。
+- `scroll.followY?: "always" | "grounded"`（既定 `always`）: `grounded` は、地上にいるときだけ縦を合わせ、空中ではデッドゾーンを出たときだけ追う。
+- 部屋はビュー（プレイ領域）より大きくてよい。カメラは部屋の境界の内側に収める。
 
 ### 4.9 `audio.json`
 

@@ -58,6 +58,11 @@ export interface FeelProfile extends FeelMotion {
   readonly climbSpeed?: Fx;
   /** Upward speed when jumping off a ladder; absent is 0 (letting go). */
   readonly climbJumpVelocity?: Fx;
+  /**
+   * Attack buffer in ticks (ADR-0017, M3-2c): a press this many ticks before a swing ends starts
+   * the next one. Absent is 0 (only a press in the same tick).
+   */
+  readonly attackBufferTicks?: number;
 }
 
 /** The feel in effect at one tick: the profile, then the character's, then the medium's. */

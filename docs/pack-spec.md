@@ -345,7 +345,7 @@ interface ItemDef {
 
 各プロファイルの `climbSpeed?`（px/tick）と `climbJumpVelocity?`（px/tick）は、はしごの昇り降りの速さと、跳んで離れるときの上向きの速さ（M3-2b、ADR-0019）。`climbSpeed` の無いプロファイルでははしごにつかめない。
 
-各プロファイルの `attackOnGround?: 'stop' | 'move'`（無ければ `move`）は、地上で攻撃している間にその場で止まるか、歩きながら振れるか（M2-5、ADR-0017）。
+各プロファイルの `attackOnGround?: 'stop' | 'move'`（無ければ `move`）は、地上で攻撃している間にその場で止まるか、歩きながら振れるか（M2-5、ADR-0017）。`attackBufferTicks?`（tick、無ければ 0）は攻撃の先行入力で、振り終わりの何 tick 前までの押下を覚えて次の振りにつなぐか（M3-2c、ADR-0017 の改訂）。
 
 `rules.json` の `hp` と `hazards`（M2-5、ADR-0016）:
 

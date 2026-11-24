@@ -119,6 +119,8 @@ export const feelSchema = z.object({
       // Ladders (ADR-0019). Without `climbSpeed` the profile cannot hold on to a ladder.
       climbSpeed: px.positive().optional(),
       climbJumpVelocity: px.nonnegative().optional(),
+      // Attack buffer in ticks (ADR-0017, M3-2c). Absent is 0.
+      attackBufferTicks: ticks.optional(),
     }),
   ),
 });

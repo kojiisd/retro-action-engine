@@ -3,6 +3,7 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   attackTicks,
+  type CharacterDef,
   createWorld,
   fromPx,
   type PackRuntime,
@@ -264,6 +265,44 @@ describe('packs/sample', () => {
           expect(world.entities.y[slot]).toBe(fromPx(ladder.top * T));
           expect(world.entities.x[slot]).toBeGreaterThan(fromPx((ladder.col + 1) * T));
         }
+      }
+    }
+  });
+
+  it('swings without a break when mashed, and once when held (M3-2c)', () => {
+    const entry = runtime.entry as { roomId: string; spawnId: string };
+    for (const profile of Object.keys(runtime.feel)) {
+      const buffer = runtime.feel[profile]?.attackBufferTicks as number;
+      for (const member of runtime.rules.party.members) {
+        const length = attackTicks(runtime.characters[member] as CharacterDef) as number;
+        expect(buffer).toBeGreaterThan(0);
+        expect(buffer).toBeLessThan(length);
+        const swingsOf = (frames: ReturnType<ReturnType<typeof script>['build']>) => {
+          const world = createWorld(runtime, {
+            ...entry,
+            party: [member],
+            seed: 1,
+            feelProfile: profile,
+          });
+          // Ticks on which a swing began.
+          const starts: number[] = [];
+          for (const frame of frames) {
+            const before = world.controller.attackUntilTick;
+            step(world, frame, runtime);
+            if (world.controller.attackUntilTick !== before) starts.push(world.tick - 1);
+          }
+          return starts;
+        };
+        const mash = script();
+        for (let at = 0; at < 2 * length + 1; at += buffer) mash.tap('attack', { at });
+        expect(swingsOf(mash.build(4 * length))).toEqual([0, length, 2 * length]);
+        expect(
+          swingsOf(
+            script()
+              .hold('attack', 4 * length)
+              .build(4 * length),
+          ),
+        ).toEqual([0]);
       }
     }
   });

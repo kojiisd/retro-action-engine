@@ -604,6 +604,21 @@ describe('loadPack: attack (ADR-0017)', () => {
     expect(runtime.feel.crisp?.attackOnGround).toBeUndefined();
   });
 
+  it('reads the attack buffer in ticks, and rejects one that is not a whole number (M3-2c)', async () => {
+    const files = edit(withAttack(), 'data/feel.json', (f) => {
+      f.profiles.smooth.attackBufferTicks = 5;
+    });
+    const { runtime } = await loadPack(memoryFetch(files), BASE);
+    expect(runtime.feel.smooth?.attackBufferTicks).toBe(5);
+    expect(runtime.feel.crisp?.attackBufferTicks).toBeUndefined();
+    const bad = edit(withAttack(), 'data/feel.json', (f) => {
+      f.profiles.smooth.attackBufferTicks = 1.5;
+    });
+    expect((await issuesOf(bad))[0]).toMatch(
+      /^data\/feel\.json#\/profiles\/smooth\/attackBufferTicks: /,
+    );
+  });
+
   it('rejects a looping attack and an empty hitbox', async () => {
     const files = edit(withAttack(), 'data/characters.json', (c) => {
       c.characters[0].sprite.animations.attack.loop = true;

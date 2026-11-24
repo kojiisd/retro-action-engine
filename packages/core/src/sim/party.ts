@@ -1,6 +1,7 @@
 import { CONTACT_GROUNDED } from '../collision/move';
 import type { CharacterDef, PackRuntime } from '../runtime/pack';
-import { NEVER, type World } from '../world/world';
+import type { World } from '../world/world';
+import { cancelAttack } from './attack';
 import type { Intent } from './intent';
 
 /** Whether switching exists at all for this party: false with one member or `mode: 'never'`. */
@@ -67,7 +68,7 @@ export function partyStep(world: World, intent: Intent, runtime: PackRuntime): v
   party.activeIndex = next;
   party.cooldownTicks = rules.cooldownTicks;
   // A swing does not carry over to the next character (ADR-0017).
-  world.controller.attackUntilTick = NEVER;
+  cancelAttack(world.controller);
   world.controller.climbing = false;
   applyCharacter(world, activeCharacter(world, runtime));
   if (rules.placement === 'spawn') {

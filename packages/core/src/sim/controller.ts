@@ -2,6 +2,7 @@ import { CONTACT_GROUNDED, CONTACT_ONEWAY } from '../collision/move';
 import { FX_ONE, type Fx, mul } from '../fx/fx';
 import type { ActiveFeel, FeelProfile } from '../runtime/feel';
 import { NEVER, type World } from '../world/world';
+import { attackStep } from './attack';
 import type { Intent } from './intent';
 
 /** Moves v toward target by at most rate (rate >= 0). Symmetric for negated inputs. */
@@ -24,7 +25,8 @@ function approach(v: Fx, target: Fx, rate: Fx): Fx {
  * - Velocity first, then position (8.3): gravity also applies on the take-off tick.
  * - In a medium with `swim` (ADR-0016), a jump needs no ground and no coyote time: each one is a
  *   stroke with the medium's `jumpVelocity`.
- * - Attack (ADR-0017): a press starts a swing of `attackTicks` when none is running. During it the
+ * - Attack (ADR-0017): a press starts a swing of `attackTicks` when none is running; a press in the
+ *   last `attackBufferTicks` of a swing starts the next one when it ends (M3-2c). During it the
  *   facing stays. On the ground it keeps walking (`attackOnGround: 'move'`, the default), or with
  *   `'stop'` stands still and takes no jump. In the air it keeps flying.
  */
@@ -54,17 +56,15 @@ export function controllerStep(
   }
   const locked = t < c.landingLagUntilTick;
 
-  // ---- Attack (ADR-0017): a press starts one when none is running; on the ground it roots ----
-  if (
-    !locked &&
-    intent.attackPressed &&
-    t >= c.attackUntilTick &&
-    attackTicks !== undefined &&
-    attackTicks > 0
-  ) {
-    c.attackUntilTick = t + attackTicks;
-  }
-  const attacking = t < c.attackUntilTick;
+  // ---- Attack (ADR-0017): a press (or a remembered one, M3-2c) starts one when none is running ----
+  const attacking = attackStep(
+    c,
+    t,
+    intent.attackPressed,
+    feel.attackBufferTicks ?? 0,
+    attackTicks,
+    !locked,
+  );
   const rooted = attacking && grounded && (feel.attackOnGround ?? 'move') === 'stop';
 
   const moveDir = locked || rooted ? 0 : intent.moveDir;

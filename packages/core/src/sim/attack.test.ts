@@ -261,3 +261,141 @@ describe('attack', () => {
     expect(hashes()).toEqual(hashes());
   });
 });
+
+describe('attack buffer (M3-2c)', () => {
+  // Fictional values: the buffer is a little under half the swing.
+  const BUFFER = 5;
+  const buffered = (members = ['fencer'], buffer = BUFFER): PackRuntime => {
+    const base = runtimeWith(undefined, members);
+    return {
+      ...base,
+      // A second swordsman, so a switch lands on a character who can swing too.
+      characters: { ...base.characters, second: { ...fencer, id: 'second' } },
+      feel: {
+        retro: { ...(base.feel.retro as typeof RETRO), attackBufferTicks: buffer },
+        modern: { ...(base.feel.modern as typeof MODERN), attackBufferTicks: buffer },
+      },
+    };
+  };
+  const SWING_FRAMES = [
+    ...Array(3).fill('wind'),
+    ...Array(5).fill('slash'),
+    ...Array(4).fill('rest'),
+  ];
+
+  for (const profile of ['retro', 'modern']) {
+    it(`${profile}: mashing swings without a break, each one from frame 0`, () => {
+      const runtime = buffered();
+      const world = start(runtime, profile);
+      const swings = 4;
+      // One press every BUFFER ticks: every swing's last BUFFER + 1 ticks hold one.
+      const input = script().wait(swings * LENGTH);
+      for (let at = 0; at < (swings - 1) * LENGTH + 1; at += BUFFER) input.tap('attack', { at });
+      const out = run(world, runtime, input.build(swings * LENGTH + 1));
+      const frames = out.map(frameOf);
+      expect(frames.slice(0, swings * LENGTH)).toEqual(
+        Array.from({ length: swings }, () => SWING_FRAMES).flat(),
+      );
+      expect(frames[swings * LENGTH]).toBe('idle');
+    });
+  }
+
+  it('holding the button swings once only', () => {
+    const runtime = buffered();
+    const world = start(runtime);
+    const frames = run(
+      world,
+      runtime,
+      script()
+        .hold('attack', 3 * LENGTH)
+        .build(3 * LENGTH),
+    ).map(frameOf);
+    expect(frames.slice(0, LENGTH)).toEqual(SWING_FRAMES);
+    expect(frames.slice(LENGTH).every((f) => f === 'idle')).toBe(true);
+  });
+
+  it('a press exactly BUFFER ticks before the end starts the next swing at the end; one tick earlier does not', () => {
+    for (const [before, next] of [
+      [BUFFER, true],
+      [BUFFER + 1, false],
+    ] as const) {
+      const runtime = buffered();
+      const world = start(runtime);
+      const out = run(
+        world,
+        runtime,
+        script()
+          .tap('attack', { at: 0 })
+          .tap('attack', { at: LENGTH - before })
+          .build(LENGTH + 1),
+      );
+      expect(frameOf(out[LENGTH - 1])).toBe('rest');
+      expect(frameOf(out[LENGTH])).toBe(next ? 'wind' : 'idle');
+      expect(world.controller.attackUntilTick).toBe(next ? 2 * LENGTH : LENGTH);
+    }
+  });
+
+  it('without a buffer only a press in the same tick counts (as before M3-2c)', () => {
+    const runtime = runtimeWith();
+    const world = start(runtime);
+    const out = run(
+      world,
+      runtime,
+      script()
+        .tap('attack', { at: 0 })
+        .tap('attack', { at: LENGTH - 1 })
+        .build(LENGTH + 1),
+    );
+    expect(frameOf(out[LENGTH])).toBe('idle');
+    expect(world.controller.attackPressedTick).toBe(NEVER);
+  });
+
+  it('forgets a remembered press when the party switches', () => {
+    const runtime = buffered(['fencer', 'second']);
+    const world = start(runtime);
+    run(
+      world,
+      runtime,
+      script()
+        .tap('attack', { at: 0 })
+        .build(LENGTH - 2),
+    );
+    run(world, runtime, script().hold('attack', 1).build(1));
+    expect(world.controller.attackPressedTick).toBe(world.tick - 1);
+    run(world, runtime, script().hold('switch', 1).build(1));
+    expect(world.controller.attackUntilTick).toBe(NEVER);
+    expect(world.controller.attackPressedTick).toBe(NEVER);
+    // The new member does not swing from it either.
+    const after = run(world, runtime, script().build(LENGTH));
+    expect(after.every((o) => frameOf(o) !== 'wind')).toBe(true);
+  });
+
+  it('one press is one swing, even with a buffer longer than the swing', () => {
+    const runtime = buffered(['fencer'], LENGTH + 2);
+    const world = start(runtime);
+    const frames = run(
+      world,
+      runtime,
+      script()
+        .tap('attack', { at: 0 })
+        .build(3 * LENGTH),
+    ).map(frameOf);
+    expect(frames.slice(0, LENGTH)).toEqual(SWING_FRAMES);
+    expect(frames.slice(LENGTH).every((f) => f === 'idle')).toBe(true);
+  });
+
+  it('gives the same hashes for the same mashing', () => {
+    const runtime = buffered();
+    const input = script().hold('right', 60);
+    for (let at = 0; at < 60; at += 3) input.tap('attack', { at });
+    const frames = input.build(60);
+    const hashes = () => {
+      const world = start(runtime, 'modern');
+      return frames.map((frame) => {
+        step(world, frame, runtime);
+        return hashWorld(world);
+      });
+    };
+    expect(hashes()).toEqual(hashes());
+  });
+});

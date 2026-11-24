@@ -12,7 +12,7 @@ export interface Intent {
   /** `up` held without `down` (ladders, ADR-0019). */
   readonly upHeld: boolean;
   readonly switchRequested: boolean;
-  /** `attack` pressed this tick (no buffer; ADR-0017). */
+  /** `attack` pressed this tick (ADR-0017; the controller remembers it, M3-2c). */
   readonly attackPressed: boolean;
   /** `up` pressed this tick: enters a door (ADR-0018). */
   readonly upPressed: boolean;

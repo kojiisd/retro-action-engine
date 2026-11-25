@@ -112,6 +112,7 @@ test.describe('English browser', () => {
     await page.keyboard.press('Enter');
     await expect.poll(() => menuOpen(page)).toBe(true);
     await page.keyboard.press('ArrowDown');
+    await page.keyboard.press('ArrowDown');
     await page.keyboard.press('KeyZ');
     const dialog = page.getByRole('dialog', { name: 'Settings' });
     await expect(dialog).toBeVisible();
@@ -176,9 +177,11 @@ test.describe('gamepad', () => {
     };
     const dialog = page.getByRole('dialog', { name: 'Settings' });
 
-    // Button 8 opens the game menu; down (13) and button 0 (jump, also confirm) open the settings.
+    // Button 8 opens the game menu; down (13) twice and button 0 (jump, also confirm) open the
+    // settings.
     await press(8);
     await expect.poll(() => menuOpen(page)).toBe(true);
+    await press(13);
     await press(13);
     await press(0);
     await expect(dialog).toBeVisible();

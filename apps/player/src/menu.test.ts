@@ -2,7 +2,15 @@ import type { SwitchCheck, UiMember } from '@retro-action-engine/core';
 import type { LoadedRuntime } from '@retro-action-engine/pack';
 import { localize, textWidth } from '@retro-action-engine/pack';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { type MenuContext, type MenuState, menuStep, menuView, openMenu, TOP_ITEMS } from './menu';
+import {
+  itemLook,
+  type MenuContext,
+  type MenuState,
+  menuStep,
+  menuView,
+  openMenu,
+  TOP_ITEMS,
+} from './menu';
 import { MENU_STRINGS } from './menu-strings';
 import { loadSamplePack } from './test-support';
 
@@ -14,12 +22,17 @@ beforeAll(async () => {
 const party = (hp: readonly number[]): UiMember[] =>
   hp.map((h, i) => ({ id: `m${i}`, hp: h, hpMax: 120, alive: h > 0 }));
 
-function context(checks: readonly SwitchCheck[], activeIndex = 0): MenuContext {
+function context(
+  checks: readonly SwitchCheck[],
+  activeIndex = 0,
+  items: MenuContext['items'] = [],
+): MenuContext {
   return {
     members: runtime.rules.party.members,
     activeIndex,
     party: party([120, 84]),
     switchCheck: (i) => checks[i] ?? 'never',
+    items,
   };
 }
 
@@ -40,7 +53,13 @@ describe('game menu (ADR-0020)', () => {
     const start = openMenu(ctx);
     expect(start).toEqual({ level: 'top', top: 0, member: 0 });
     expect(walk(start, ctx, ['up']).state.top).toBe(TOP_ITEMS.length - 1);
-    expect(walk(start, ctx, ['down', 'down', 'down']).state.top).toBe(0);
+    expect(
+      walk(
+        start,
+        ctx,
+        TOP_ITEMS.map(() => 'down'),
+      ).state.top,
+    ).toBe(0);
   });
 
   it('closes with cancel at the top, with menu anywhere, and with the close item', () => {
@@ -114,9 +133,60 @@ describe('game menu (ADR-0020)', () => {
       for (const id of runtime.rules.party.members) {
         texts.push(localize(runtime, runtime.characters[id]?.name as string, lang));
       }
+      // The items, in the menu and in the message when one is picked up (ADR-0021).
+      for (const id of Object.keys(runtime.items ?? {})) {
+        const name = itemLook(runtime, id, lang).name;
+        texts.push(name, MENU_STRINGS[lang as 'ja' | 'en'].got(name));
+      }
     }
-    texts.push('0123456789/');
+    texts.push('0123456789/x');
     const missing = [...new Set(texts.join(''))].filter((ch) => !glyphs.has(ch));
     expect(missing).toEqual([]);
+  });
+
+  it('shows the items held while its line is chosen, and does nothing on confirm (ADR-0021)', () => {
+    const ui = runtime.ui;
+    if (ui === undefined) throw new Error('the sample pack has no menu');
+    const { width, height } = runtime.display;
+    const itemsLine = TOP_ITEMS.indexOf('items');
+    const state: MenuState = { level: 'top', top: itemsLine, member: 0 };
+    const ids = Object.keys(runtime.items ?? {});
+    expect(ids.length).toBeGreaterThan(0);
+    for (const lang of ['ja', 'en'] as const) {
+      const strings = MENU_STRINGS[lang];
+      const look = { runtime, ui, strings, language: lang, width, height };
+      // Nothing held.
+      const empty = menuView(state, context(['active', 'ok']), look);
+      const emptyTexts = empty.texts.map((t) => t.text);
+      expect(emptyTexts).toContain(strings.noItems);
+      expect(emptyTexts).toContain(strings.help.items);
+      expect(empty.sprites).toEqual([]);
+      // Held: the picture and the name, and the count when more than one.
+      const held = ids.map((id, i) => ({ id, count: i + 2 }));
+      const view = menuView(state, context(['active', 'ok'], 0, held), look);
+      const texts = view.texts.map((t) => t.text);
+      for (const { id, count } of held) {
+        expect(texts).toContain(itemLook(runtime, id, lang).name);
+        expect(texts).toContain(`x${count}`);
+      }
+      expect(texts).not.toContain(strings.noItems);
+      expect(view.sprites.map((s) => s.frame)).toEqual(
+        ids.map((id) => runtime.items?.[id]?.sprite?.frame),
+      );
+      for (const r of view.rects) {
+        expect(r.x >= 0 && r.y >= 0 && r.x + r.w <= width && r.y + r.h <= height).toBe(true);
+      }
+      for (const t of view.texts) {
+        expect(t.x + textWidth(ui.font, t.text), t.text).toBeLessThanOrEqual(width);
+      }
+      const one = menuView(
+        state,
+        context(['active', 'ok'], 0, [{ id: ids[0] as string, count: 1 }]),
+        look,
+      );
+      expect(one.texts.map((t) => t.text)).not.toContain('x1');
+    }
+    const ctx = context(['active', 'ok']);
+    expect(walk(state, ctx, ['confirm'])).toEqual({ state, effects: [] });
   });
 });

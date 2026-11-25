@@ -11,7 +11,7 @@
   "tilewidth": 16,
   "tileheight": 16,
   "nextlayerid": 5,
-  "nextobjectid": 14,
+  "nextobjectid": 15,
   "tilesets": [
     {
       "firstgid": 1,
@@ -132,6 +132,17 @@
           "type": "spawn",
           "x": 1440,
           "y": 448,
+          "width": 16,
+          "height": 16,
+          "rotation": 0,
+          "visible": true
+        },
+        {
+          "id": 14,
+          "name": "top-shelf",
+          "type": "spawn",
+          "x": 448,
+          "y": 128,
           "width": 16,
           "height": 16,
           "rotation": 0,

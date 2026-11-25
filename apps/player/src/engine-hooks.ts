@@ -35,6 +35,10 @@ export interface EngineStats {
   readonly camera: { readonly x: number; readonly y: number };
   /** The game menu (ADR-0020): null while it is closed. */
   readonly menu: MenuState | null;
+  /** The items held (ADR-0021). */
+  readonly inventory: UiState['inventory'];
+  /** The message shown at the bottom of the screen (ADR-0021), or null. */
+  readonly toast: string | null;
 }
 
 /** `window.__engine` (docs/input-and-feel.md 12). Only in dev and e2e builds. */
@@ -67,6 +71,8 @@ export interface HookTargets {
   readonly settingsSaved?: () => Promise<void>;
   /** The game menu's state (ADR-0020). */
   readonly menu?: () => MenuState | null;
+  /** The message at the bottom of the screen (ADR-0021). */
+  readonly toast?: () => string | null;
 }
 
 export function createEngineHooks({
@@ -75,6 +81,7 @@ export function createEngineHooks({
   resyncCount,
   settingsSaved,
   menu,
+  toast,
 }: HookTargets): EngineHooks {
   let pending: { reject: (error: Error) => void } | undefined;
 
@@ -122,6 +129,8 @@ export function createEngineHooks({
       transition: session.transitionState?.phase ?? 'none',
       camera: session.camera,
       menu: menu?.() ?? null,
+      inventory: session.uiState.inventory,
+      toast: toast?.() ?? null,
     }),
 
     setFeelProfile(id) {

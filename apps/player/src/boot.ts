@@ -2,6 +2,7 @@ import {
   actionBit,
   actionMask,
   GameSession,
+  type Notice,
   type StartState,
   switchToCommand,
 } from '@retro-action-engine/core';
@@ -24,6 +25,7 @@ import { formatStats, LatencyMeter } from './debug';
 import { createEngineHooks, type EngineHooks } from './engine-hooks';
 import { HoldGate } from './hold-gate';
 import {
+  itemLook,
   type MenuButton,
   type MenuContext,
   type MenuState,
@@ -42,6 +44,7 @@ import {
   type TouchPadMode,
 } from './settings';
 import { createGearButton, createSettingsPanel } from './settings-panel';
+import { NO_TOAST, type ToastState, toastsAfter, toastView } from './toast';
 import { createTouchLayoutEditor, type TouchLayoutEditor } from './touch-layout-editor';
 import { touchPadVisible } from './touch-visibility';
 import type { UiStrings } from './ui-strings';
@@ -307,7 +310,14 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       activeIndex: Math.max(0, list.indexOf(state.activeCharacterId)),
       party: state.party,
       switchCheck: (i) => session.switchCheck(i),
+      items: state.inventory,
     };
+  };
+  // ---- messages at the bottom of the screen (ADR-0021) ----
+  let toasts: ToastState = NO_TOAST;
+  const noticeText = (notice: Notice): string => {
+    const name = itemLook(runtime, notice.itemId, language).name;
+    return mStrings.got(notice.count > 1 ? `${name} x${notice.count}` : name);
   };
   const openGame = () => {
     if (gameMenu !== null) return;
@@ -411,6 +421,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     resyncCount: () => buffer.resyncCount,
     settingsSaved: () => Promise.all([...pendingSaves]).then(() => undefined),
     menu: () => gameMenu,
+    toast: () => toasts.current?.text ?? null,
   });
 
   // Lay the page out for the pad before the renderer measures the game screen.
@@ -452,6 +463,8 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       // No time passes in the game while a menu, the settings or the pad editor are open.
       const paused = panel.open || editor?.open === true || gameMenu !== null;
       const view = session.frame(paused ? 0 : deltaMs);
+      // The message's time runs with the game's: not while a menu is open.
+      toasts = toastsAfter(toasts, view.notices.map(noticeText), paused ? 0 : deltaMs);
       meter?.ticked(view.ticks);
       updatePad(view.ui.canSwitch);
       return view;
@@ -480,17 +493,21 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     ...(ui === undefined
       ? {}
       : {
-          overlay: () =>
-            gameMenu === null
-              ? null
-              : menuView(gameMenu, menuContext(), {
-                  runtime,
-                  ui,
-                  strings: mStrings,
-                  language,
-                  width: runtime.display.width,
-                  height: runtime.display.height,
-                }),
+          overlay: () => {
+            const { width, height } = runtime.display;
+            if (gameMenu !== null) {
+              return menuView(gameMenu, menuContext(), {
+                runtime,
+                ui,
+                strings: mStrings,
+                language,
+                width,
+                height,
+              });
+            }
+            const text = toasts.current?.text;
+            return text === undefined ? null : toastView(text, ui, width, height);
+          },
         }),
     onReady: () => {
       const canvas = options.parent.querySelector('canvas');

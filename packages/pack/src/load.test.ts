@@ -304,14 +304,18 @@ describe('loadPack', () => {
 
   it('warns about layers outside the convention and objects it does not read yet', async () => {
     const files = edit(packFiles(), 'rooms/start.tmj', (m) => {
-      m.layers.push({ type: 'objectgroup', name: 'zones', objects: [] });
+      m.layers.push({
+        type: 'objectgroup',
+        name: 'zones',
+        objects: [{ name: 'view', class: 'camera', x: 0, y: 0, width: 16, height: 16 }],
+      });
       m.layers.push({ type: 'tilelayer', name: 'decor', width: W, height: H, data: [] });
       m.layers[2].objects.push({ name: 'slime', class: 'enemy', x: 0, y: 0 });
     });
     const { warnings } = await loadPack(memoryFetch(files), BASE);
     expect(warnings).toEqual([
       'rooms/start.tmj#/layers/2/objects/1: object "slime" (enemy) is not read yet (M3)',
-      'rooms/start.tmj#/layers/3: layer "zones" is not read yet (M3)',
+      'rooms/start.tmj#/layers/3/objects/0: zone "view" (camera) is not read yet',
       'rooms/start.tmj#/layers/4: layer "decor" is not part of the convention; ignored',
     ]);
   });
@@ -445,7 +449,13 @@ describe('loadPack: exits (ADR-0018)', () => {
       [
         exit(80, 16, 16, 32, to('edge')),
         exit(32, 16, 16, 32, to('door', [prop('effect', 'cut')])),
-        exit(48, 16, 16, 32, to('warp', [prop('requiresAnyTag', 'move:swim, size:small')])),
+        exit(
+          48,
+          16,
+          16,
+          32,
+          to('warp', [prop('requiresAnyTag', 'move:swim, size:small'), prop('requiresFlag', 'on')]),
+        ),
       ],
       {
         mode: 'screenFlip',
@@ -481,6 +491,7 @@ describe('loadPack: exits (ADR-0018)', () => {
         spawnId: 'back',
         effect: 'fade',
         requiresAnyTag: ['move:swim', 'size:small'],
+        requiresFlag: 'on',
       },
     ]);
     expect(runtime.rooms.side?.exits).toEqual([]);
@@ -500,7 +511,7 @@ describe('loadPack: exits (ADR-0018)', () => {
     const files = withExits([
       exit(32, 16, 16, 32, to('edge')),
       exit(32, 16, 16, 32, [prop('kind', 'hole'), prop('effect', 'scroll')]),
-      exit(32, 16, 0, 32, [...to('warp'), prop('requiresFlag', 'open')]),
+      exit(32, 16, 0, 32, [...to('warp'), prop('requiresFlag', ' ')]),
       { name: 'x', class: 'zone', x: 0, y: 0, width: 16, height: 16 },
     ]);
     expect(await issuesOf(files)).toEqual([
@@ -509,7 +520,7 @@ describe('loadPack: exits (ADR-0018)', () => {
       'rooms/start.tmj#/layers/3/objects/1/properties/toRoomId: toRoomId is required',
       'rooms/start.tmj#/layers/3/objects/1/properties/spawnId: spawnId is required',
       'rooms/start.tmj#/layers/3/objects/1/properties/effect: effect "scroll" comes with the camera (M3-2); use "fade" or "cut"',
-      'rooms/start.tmj#/layers/3/objects/2/properties/requiresFlag: requiresFlag comes with flags (M3-3)',
+      'rooms/start.tmj#/layers/3/objects/2/properties/requiresFlag: requiresFlag must be a flag name',
       'rooms/start.tmj#/layers/3/objects/2: an exit must be a rectangle with a size',
       'rooms/start.tmj#/layers/3/objects/3/class: objects in "exits" must have the class "exit"',
     ]);
@@ -1066,6 +1077,317 @@ describe('loadPack: strings, names and the menu (ADR-0020)', () => {
       'data/ui.json#/font/glyphs/2/0: "あ" is listed twice',
       'data/ui.json#/font/glyphs/3/1: the width 13 is wider than the cell',
       'data/ui.json#/font/glyphs: a "?" glyph is required (it stands in for missing ones)',
+    ]);
+  });
+});
+
+describe('loadPack: items, gimmicks and events (ADR-0021)', () => {
+  /** The fixture with items, gimmicks, an `objects` atlas, and these objects in the room. */
+  function withGimmicks(objects: Json[], zones: Json[] = []): Files {
+    const files = packFiles();
+    const manifest = files['pack.json'] as Json;
+    manifest.files.items = 'data/items.json';
+    manifest.files.gimmicks = 'data/gimmicks.json';
+    manifest.files.atlases.objects = 'atlases/objects.json';
+    files['atlases/objects.json'] = {
+      frames: Object.fromEntries(
+        ['charm', 'rock', 'lever', 'lever-on', 'bars'].map((name, i) => [
+          name,
+          { frame: { x: i * 16, y: 0, w: 16, h: 16 } },
+        ]),
+      ),
+      meta: { image: 'objects.png' },
+    };
+    files['data/items.json'] = {
+      items: [
+        {
+          id: 'charm',
+          name: 'Charm',
+          kind: 'upgrade',
+          grants: ['break:test'],
+          stack: 1,
+          sprite: { atlas: 'objects', frame: 'charm' },
+        },
+        {
+          id: 'coin',
+          name: 'Coin',
+          kind: 'key',
+          stack: 9,
+          sprite: { atlas: 'objects', frame: 'charm' },
+        },
+      ],
+    };
+    files['data/gimmicks.json'] = {
+      gimmicks: [
+        { id: 'charm', type: 'pickup', itemId: 'charm' },
+        {
+          id: 'rock',
+          type: 'breakable',
+          requiresAnyTag: ['break:test'],
+          sprite: { atlas: 'objects', frame: 'rock' },
+        },
+        {
+          id: 'lever',
+          type: 'switch',
+          setsFlag: 'bars-open',
+          sprite: { atlas: 'objects', frame: 'lever' },
+          frameOn: 'lever-on',
+        },
+        {
+          id: 'bars',
+          type: 'gate',
+          requiresFlag: 'bars-open',
+          sprite: { atlas: 'objects', frame: 'bars' },
+        },
+      ],
+    };
+    edit(files, 'data/rules.json', (r) => {
+      r.inventory = { scope: 'shared' };
+      r.gating = { subject: 'anyInParty' };
+    });
+    edit(files, 'rooms/start.tmj', (m) => {
+      m.layers[2].objects.push(...objects);
+      if (zones.length > 0) m.layers.push({ type: 'objectgroup', name: 'zones', objects: zones });
+    });
+    return files;
+  }
+  const prop = (name: string, value: unknown) => ({ name, type: typeof value, value });
+  const gimmick = (
+    id: number,
+    gimmickId: string,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    more: Json[] = [],
+  ) => ({
+    id,
+    name: '',
+    class: 'gimmick',
+    x,
+    y,
+    width: w,
+    height: h,
+    properties: [prop('gimmickId', gimmickId), ...more],
+  });
+  const fx = (px: number) => px * 256;
+
+  it('reads items, gimmicks merged with their object, and the rules', async () => {
+    const files = withGimmicks([
+      gimmick(7, 'charm', 20, 20, 8, 8),
+      gimmick(8, 'rock', 16, 16, 16, 32),
+      gimmick(9, 'lever', 48, 16, 16, 16),
+      gimmick(10, 'bars', 64, 16, 16, 32),
+      gimmick(11, 'charm', 40, 20, 8, 8, [
+        prop('itemId', 'coin'),
+        prop('count', 3),
+        prop('onceFlag', 'coin-a'),
+      ]),
+      gimmick(12, 'rock', 32, 32, 16, 16, [
+        prop('requiresAnyTag', 'move:swim, break:test'),
+        prop('flag', 'cracked'),
+      ]),
+    ]);
+    const { runtime, warnings } = await loadPack(memoryFetch(files), BASE);
+    expect(warnings).toEqual([]);
+    expect(runtime.items).toEqual({
+      charm: {
+        id: 'charm',
+        name: 'Charm',
+        kind: 'upgrade',
+        grants: ['break:test'],
+        stack: 1,
+        sprite: { atlas: 'objects', frame: 'charm' },
+      },
+      coin: {
+        id: 'coin',
+        name: 'Coin',
+        kind: 'key',
+        stack: 9,
+        sprite: { atlas: 'objects', frame: 'charm' },
+      },
+    });
+    expect(runtime.rules.gating).toEqual({ subject: 'anyInParty' });
+    const rect = (x: number, y: number, w: number, h: number) => ({
+      x: fx(x),
+      y: fx(y),
+      w: fx(w),
+      h: fx(h),
+    });
+    expect(runtime.rooms.start?.gimmicks).toEqual([
+      {
+        objectId: 7,
+        type: 'pickup',
+        rect: rect(20, 20, 8, 8),
+        flag: 'obj:start:7',
+        itemId: 'charm',
+        count: 1,
+        sprite: { atlas: 'objects', frame: 'charm' },
+      },
+      {
+        objectId: 8,
+        type: 'breakable',
+        rect: rect(16, 16, 16, 32),
+        flag: 'obj:start:8',
+        requiresAnyTag: ['break:test'],
+        sprite: { atlas: 'objects', frame: 'rock' },
+      },
+      {
+        objectId: 9,
+        type: 'switch',
+        rect: rect(48, 16, 16, 16),
+        flag: 'bars-open',
+        sprite: { atlas: 'objects', frame: 'lever' },
+        spriteOn: { atlas: 'objects', frame: 'lever-on' },
+      },
+      {
+        objectId: 10,
+        type: 'gate',
+        rect: rect(64, 16, 16, 32),
+        flag: 'bars-open',
+        sprite: { atlas: 'objects', frame: 'bars' },
+      },
+      {
+        objectId: 11,
+        type: 'pickup',
+        rect: rect(40, 20, 8, 8),
+        flag: 'coin-a',
+        itemId: 'coin',
+        count: 3,
+        sprite: { atlas: 'objects', frame: 'charm' },
+      },
+      {
+        objectId: 12,
+        type: 'breakable',
+        rect: rect(32, 32, 16, 16),
+        flag: 'cracked',
+        requiresAnyTag: ['move:swim', 'break:test'],
+        sprite: { atlas: 'objects', frame: 'rock' },
+      },
+    ]);
+  });
+
+  it('reads event zones, conditions and actions from JSON text', async () => {
+    const zone = {
+      id: 20,
+      name: 'gift',
+      class: 'event',
+      x: 16,
+      y: 16,
+      width: 32,
+      height: 16,
+      properties: [
+        prop('trigger', 'onZoneExit'),
+        prop(
+          'conditions',
+          '[{"flag":"met","is":true},{"hasItem":"coin","count":2},{"notItem":"charm"}]',
+        ),
+        prop(
+          'actions',
+          '[{"takeItem":"coin","count":2},{"giveItem":"charm"},{"setFlag":"paid","value":1}]',
+        ),
+      ],
+    };
+    const { runtime } = await loadPack(memoryFetch(withGimmicks([], [zone])), BASE);
+    expect(runtime.rooms.start?.zones).toEqual([
+      {
+        objectId: 20,
+        rect: { x: fx(16), y: fx(16), w: fx(32), h: fx(16) },
+        trigger: 'onZoneExit',
+        conditions: [
+          { flag: 'met', is: true },
+          { hasItem: 'coin', count: 2 },
+          { notItem: 'charm' },
+        ],
+        actions: [
+          { takeItem: 'coin', count: 2 },
+          { giveItem: 'charm' },
+          { setFlag: 'paid', value: 1 },
+        ],
+      },
+    ]);
+  });
+
+  it('refuses what is not supported yet, and checks types and references', async () => {
+    const files = withGimmicks([
+      gimmick(1, 'missing', 0, 0, 16, 16),
+      gimmick(2, 'rock', 8, 16, 16, 16),
+      gimmick(3, 'charm', 0, 0, 8, 8, [prop('itemId', 'nothing'), prop('speed', 2)]),
+      gimmick(4, 'bars', 80, 48, 16, 32),
+      gimmick(5, 'bars', 0, 0, 16, 16, [prop('consumesItem', 'coin')]),
+    ]);
+    edit(files, 'data/items.json', (f) => {
+      f.items[1].effect = { heal: 1 };
+      f.items.push({ ...f.items[0] });
+    });
+    edit(files, 'data/gimmicks.json', (f) => {
+      f.gimmicks.push(
+        { id: 'save', type: 'savePoint', sprite: { atlas: 'objects', frame: 'rock' } },
+        {
+          id: 'rubble',
+          type: 'breakable',
+          requiresAnyTag: ['x'],
+          drops: 'coin',
+          sprite: { atlas: 'objects', frame: 'nope' },
+        },
+        { id: 'plain', type: 'switch', setsFlag: 'f' },
+      );
+    });
+    edit(files, 'data/rules.json', (r) => {
+      r.inventory = { scope: 'perCharacter' };
+    });
+    expect(await issuesOf(files)).toEqual([
+      'data/items.json#/items/1/effect: effect comes with items to use (not supported yet)',
+      'data/items.json#/items/2/id: item "charm" is defined twice',
+      'data/gimmicks.json#/gimmicks/4/type: type "savePoint" is not supported yet (pickup, breakable, switch, gate work)',
+      'data/gimmicks.json#/gimmicks/5/drops: drops of a "breakable" is not supported yet',
+      'data/gimmicks.json#/gimmicks/5/sprite/frame: frame "nope" is not in atlas "objects"',
+      'data/gimmicks.json#/gimmicks/6/sprite: a "switch" needs a sprite',
+      'rooms/start.tmj#/layers/2/objects/1/properties/gimmickId: gimmick "missing" is not in data/gimmicks.json',
+      'rooms/start.tmj#/layers/2/objects/2: a "breakable" must be aligned to the 16 px tile grid',
+      'rooms/start.tmj#/layers/2/objects/3/properties/speed: a "pickup" has no parameter "speed"',
+      'rooms/start.tmj#/layers/2/objects/3/properties/itemId: item "nothing" is not defined',
+      'rooms/start.tmj#/layers/2/objects/4: a "gate" must be inside the room',
+      'rooms/start.tmj#/layers/2/objects/5/properties/consumesItem: consumesItem of a "gate" is not supported yet',
+      'data/rules.json#/inventory/scope: "perCharacter" is not supported yet',
+    ]);
+  });
+
+  it('rejects broken event zones and items they name that do not exist', async () => {
+    const zone = (id: number, props: Json[]) => ({
+      id,
+      name: '',
+      class: 'event',
+      x: 0,
+      y: 0,
+      width: 16,
+      height: 16,
+      properties: props,
+    });
+    const files = withGimmicks(
+      [],
+      [
+        zone(1, [prop('trigger', 'onTouch'), prop('conditions', '{"flag":"a"}')]),
+        zone(2, [
+          prop('trigger', 'onZoneEnter'),
+          prop('actions', '[{"warp":"x"},{"giveItem":"gem"}]'),
+        ]),
+        zone(3, [prop('trigger', 'onZoneEnter'), prop('conditions', 'not json')]),
+      ],
+    );
+    expect(await issuesOf(files)).toEqual([
+      'rooms/start.tmj#/layers/3/objects/0/properties/trigger: trigger must be "onZoneEnter" or "onZoneExit"',
+      'rooms/start.tmj#/layers/3/objects/0/properties/conditions: conditions must be a JSON array (as text)',
+      'rooms/start.tmj#/layers/3/objects/1/properties/actions/0: not a action this engine reads',
+      'rooms/start.tmj#/layers/3/objects/2/properties/conditions: conditions must be a JSON array (as text)',
+    ]);
+    // A zone that reads well but names an item that does not exist.
+    const files2 = withGimmicks(
+      [],
+      [zone(4, [prop('trigger', 'onZoneEnter'), prop('actions', '[{"giveItem":"gem"}]')])],
+    );
+    expect(await issuesOf(files2)).toEqual([
+      'rooms/start.tmj#/layers/3/objects/0/properties/actions/0: item "gem" is not defined',
     ]);
   });
 });

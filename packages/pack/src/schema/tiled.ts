@@ -40,6 +40,8 @@ const objectLayer = z.looseObject({
   name: z.string(),
   objects: z.array(
     z.looseObject({
+      // Stable within the map (Tiled never reuses an id): gimmick flags are named by it.
+      id: z.int().nonnegative().optional(),
       name: z.string(),
       class: z.string().optional(),
       type: z.string().optional(),

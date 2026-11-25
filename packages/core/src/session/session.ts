@@ -6,7 +6,7 @@ import { checkReplayPack, Player, Recorder, type ReplayFile, startOf } from '../
 import type { PackRuntime, StartState } from '../runtime/pack';
 import type { TransitionView } from '../sim/exits';
 import { type RenderSnapshot, renderSnapshot } from '../sim/output';
-import { activeCharacter, canSwitch } from '../sim/party';
+import { activeCharacter, canSwitch, type SwitchCheck, switchCheck } from '../sim/party';
 import { createWorld, step, type UiState, uiParty } from '../sim/sim';
 import type { World } from '../world/world';
 
@@ -49,6 +49,8 @@ export class GameSession {
   private transition: TransitionView | null = null;
   private observer: ((tick: number, hash: WorldHash) => void) | undefined;
   private dropped = 0;
+  /** A command for the next live tick (the menu, ADR-0020). */
+  private pendingCommand = 0;
 
   constructor(
     private readonly runtime: PackRuntime,
@@ -75,6 +77,19 @@ export class GameSession {
       ui: this.ui,
       transition: this.transition,
     };
+  }
+
+  /**
+   * Sends `command` (ADR-0020) with the input of the next live tick: the first tick after the
+   * menu closes. A later call before that tick replaces it. Ignored while replaying.
+   */
+  queueCommand(command: number): void {
+    this.pendingCommand = command;
+  }
+
+  /** Whether the party can switch to member `index` now, and why not (ADR-0020). */
+  switchCheck(index: number): SwitchCheck {
+    return switchCheck(this.world, this.runtime, index);
   }
 
   /** Starts over from `start` with live input; the recording starts over too. */
@@ -142,6 +157,7 @@ export class GameSession {
 
   private reset(start: StartState): void {
     this.start = start;
+    this.pendingCommand = 0;
     this.world = createWorld(this.runtime, start);
     this.recorder = new Recorder();
     this.driver = this.newDriver();
@@ -171,6 +187,10 @@ export class GameSession {
       frame = this.player.next();
     } else {
       frame = this.input.nextFrame();
+      if (this.pendingCommand !== 0) {
+        frame = { ...frame, command: this.pendingCommand };
+        this.pendingCommand = 0;
+      }
       this.recorder.push(frame);
     }
     const out = step(this.world, frame, this.runtime);

@@ -1,4 +1,4 @@
-import { type InputFrame, isHeld, isPressed } from '../input/frame';
+import { type InputFrame, isHeld, isPressed, switchTarget } from '../input/frame';
 import type { FeelProfile } from '../runtime/feel';
 import type { World } from '../world/world';
 
@@ -12,6 +12,8 @@ export interface Intent {
   /** `up` held without `down` (ladders, ADR-0019). */
   readonly upHeld: boolean;
   readonly switchRequested: boolean;
+  /** A member chosen in the menu (ADR-0020); undefined when no such command came. */
+  readonly switchTo: number | undefined;
   /** `attack` pressed this tick (ADR-0017; the controller remembers it, M3-2c). */
   readonly attackPressed: boolean;
   /** `up` pressed this tick: enters a door (ADR-0018). */
@@ -52,6 +54,7 @@ export function inputIntent(world: World, frame: InputFrame, feel: FeelProfile):
     downHeld: isHeld(frame, 'down') && !isHeld(frame, 'up'),
     upHeld: isHeld(frame, 'up') && !isHeld(frame, 'down'),
     switchRequested: isPressed(frame, 'switch'),
+    switchTo: switchTarget(frame.command),
     attackPressed: isPressed(frame, 'attack'),
     upPressed: isPressed(frame, 'up'),
   };

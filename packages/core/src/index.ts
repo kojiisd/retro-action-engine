@@ -44,12 +44,15 @@ export {
   type ActionId,
   actionBit,
   actionMask,
+  COMMAND_SWITCH_TO,
   EMPTY_FRAME,
   type InputFrame,
   isHeld,
   isPressed,
   isReleased,
   mirrorFrame,
+  switchTarget,
+  switchToCommand,
 } from './input/frame';
 export {
   type AdvanceResult,
@@ -67,6 +70,7 @@ export {
   Player,
   Recorder,
   type ReplayFile,
+  type ReplayRun,
   runReplayHeadless,
   startOf,
 } from './replay/replay';
@@ -117,7 +121,7 @@ export {
   type RenderSprite,
   renderSnapshot,
 } from './sim/output';
-export { activeCharacter, canSwitch, isAlive } from './sim/party';
+export { activeCharacter, canSwitch, isAlive, type SwitchCheck, switchCheck } from './sim/party';
 export {
   createWorld,
   currentFeel,

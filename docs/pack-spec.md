@@ -253,7 +253,7 @@ interface ItemDef {
   name: string;
   kind: 'key' | 'consumable' | 'equipment' | 'upgrade';
   grants?: string[];        // 所持中に付与する能力タグ
-  effect?: { heal?: number; hpMaxDelta?: number };
+  effect?: { heal?: number; hpMaxDelta?: number }; // 使うアイテムと一緒に読む（M3-3 では読み込み時に拒否、ADR-0021）
   stack: number;            // 最大所持数
   sprite: { atlas: string; frame: string };
 }
@@ -271,18 +271,18 @@ interface ItemDef {
 
 ### 4.4 `gimmicks.json`
 
-エンジン組込みのギミック種別にパラメータを与えて名前を付ける。部屋のオブジェクトからは `gimmickId` で参照する。
+エンジン組込みのギミック種別にパラメータを与えて名前を付ける。部屋のオブジェクトからは `gimmickId` で参照する。各定義に絵 `sprite: { atlas, frame }`（`switch` は押した後の `frameOn` も。`pickup` はアイテムの絵）。M3-3 で動くのは `pickup`、`breakable`、`switch`、`gate`（`requiresFlag` だけ）で、ほかの種類と `gate` の `requiresAnyTag`、`consumesItem`、`breakable` の `drops` は読み込み時に拒否する。フラグを書かない仕掛けの状態は `obj:<roomId>:<objectId>` のフラグで持つ（ADR-0021）。
 
 | 種別 | パラメータ |
 | --- | --- |
 | `door` | `toRoomId`, `spawnId`, `effect` |
-| `gate` | `requiresAnyTag?`, `requiresFlag?`, `consumesItem?`, `opensFlag` |
-| `switch` | `setsFlag`, `once` |
+| `gate` | `requiresFlag`（M3-3）、`flag?`、`requiresAnyTag?` と `consumesItem?`（後で） |
+| `switch` | `setsFlag`（剣で叩いて一度だけ立てる） |
 | `savePoint` | なし |
 | `warp` | `toRoomId`, `spawnId`, `effect` |
-| `pickup` | `itemId`, `count`, `onceFlag?` |
+| `pickup` | `itemId`, `count`, `onceFlag?`（触れると拾う） |
 | `text` | `key` |
-| `breakable` | `requiresAnyTag`, `drops?` |
+| `breakable` | `requiresAnyTag`、`flag?`、`drops?`（後で） |
 | `spawner` | `enemyId`, `everyTicks`, `max` |
 | `bossDoor` | `bossFlag` |
 | `movingPlatform`（M5） | `path`, `speed`, `loop` |
@@ -319,6 +319,8 @@ interface ItemDef {
   "physics": { "entityPush": false }
 }
 ```
+
+`inventory.scope` は M3-3 では `shared` だけを読む（`perCharacter` は M3-5）。`gating.subject`（無ければ `active`）は、仕掛けと出口の能力タグの条件を、操作中のキャラクター（`active`）か倒れていないメンバーのだれか（`anyInParty`）の有効なタグで判定する。有効なタグはキャラクターのタグと、持っているアイテムの `grants`（ADR-0021）。
 
 ### 4.6 `feel.json`
 
@@ -536,14 +538,14 @@ interface AudioDef {
 | `entities` | `spawn` | `name` = spawnId |
 | `entities` | `enemy` | `enemyId`, `facing: "left" \| "right"` |
 | `entities` | `gimmick` | `gimmickId`, 種別ごとの追加（`toRoomId`, `spawnId`, `itemId`, `key` など。`gimmicks.json` の定義を上書きできる） |
-| `zones` | `event` | `trigger: "onZoneEnter" \| "onZoneExit"`, `conditions`（JSON 文字列）, `actions`（JSON 文字列） |
+| `zones` | `event` | `trigger: "onZoneEnter" \| "onZoneExit"`, `conditions`（JSON 文字列。`{ "flag", "is" }`、`{ "hasItem", "count"? }`、`{ "notItem" }`）, `actions`（JSON 文字列。`{ "setFlag", "value"? }`、`{ "giveItem", "count"? }`、`{ "takeItem", "count"? }`）（M3-3、ADR-0021） |
 | `zones` | `camera` | `lockY: bool` などの部屋内オーバーライド（M3） |
 | `exits` | `exit` | `kind: "edge" \| "door" \| "warp"`, `toRoomId`, `spawnId`, `effect?: "fade" \| "cut"`, `requiresAnyTag?`, `requiresFlag?`（M3-3） |
 
 - オブジェクトの位置は Tiled の矩形左上。エンティティの初期位置は矩形の底辺中央に変換する。
 - `name` は Tiled 上の識別に使い、エンジンは `spawn` 以外では参照しない。
 - 部屋外周は solid。`kind: "edge"` の exit は外周（左右上下のどれか）に接する矩形として置く（読み込み時に検査する）。抜けられるように、出口の部分の `main` のタイルは空けておく。
-- 出口（M3-1、ADR-0018）: 体が矩形と重なると入る。`edge` と `warp` は重なっただけで、`door` は地上で `up` を押したとき。`requiresAnyTag` があれば、そのどれかのタグを持つキャラクターだけが入れる。部屋に着いたときに体と重なっていた出口は、一度離れるまで入れない。`effect` が無ければ `camera.json` の `roomTransition.effect`。`effect: "scroll"` は M3-2、`requiresFlag` は M3-3 で、それまでは読み込み時に拒否する。
+- 出口（M3-1、ADR-0018）: 体が矩形と重なると入る。`edge` と `warp` は重なっただけで、`door` は地上で `up` を押したとき。`requiresAnyTag` があれば、そのどれかのタグを持つキャラクターだけが入れる。部屋に着いたときに体と重なっていた出口は、一度離れるまで入れない。`effect` が無ければ `camera.json` の `roomTransition.effect`。`effect: "scroll"` は M3-2 で、それまでは読み込み時に拒否する。`requiresFlag` があれば、そのフラグが立つまで入れない（M3-3、ADR-0021）。
 - `toRoomId` と `spawnId` は存在しなければならない（同じ部屋でもよい）。
 
 ### 5.5 タイルセット JSON

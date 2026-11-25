@@ -30,7 +30,9 @@
     "rules": "data/rules.json",
     "feel": "data/feel.json",
     "input": "data/input.json",
-    "camera": "data/camera.json"
+    "camera": "data/camera.json",
+    "strings": { "ja": "data/strings.ja.json", "en": "data/strings.en.json" },
+    "ui": "data/ui.json"
   },
   "saveCompat": ">=0.1.0 <0.2.0",
   "licenses": {

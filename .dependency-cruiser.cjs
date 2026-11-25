@@ -38,6 +38,8 @@ const LAYERS = {
   },
   // Builds the whole site from site.json. Knows the app packages by name only, never imports them.
   'site-tools': { dir: 'scripts/site', name: '@retro-action-engine/site-tools', allowed: [] },
+  // Writes a pack's menu font from BDF files (ADR-0020). Run by hand; nothing imports it.
+  'font-tools': { dir: 'scripts/font', name: '@retro-action-engine/font-tools', allowed: [] },
   // Isolated from the engine in both directions.
   infra: { dir: 'infra', name: '@retro-action-engine/infra', allowed: [] },
 };

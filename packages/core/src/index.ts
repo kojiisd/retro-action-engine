@@ -108,6 +108,8 @@ export type {
   ScrollCameraDef,
   SpriteDef,
   StartState,
+  UiDef,
+  UiFontDef,
 } from './runtime/pack';
 export type { SolidKind, TileClass } from './runtime/tile';
 export { type FrameView, GameSession, type InputSource } from './session/session';

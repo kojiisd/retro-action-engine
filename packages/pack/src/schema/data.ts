@@ -230,3 +230,29 @@ export const atlasSchema = z.object({
   ),
   meta: z.looseObject({ image: name }),
 });
+
+/** `strings.<lang>.json` (docs/pack-spec.md 4.10): flat keys to texts. */
+export const stringsSchema = z.record(z.string().min(1), z.string());
+
+const color = z.string().regex(/^#[0-9a-fA-F]{6}$/, 'expected "#rrggbb"');
+
+/** `ui.json` (docs/pack-spec.md 4.11, ADR-0020). */
+export const uiSchema = z.object({
+  font: z.object({
+    image: name,
+    cellW: z.int().positive(),
+    cellH: z.int().positive(),
+    ascent: z.int().nonnegative(),
+    glyphs: z.array(z.tuple([z.string().min(1), z.int().positive()])).min(1),
+  }),
+  colors: z.object({
+    border: color,
+    fill: color,
+    text: color,
+    accent: color,
+    dim: color,
+    cursor: color,
+    gauge: color,
+    gaugeBack: color,
+  }),
+});

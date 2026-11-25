@@ -32,6 +32,7 @@ export const manifestSchema = z.object({
     gimmicks: path.optional(),
     audio: path.optional(),
     strings: z.record(z.string().min(1), path).optional(),
+    ui: path.optional(),
   }),
   saveCompat: z.string().min(1),
   licenses: z.object({ code: z.string().min(1), assets: z.string().min(1) }),

@@ -36,6 +36,7 @@ solver → core（解析ツール。どのパッケージからも import され
 infra → aws-cdk-lib のみ（エンジンの全パッケージから独立）
 apps/gallery → scripts/site（ビルド設定のみ。エンジンには依存しない）
 scripts/site → なし（アプリはパッケージ名で呼ぶだけで import しない）
+scripts/font → なし（メニューのフォント画像を書き出す道具。どこからも import されない）
 ```
 
 | パッケージ | してはいけないこと |

@@ -5,6 +5,7 @@ import type {
   FeelProfile,
   PackRuntime,
   RoomData,
+  UiDef,
 } from '@retro-action-engine/core';
 import type { z } from 'zod';
 import { convertMotion, convertProfile, toFx } from './convert';
@@ -17,9 +18,12 @@ import {
   feelSchema,
   inputSchema,
   rulesSchema,
+  stringsSchema,
+  uiSchema,
 } from './schema/data';
 import { type Manifest, manifestSchema } from './schema/manifest';
 import { type MapJson, mapSchema, type TilesetJson, tilesetSchema } from './schema/tiled';
+import { MAX_NAME_LENGTH, STRINGS_PREFIX, textLength } from './text';
 import { exitSource, importRoom, type MapTileset } from './tiled';
 
 /**
@@ -121,8 +125,12 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     feel: path(f.feel, ['feel']),
     input: path(f.input, ['input']),
     camera: f.camera === undefined ? undefined : path(f.camera, ['camera']),
+    ui: f.ui === undefined ? undefined : path(f.ui, ['ui']),
     credits: resolve('pack.json', manifest.credits, ['credits']),
   };
+  const stringFiles = Object.entries(f.strings ?? {}).map(
+    ([lang, p]) => [lang, path(p, ['strings', lang])] as const,
+  );
   const roomFiles = f.rooms.map((p, i) => path(p, ['rooms', i]));
   const tilesetFiles = f.tilesets.map((p, i) => path(p, ['tilesets', i]));
   const atlasFiles = Object.entries(f.atlases).map(
@@ -132,15 +140,21 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
 
   const readParsed = async <S extends z.ZodType>(file: string | undefined, schema: S) =>
     file === undefined ? undefined : parse(file, schema, await read(file));
-  const [characters, rules, feel, input, camera, credits] = await Promise.all([
+  const [characters, rules, feel, input, camera, ui, credits] = await Promise.all([
     readParsed(files.characters, charactersSchema),
     readParsed(files.rules, rulesSchema),
     readParsed(files.feel, feelSchema),
     readParsed(files.input, inputSchema),
     readParsed(files.camera, cameraSchema),
+    readParsed(files.ui, uiSchema),
     files.credits === undefined ? undefined : read(files.credits),
   ]);
   void credits;
+  const strings: Record<string, Record<string, string>> = {};
+  for (const [lang, file] of stringFiles) {
+    const table = await readParsed(file, stringsSchema);
+    if (table !== undefined) strings[lang] = table;
+  }
   const tilesets = new Map<string, TilesetJson>();
   await Promise.all(
     tilesetFiles.map(async (file) => {
@@ -296,6 +310,36 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
         'an "idle" animation is required',
       );
     }
+    // The name: a text or a string key (4.10), at most MAX_NAME_LENGTH characters in every
+    // language (the menu, ADR-0020).
+    const names: string[] = [];
+    if (c.name.startsWith(STRINGS_PREFIX)) {
+      const key = c.name.slice(STRINGS_PREFIX.length);
+      if (stringFiles.length === 0) {
+        issues.error(file, ['characters', i, 'name'], `"${c.name}" needs pack.json files.strings`);
+      }
+      for (const [lang, stringsFile] of stringFiles) {
+        const text = strings[lang]?.[key];
+        if (text === undefined) {
+          if (strings[lang] !== undefined) {
+            issues.error(file, ['characters', i, 'name'], `"${key}" is not in ${stringsFile}`);
+          }
+        } else {
+          names.push(text);
+        }
+      }
+    } else {
+      names.push(c.name);
+    }
+    for (const text of names) {
+      if (textLength(text) < 1 || textLength(text) > MAX_NAME_LENGTH) {
+        issues.error(
+          file,
+          ['characters', i, 'name'],
+          `"${text}" is ${textLength(text)} characters; a name has 1 to ${MAX_NAME_LENGTH}`,
+        );
+      }
+    }
     characterDefs[c.id] = {
       id: c.id,
       name: c.name,
@@ -419,6 +463,38 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
       }
     }
   }
+  // ---- the menu's font and colors (ADR-0020) ----
+  let uiDef: UiDef | undefined;
+  if (ui !== undefined && files.ui !== undefined) {
+    const uiFile = files.ui;
+    const seen = new Set<string>();
+    ui.font.glyphs.forEach(([ch, width], gi) => {
+      const where = ['font', 'glyphs', gi];
+      if (textLength(ch) !== 1) issues.error(uiFile, [...where, 0], `"${ch}" is not one character`);
+      if (seen.has(ch)) issues.error(uiFile, [...where, 0], `"${ch}" is listed twice`);
+      seen.add(ch);
+      if (width > ui.font.cellW) {
+        issues.error(uiFile, [...where, 1], `the width ${width} is wider than the cell`);
+      }
+    });
+    if (!seen.has('?')) {
+      issues.error(
+        uiFile,
+        ['font', 'glyphs'],
+        'a "?" glyph is required (it stands in for missing ones)',
+      );
+    }
+    if (ui.font.ascent > ui.font.cellH) {
+      issues.error(uiFile, ['font', 'ascent'], 'the baseline is below the cell');
+    }
+    const image = resolve(uiFile, ui.font.image, ['font', 'image']);
+    if (image !== undefined) {
+      uiDef = {
+        font: { ...ui.font, image: packUrl(baseUrl, image) },
+        colors: ui.colors,
+      };
+    }
+  }
   issues.throwIfAny();
 
   const atlasAssets: Record<string, AssetManifest['atlases'][string]> = {};
@@ -452,6 +528,8 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     },
     ...(camera?.roomTransition === undefined ? {} : { roomTransition: camera.roomTransition }),
     ...(camera === undefined ? {} : { camera: cameraDef(camera) }),
+    ...(stringFiles.length === 0 ? {} : { strings }),
+    ...(uiDef === undefined ? {} : { ui: uiDef }),
   };
   return { runtime, warnings: issues.warnings };
 }

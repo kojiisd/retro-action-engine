@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { PackLoadError } from './errors';
 import { type FetchLike, loadPack } from './load';
+import { localize, pickLanguage } from './text';
 
 // A small fictional pack, built per test so each test can break one thing.
 // Room "start" is 6x4 tiles: walls (tile 0 = solid), a oneway tile (1), a swim-only tile (2).
@@ -86,7 +87,7 @@ function packFiles(): Files {
         },
         {
           id: 'swimmer',
-          name: 'Swimmer',
+          name: 'Swim',
           abilityTags: ['move:swim'],
           collider: { w: 10, h: 20, ox: -5, oy: -20 },
           sprite: {
@@ -946,5 +947,125 @@ describe('loadPack determinism', () => {
       return [];
     };
     expect(await issues(true)).toEqual(await issues(false));
+  });
+});
+
+describe('loadPack: strings, names and the menu (ADR-0020)', () => {
+  function withStrings(ja: string, en: string): Files {
+    const files = packFiles();
+    (files['pack.json'] as Json).files.strings = {
+      ja: 'data/strings.ja.json',
+      en: 'data/strings.en.json',
+    };
+    files['data/strings.ja.json'] = { 'char.runner': ja };
+    files['data/strings.en.json'] = { 'char.runner': en };
+    return edit(files, 'data/characters.json', (c) => {
+      c.characters[0].name = '@strings:char.runner';
+    });
+  }
+  const UI = {
+    font: {
+      image: '../ui/font.png',
+      cellW: 12,
+      cellH: 13,
+      ascent: 11,
+      glyphs: [
+        ['?', 6],
+        ['A', 6],
+        ['あ', 12],
+      ],
+    },
+    colors: {
+      border: '#ffffff',
+      fill: '#182860',
+      text: '#ffffff',
+      accent: '#ffe678',
+      dim: '#7880a0',
+      cursor: '#ffffff',
+      gauge: '#f05a50',
+      gaugeBack: '#1c1216',
+    },
+  };
+  function withUi(change: (ui: Json) => void = () => {}): Files {
+    const files = packFiles();
+    (files['pack.json'] as Json).files.ui = 'data/ui.json';
+    const ui = structuredClone(UI) as Json;
+    change(ui);
+    files['data/ui.json'] = ui;
+    return files;
+  }
+
+  it('reads the strings by language, the first one being the default, and picks a language', async () => {
+    const { runtime } = await loadPack(memoryFetch(withStrings('ソラト', 'Sorato')), BASE);
+    expect(Object.keys(runtime.strings ?? {})).toEqual(['ja', 'en']);
+    const name = runtime.characters.runner?.name as string;
+    expect(localize(runtime, name, pickLanguage(runtime, ['ja-JP']))).toBe('ソラト');
+    expect(localize(runtime, name, pickLanguage(runtime, ['en-US', 'ja']))).toBe('Sorato');
+    expect(localize(runtime, name, pickLanguage(runtime, ['fr']))).toBe('ソラト');
+    expect(localize(runtime, 'Plain', 'en')).toBe('Plain');
+  });
+
+  it('rejects a name key missing in a language, and a name longer than six characters', async () => {
+    const missing = withStrings('ソラト', 'Sorato');
+    missing['data/strings.en.json'] = {};
+    expect(await issuesOf(missing)).toEqual([
+      'data/characters.json#/characters/0/name: "char.runner" is not in data/strings.en.json',
+    ]);
+    expect(await issuesOf(withStrings('ソラトソラト1', 'Sorato'))).toEqual([
+      'data/characters.json#/characters/0/name: "ソラトソラト1" is 7 characters; a name has 1 to 6',
+    ]);
+    // Six is fine, counted in characters, not bytes.
+    await expect(
+      loadPack(memoryFetch(withStrings('ソラトソラト', 'Sorato')), BASE),
+    ).resolves.toBeDefined();
+    const plain = edit(packFiles(), 'data/characters.json', (c) => {
+      c.characters[0].name = 'Runner77';
+    });
+    expect(await issuesOf(plain)).toEqual([
+      'data/characters.json#/characters/0/name: "Runner77" is 8 characters; a name has 1 to 6',
+    ]);
+  });
+
+  it('reads the menu font and colors, with the image as a URL', async () => {
+    const { runtime } = await loadPack(memoryFetch(withUi()), BASE);
+    expect(runtime.ui?.font).toMatchObject({ cellW: 12, cellH: 13, ascent: 11 });
+    expect(runtime.ui?.font.image).toBe(`${BASE}ui/font.png`);
+    expect(runtime.ui?.font.glyphs).toEqual(UI.font.glyphs);
+    expect(runtime.ui?.colors.fill).toBe('#182860');
+    // No ui.json: no menu.
+    expect((await loadPack(memoryFetch(packFiles()), BASE)).runtime.ui).toBeUndefined();
+  });
+
+  it('rejects a font without "?", a glyph of two characters or listed twice, and a bad color', async () => {
+    expect(
+      await issuesOf(
+        withUi((ui) => {
+          ui.font.glyphs = [
+            ['AB', 6],
+            ['あ', 12],
+            ['あ', 12],
+            ['A', 13],
+          ];
+          ui.colors.text = 'white';
+        }),
+      ),
+    ).toEqual(['data/ui.json#/colors/text: expected "#rrggbb"']);
+    expect(
+      await issuesOf(
+        withUi((ui) => {
+          ui.font.glyphs = [
+            ['AB', 6],
+            ['あ', 12],
+            ['あ', 12],
+            ['A', 13],
+          ];
+        }),
+      ),
+    ).toEqual([
+      'data/ui.json#/font/glyphs/0/0: "AB" is not one character',
+      'data/ui.json#/font/glyphs/2/0: "あ" is listed twice',
+      'data/ui.json#/font/glyphs/3/1: the width 13 is wider than the cell',
+      'data/ui.json#/font/glyphs: a "?" glyph is required (it stands in for missing ones)',
+    ]);
   });
 });

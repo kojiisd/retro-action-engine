@@ -52,12 +52,19 @@ const GEAR =
   'M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3.3h-4l-.3 2.6a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.4 7.4 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.4 7.4 0 0 0 1.7-1l2.5 1 2-3.5ZM13 15.5A3.5 3.5 0 1 1 13 8.5a3.5 3.5 0 0 1 0 7Z';
 
 /** The gear button that opens the settings (HUD band, right end). No text, an icon. */
-export function createGearButton(doc: Document, s: UiStrings, onClick: () => void): HTMLElement {
+export function createGearButton(
+  doc: Document,
+  s: UiStrings,
+  onClick: () => void,
+  /** True when the gear opens the game menu (ADR-0020) rather than the settings. */
+  opensMenu = false,
+): HTMLElement {
   const button = doc.createElement('button');
   button.type = 'button';
   button.className = 'settings-button';
-  button.setAttribute('aria-label', s.openSettings);
-  button.title = s.openSettings;
+  const label = opensMenu ? s.openMenu : s.openSettings;
+  button.setAttribute('aria-label', label);
+  button.title = label;
   const svg = doc.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 26 24');
   svg.setAttribute('aria-hidden', 'true');

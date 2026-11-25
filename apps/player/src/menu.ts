@@ -1,0 +1,205 @@
+import type { PackRuntime, SwitchCheck, UiDef, UiMember } from '@retro-action-engine/core';
+import { localize, textWidth } from '@retro-action-engine/pack';
+import type {
+  OverlayRect,
+  OverlaySprite,
+  OverlayText,
+  OverlayView,
+} from '@retro-action-engine/renderer-phaser';
+import type { MenuStrings } from './menu-strings';
+
+/**
+ * The in-game menu (ADR-0020): which screen and which line is chosen, how the menu buttons move
+ * that, and what to draw. Pure: the wiring (boot.ts) feeds the buttons and carries out the
+ * effects (open the settings, close, send a switch command).
+ */
+
+export const TOP_ITEMS = ['party', 'settings', 'close'] as const;
+export type TopItem = (typeof TOP_ITEMS)[number];
+
+export interface MenuState {
+  readonly level: 'top' | 'party';
+  /** The line chosen in the top list. */
+  readonly top: number;
+  /** The member chosen in the party list. */
+  readonly member: number;
+}
+
+/** What a button does in the menu (ADR-0020: confirm or jump, cancel or attack, menu). */
+export type MenuButton = 'up' | 'down' | 'confirm' | 'cancel' | 'menu';
+
+export type MenuEffect =
+  | { readonly kind: 'close' }
+  | { readonly kind: 'openSettings' }
+  | { readonly kind: 'switch'; readonly member: number };
+
+/** What the menu needs to know about the game while it is open (the game is stopped). */
+export interface MenuContext {
+  readonly members: readonly string[];
+  readonly activeIndex: number;
+  /** Every member's HP; empty when the pack has no HP rules. */
+  readonly party: readonly UiMember[];
+  readonly switchCheck: (index: number) => SwitchCheck;
+}
+
+/** The menu as it opens: the top list, its first line; in the party, the active member. */
+export function openMenu(context: Pick<MenuContext, 'activeIndex'>): MenuState {
+  return { level: 'top', top: 0, member: context.activeIndex };
+}
+
+const wrap = (i: number, n: number) => ((i % n) + n) % n;
+
+/** One button press in the menu: the next state, and what the game should do, if anything. */
+export function menuStep(
+  state: MenuState,
+  button: MenuButton,
+  context: MenuContext,
+): { readonly state: MenuState; readonly effect?: MenuEffect } {
+  if (button === 'menu') return { state, effect: { kind: 'close' } };
+  if (state.level === 'top') {
+    if (button === 'up' || button === 'down') {
+      const top = wrap(state.top + (button === 'up' ? -1 : 1), TOP_ITEMS.length);
+      return { state: { ...state, top } };
+    }
+    if (button === 'cancel') return { state, effect: { kind: 'close' } };
+    const item = TOP_ITEMS[state.top];
+    if (item === 'party')
+      return { state: { ...state, level: 'party', member: context.activeIndex } };
+    if (item === 'settings') return { state, effect: { kind: 'openSettings' } };
+    return { state, effect: { kind: 'close' } };
+  }
+  // The party list.
+  if (button === 'up' || button === 'down') {
+    const member = wrap(state.member + (button === 'up' ? -1 : 1), context.members.length);
+    return { state: { ...state, member } };
+  }
+  if (button === 'cancel') return { state: { ...state, level: 'top' } };
+  if (context.switchCheck(state.member) === 'ok') {
+    return { state, effect: { kind: 'switch', member: state.member } };
+  }
+  return { state };
+}
+
+/** What a character shows in the menu: its name in `language` and its idle picture. */
+function memberLook(runtime: PackRuntime, id: string, language: string | undefined) {
+  const character = runtime.characters[id];
+  const frame = character?.sprite?.animations.idle?.frames[0]?.frame;
+  return {
+    name: localize(runtime, character?.name ?? id, language),
+    atlas: character?.sprite?.atlas,
+    frame,
+  };
+}
+
+/** Sizes of the menu's layout, from the font (ADR-0020). */
+function metrics(ui: UiDef) {
+  const line = ui.font.cellH + 2;
+  return { line, pad: 6, cursorW: 8 };
+}
+
+/**
+ * The windows, texts and pictures of the menu in `state`, for a display of `width` x `height`
+ * (the whole canvas, HUD band included).
+ */
+export function menuView(
+  state: MenuState,
+  context: MenuContext,
+  look: {
+    readonly runtime: PackRuntime;
+    readonly ui: UiDef;
+    readonly strings: MenuStrings;
+    readonly language: string | undefined;
+    readonly width: number;
+    readonly height: number;
+  },
+): OverlayView {
+  const { ui, strings, width, height } = look;
+  const { colors, font } = ui;
+  const { line, pad, cursorW } = metrics(ui);
+  const rects: OverlayRect[] = [];
+  const texts: OverlayText[] = [];
+  const sprites: OverlaySprite[] = [];
+  const window = (x: number, y: number, w: number, h: number) => {
+    rects.push({ x, y, w, h, color: colors.border });
+    rects.push({ x: x + 1, y: y + 1, w: w - 2, h: h - 2, color: colors.fill });
+  };
+  // A right-pointing triangle, 4 px wide, centered on a text line at `y`.
+  const cursor = (x: number, y: number) => {
+    const mid = y + (font.ascent >> 1) + 1;
+    for (let i = 0; i < 4; i++) {
+      rects.push({ x: x + i, y: mid - 3 + i, w: 1, h: 7 - 2 * i, color: colors.cursor });
+    }
+  };
+
+  // The top list, on the left.
+  const margin = 6;
+  const labels = TOP_ITEMS.map((item) => strings.items[item]);
+  const listW =
+    pad + cursorW + Math.max(...labels.map((label) => textWidth(font, label))) + pad + 2;
+  const listH = pad * 2 + line * TOP_ITEMS.length;
+  window(margin, margin, listW, listH);
+  labels.forEach((label, i) => {
+    const y = margin + pad + i * line;
+    const chosen = state.level === 'top' && state.top === i;
+    texts.push({ x: margin + pad + cursorW, y, text: label, color: colors.text });
+    if (chosen) cursor(margin + pad, y);
+  });
+  // The party list keeps its item marked while it is open.
+  if (state.level === 'party') {
+    const y = margin + pad + TOP_ITEMS.indexOf('party') * line;
+    texts.push({ x: margin + pad + cursorW, y, text: strings.items.party, color: colors.accent });
+  }
+
+  // The content window, on the right, with the help line at its bottom.
+  const cx = margin + listW + 4;
+  const cw = width - cx - margin;
+  const ch = height - margin * 2;
+  window(cx, margin, cw, ch);
+  const helpY = margin + ch - pad - font.cellH;
+  let help = strings.help[TOP_ITEMS[state.top] as TopItem];
+
+  if (state.level === 'party' || TOP_ITEMS[state.top] === 'party') {
+    const top = margin + pad;
+    texts.push({ x: cx + pad, y: top, text: strings.items.party, color: colors.accent });
+    const rowH = line * 2 + 6;
+    context.members.forEach((id, i) => {
+      const y = top + line + 6 + i * rowH;
+      const m = memberLook(look.runtime, id, look.language);
+      const check = context.switchCheck(i);
+      const active = i === context.activeIndex;
+      const nameColor = active ? colors.accent : check === 'ok' ? colors.text : colors.dim;
+      if (m.atlas !== undefined && m.frame !== undefined) {
+        sprites.push({
+          x: cx + pad + cursorW,
+          y: y - 2,
+          atlas: m.atlas,
+          frame: m.frame,
+          ...(check === 'down' ? { alpha: 0.4 } : {}),
+        });
+      }
+      const tx = cx + pad + cursorW + 20;
+      texts.push({ x: tx, y, text: m.name, color: nameColor });
+      const hp = context.party[i];
+      if (hp !== undefined && hp.hpMax > 0) {
+        const hy = y + line;
+        texts.push({ x: tx, y: hy, text: strings.hp, color: colors.text });
+        const numbers = `${hp.hp}/${hp.hpMax}`;
+        const numbersW = textWidth(font, numbers);
+        const nx = cx + cw - pad - numbersW;
+        texts.push({ x: nx, y: hy, text: numbers, color: colors.text });
+        const gx = tx + textWidth(font, strings.hp) + 4;
+        const gw = nx - 6 - gx;
+        const gy = hy + font.ascent - 6;
+        rects.push({ x: gx, y: gy, w: gw, h: 6, color: colors.gaugeBack });
+        const fill = Math.floor(((gw - 2) * Math.max(0, hp.hp)) / hp.hpMax);
+        if (fill > 0) rects.push({ x: gx + 1, y: gy + 1, w: fill, h: 4, color: colors.gauge });
+      }
+      if (state.level === 'party' && state.member === i) {
+        cursor(cx + pad, y);
+        help = strings.switch[check];
+      }
+    });
+  }
+  texts.push({ x: cx + pad, y: helpY, text: help, color: colors.dim });
+  return { dim: 0.5, rects, texts, sprites };
+}

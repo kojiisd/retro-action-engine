@@ -44,27 +44,59 @@ export function applyCharacter(world: World, character: CharacterDef): void {
   s.colOy[slot] = character.collider.oy;
 }
 
+/** Why the party can or cannot switch to member `index` now (ADR-0020). */
+export type SwitchCheck = 'ok' | 'active' | 'down' | 'never' | 'airborne' | 'cooldown';
+
+/**
+ * Whether the party can switch to member `index` now, with the reason when it cannot: the same
+ * rules as the switch button (ADR-0007, ADR-0016), for a chosen member (the menu, ADR-0020).
+ */
+export function switchCheck(world: World, runtime: PackRuntime, index: number): SwitchCheck {
+  const party = world.party;
+  if (!canSwitch(world, runtime) || !Number.isInteger(index) || index < 0) return 'never';
+  if (index >= party.members.length) return 'never';
+  if (index === party.activeIndex) return 'active';
+  if (!isAlive(world, index)) return 'down';
+  const s = world.entities;
+  const grounded = ((s.contact[s.slotOf(party.entityId)] as number) & CONTACT_GROUNDED) !== 0;
+  if (runtime.rules.party.switch.requireGrounded && !grounded) return 'airborne';
+  if (party.cooldownTicks > 0) return 'cooldown';
+  return 'ok';
+}
+
 /**
  * The `party` system (docs/architecture.md 4.3, ADR-0007). A switch request moves to the next
  * member when switching is enabled, the cooldown is over and, if required, the character is on
  * the ground. `placement: 'spawn'` moves the body to the room's entry spawn and stops it.
  * Members whose HP is 0 are skipped; with no other living member nothing happens (ADR-0016).
+ * A switch-to command from the menu (ADR-0020) goes to the chosen member under the same rules,
+ * and wins over the switch button in the same tick; when it cannot be done, nothing happens.
  */
 export function partyStep(world: World, intent: Intent, runtime: PackRuntime): void {
   const party = world.party;
   const rules = runtime.rules.party.switch;
-  if (!intent.switchRequested || !canSwitch(world, runtime) || party.cooldownTicks > 0) {
-    return;
+  let next: number | undefined;
+  if (intent.switchTo !== undefined) {
+    if (switchCheck(world, runtime, intent.switchTo) !== 'ok') return;
+    next = intent.switchTo;
+  } else {
+    if (!intent.switchRequested || !canSwitch(world, runtime) || party.cooldownTicks > 0) {
+      return;
+    }
+    const s = world.entities;
+    if (
+      rules.requireGrounded &&
+      ((s.contact[s.slotOf(party.entityId)] as number) & CONTACT_GROUNDED) === 0
+    ) {
+      return;
+    }
+    next = nextAlive(world);
+    if (next === undefined) {
+      return;
+    }
   }
   const s = world.entities;
   const slot = s.slotOf(party.entityId);
-  if (rules.requireGrounded && ((s.contact[slot] as number) & CONTACT_GROUNDED) === 0) {
-    return;
-  }
-  const next = nextAlive(world);
-  if (next === undefined) {
-    return;
-  }
   party.activeIndex = next;
   party.cooldownTicks = rules.cooldownTicks;
   // A swing does not carry over to the next character (ADR-0017).

@@ -25,6 +25,7 @@
 | [ADR-0017](ADR-0017-melee-attack.md) | 剣を振る攻撃（攻撃の動きと当たり判定の箱） | M2-5 | Accepted |
 | [ADR-0018](ADR-0018-room-transitions.md) | 部屋の出口と部屋の移動 | M3-1 | Accepted |
 | [ADR-0019](ADR-0019-ladders.md) | はしご（つかむ、昇り降り、離れる） | M3-2b | Accepted |
+| [ADR-0020](ADR-0020-game-menu.md) | ゲーム内のメニュー（交代のコマンド、名前、フォント） | M3-6 | Accepted |
 
 ## 書式
 

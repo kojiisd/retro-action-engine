@@ -24,7 +24,7 @@
 
 ## 3. パッケージ構成と依存方向
 
-エンジンのパッケージは 6 つ。ほかに、エンジンから独立した `infra`、サイトのトップのゲーム一覧 `apps/gallery`、サイト全体を組み立てる `scripts/site` がある（M1-1 で追加）。解析ツールの `solver`（A-1 で追加）は `core` だけに依存し、エンジンの実行時には含めない。リプレイ機能は `core` に含める。`pack-cli` は M4 で `pack` から分離する。
+エンジンのパッケージは 6 つ。ほかに、エンジンから独立した `infra`、サイトのトップのゲーム一覧 `apps/gallery`、サイト全体を組み立てる `scripts/site` と、パックのメニューのフォント画像を書き出す `scripts/font`（M3-6a、ADR-0020。手で動かす道具で、どこからも import されない）がある（`scripts/site` は M1-1 で追加）。解析ツールの `solver`（A-1 で追加）は `core` だけに依存し、エンジンの実行時には含めない。リプレイ機能は `core` に含める。`pack-cli` は M4 で `pack` から分離する。
 
 ```mermaid
 graph BT
@@ -65,6 +65,7 @@ graph BT
 | `solver` | `core` | `pack`、`input`、`renderer-phaser`、DOM。どのパッケージからも import されない | 到達可能性の解析（どの足場に行けるか、どこから戻れないか）。物理は core の `step` だけを使い、報告する経路は `runReplayHeadless` で検証する。[ADR-0015](decisions/ADR-0015-reachability-solver.md) |
 | `apps/gallery` | `scripts/site`（`vite.config.ts` からのみ） | エンジンの全パッケージ | サイトのトップ（`/`）のゲーム一覧。`site.json` からカードを作る。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
 | `scripts/site` | なし | エンジンと各アプリ（パッケージ名で呼ぶだけ） | `site.json` の検証と、サイト全体の組み立て（`pnpm site:build`。一覧をルートに、各ゲームを `play/<slug>/` に） |
+| `scripts/font` | なし | すべて | BDF のフォントから、パックのメニューのフォント画像と `ui.json` の文字の一覧を書き出す（ADR-0020） |
 | `infra` | `aws-cdk-lib`、`constructs` | エンジンの全パッケージ | 証明書スタック（us-east-1、ACM）とメインスタック（S3 + CloudFront、Route 53 の Alias、OIDC、IAM ロール 2 本）。[ADR-0014](decisions/ADR-0014-deploy-and-infra.md) |
 
 `core` のテスト用 fixture（`packages/core/src/test-support.ts`）は `@retro-action-engine/core/testing` として公開し、ほかのパッケージのテストから再利用できる。テスト以外のファイルからの import は dependency-cruiser で禁止する。
@@ -191,6 +192,7 @@ export interface InputFrame {
   held: number;     // ActionId のビットマスク（16 bit）
   pressed: number;  // この tick で down エッジを消費した action
   released: number; // この tick で up エッジを消費した action
+  command?: number; // メニューなどからのコマンド（ADR-0020）
 }
 
 // ---- core/runtime（pack が構築、core が消費） ----
@@ -406,6 +408,7 @@ retro-action-engine/
 ├─ packs/sample/             # サンプルパック（データのみ、CC0）
 ├─ infra/                    # AWS CDK（ACM、S3 + CloudFront、Route 53、OIDC、IAM）。手順書は infra/README.md
 ├─ scripts/site/             # site.json の検証とサイト全体の組み立て（pnpm site:build）
+├─ scripts/font/             # メニューのフォント画像の書き出し（手で動かす。ADR-0020）
 ├─ site.json                 # 一覧に載せるゲームと各ゲームの slug（公開情報。変更は所有者が確認）
 ├─ schemas/                  # zod から生成した JSON Schema（M4）
 ├─ docs/                     # 本書、ADR、仕様

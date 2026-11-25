@@ -13,6 +13,13 @@
       "license": "CC0-1.0",
       "source": "original",
       "notes": "Created with AI tools and edited by hand."
+    },
+    {
+      "path": "ui/font.png",
+      "author": "M+ FONTS PROJECT (Copyright (C) 2002-2013 M+ FONTS PROJECT; M+ BITMAP FONTS Copyright 2002-2005 COZ)",
+      "license": "M+ FONT LICENSE",
+      "source": "M+ BITMAP FONTS 12 px (mplus_f12r.bdf, mplus_j12r.bdf), as included in https://github.com/itouhiro/PixelMplus (src/bdf.d)",
+      "notes": "The glyphs the menu uses, copied pixel for pixel into one image by scripts/font. License: \"These fonts are free software. Unlimited permission is granted to use, copy, and distribute them, with or without modification, either commercially or noncommercially. THESE FONTS ARE PROVIDED AS IS WITHOUT WARRANTY.\""
     }
   ]
 }

@@ -1,5 +1,6 @@
 import { type BrowserContext, devices, expect, type Page, test } from '@playwright/test';
 import { actionMask } from '@retro-action-engine/core';
+import { menuOpen, openSettings } from './menus';
 
 // The virtual pad layout editor (M2-4, docs/input-and-feel.md 9.5): drag and resize a button,
 // the new place works in the game, it is kept after a reload, each orientation keeps its own,
@@ -93,7 +94,7 @@ async function finger(context: BrowserContext, page: Page) {
 }
 
 async function openEditor(page: Page) {
-  await page.getByRole('button', { name: 'Open settings' }).click();
+  await openSettings(page, 'Open the menu');
   await page.getByRole('button', { name: 'Edit layout' }).click();
 }
 
@@ -148,13 +149,17 @@ test.describe('landscape phone', () => {
       .toBeLessThan(1.5);
     expect(await page.evaluate(() => window.__engine?.getStats().tick)).toBe(tick);
 
-    // Done goes back to the settings; closing them plays again.
+    // Done goes back to the settings; closing them goes back to the game menu (ADR-0020), and
+    // closing that (the gear) plays again.
     await editor.getByRole('button', { name: 'Done' }).click();
     await expect(editor).toBeHidden();
     await page
       .getByRole('dialog', { name: 'Settings' })
       .getByRole('button', { name: 'Close' })
       .click();
+    expect(await menuOpen(page)).toBe(true);
+    await page.getByRole('button', { name: 'Open the menu' }).tap();
+    await expect.poll(() => menuOpen(page)).toBe(false);
     const moved = await settledBox(page, JUMP);
 
     // The button works where it now is.
@@ -245,7 +250,7 @@ test.describe('portrait phone', () => {
     page,
   }) => {
     const errors = await open(page);
-    await page.getByRole('button', { name: '設定を開く' }).click();
+    await openSettings(page, 'メニューを開く');
     await page.getByRole('button', { name: '配置を変える' }).click();
     const editor = page.getByRole('dialog', { name: 'パッドの配置（縦向き）' });
     await expect(editor).toBeVisible();

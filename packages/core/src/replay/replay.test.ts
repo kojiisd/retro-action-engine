@@ -45,7 +45,7 @@ describe('Recorder and Player', () => {
       [4, r, 0, 0],
       [1, 0, 0, r],
     ]);
-    expect(file).toMatchObject({ version: 1, packId: 'test-pack', packVersion: '0.0.0', seed: 99 });
+    expect(file).toMatchObject({ version: 2, packId: 'test-pack', packVersion: '0.0.0', seed: 99 });
   });
 
   it('plays back exactly the recorded frames', () => {

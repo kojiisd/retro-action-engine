@@ -30,6 +30,27 @@ export interface InputFrame {
   readonly pressed: number;
   /** Actions whose up edge was consumed in this tick. */
   readonly released: number;
+  /**
+   * A command from outside the game (the menu, ADR-0020): `(kind << 8) | argument`. Absent or 0
+   * is none. Recorded in replays like the buttons.
+   */
+  readonly command?: number;
+}
+
+/** Command kind: switch to the party member given as the argument (ADR-0020). */
+export const COMMAND_SWITCH_TO = 1;
+
+/** The command that switches to party member `index` (0-255). */
+export function switchToCommand(index: number): number {
+  if (!Number.isInteger(index) || index < 0 || index > 0xff) {
+    throw new RangeError(`switchToCommand: member index ${index} is out of range`);
+  }
+  return (COMMAND_SWITCH_TO << 8) | index;
+}
+
+/** The member index of a switch-to command, or undefined for any other command (or none). */
+export function switchTarget(command: number | undefined): number | undefined {
+  return command !== undefined && command >> 8 === COMMAND_SWITCH_TO ? command & 0xff : undefined;
 }
 
 export const EMPTY_FRAME: InputFrame = { held: 0, pressed: 0, released: 0 };

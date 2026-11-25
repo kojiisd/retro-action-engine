@@ -117,6 +117,7 @@ interface InputFrame {
   held: number;     // tick 終了時点で押されている action
   pressed: number;  // この tick で down エッジを消費した action
   released: number; // この tick で up エッジを消費した action
+  command?: number; // メニューなどからのコマンド（M3-6、ADR-0020）。0 か無しで何もしない
 }
 
 interface Transition { action: ActionId; kind: 'down' | 'up'; seq: number }
@@ -448,13 +449,13 @@ interface TouchLayout {
 
 ```ts
 interface ReplayFile {
-  version: 1;
+  version: 2;          // 1 も読める（command は 0）。M3-6 で 2 にした（ADR-0020）
   packId: string;
   packVersion: string;
   feelProfile: string;
   seed: number;
   start: { roomId: string; spawnId: string; party?: string[] };
-  frames: Array<[count: number, held: number, pressed: number, released: number]>; // 同一フレームの連続を count でまとめる
+  frames: Array<[count: number, held: number, pressed: number, released: number, command?: number]>; // 同一フレームの連続を count でまとめる。command は 0 なら省略
   checkpoints?: Array<{ tick: number; hash: [number, number] }>;
   final?: { tick: number; hash: [number, number] };
 }

@@ -12,6 +12,7 @@ import {
 } from '@retro-action-engine/core';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type FetchLike, type LoadedRuntime, loadPack } from './load';
+import { localize, MAX_NAME_LENGTH, textLength } from './text';
 
 // The sample pack in the repository (docs/architecture.md 3: tests that read packs/sample live in
 // `pack` and `apps/player`).
@@ -168,7 +169,11 @@ describe('packs/sample', () => {
       .filter((file) => file.endsWith('.png'))
       .sort();
     expect(credits.assets.map((a) => a.path).sort()).toEqual(images);
-    expect(new Set(credits.assets.map((a) => a.license))).toEqual(new Set(['CC0-1.0']));
+    // The pack's own images are CC0; the menu font is the M+ bitmap font (ADR-0020).
+    const licenses = new Map(credits.assets.map((a) => [a.path, a.license]));
+    expect(licenses.get('ui/font.png')).toBe('M+ FONT LICENSE');
+    licenses.delete('ui/font.png');
+    expect(new Set(licenses.values())).toEqual(new Set(['CC0-1.0']));
   });
 
   it('lets everyone into the water, and drains the swimmer slower (ADR-0016)', () => {
@@ -267,6 +272,40 @@ describe('packs/sample', () => {
         }
       }
     }
+  });
+
+  it('names the characters in Japanese and English, six characters at most (ADR-0020)', () => {
+    expect(Object.keys(runtime.strings ?? {})).toEqual(['ja', 'en']);
+    const names = (lang: string) =>
+      runtime.rules.party.members.map((m) =>
+        localize(runtime, runtime.characters[m]?.name as string, lang),
+      );
+    expect(names('ja')).toEqual(['ソラト', 'ミナモ']);
+    expect(names('en')).toEqual(['Sorato', 'Minamo']);
+    for (const lang of ['ja', 'en']) {
+      for (const name of names(lang)) expect(textLength(name)).toBeLessThanOrEqual(MAX_NAME_LENGTH);
+    }
+  });
+
+  it('has a menu font with every character of the names, and a "?" (ADR-0020)', () => {
+    const font = runtime.ui?.font;
+    if (font === undefined) throw new Error('no menu font');
+    const glyphs = new Set(font.glyphs.map(([ch]) => ch));
+    expect(glyphs.has('?')).toBe(true);
+    for (const lang of Object.keys(runtime.strings ?? {})) {
+      for (const m of runtime.rules.party.members) {
+        for (const ch of localize(runtime, runtime.characters[m]?.name as string, lang)) {
+          expect(glyphs.has(ch), `"${ch}" of a name in ${lang}`).toBe(true);
+        }
+      }
+    }
+    // The image holds every cell.
+    const png = readFileSync(join(PACK_DIR, 'ui/font.png'));
+    const width = png.readUInt32BE(16);
+    const height = png.readUInt32BE(20);
+    const columns = width / font.cellW;
+    expect(Number.isInteger(columns)).toBe(true);
+    expect(height).toBe(Math.ceil(font.glyphs.length / columns) * font.cellH);
   });
 
   it('swings without a break when mashed, and once when held (M3-2c)', () => {

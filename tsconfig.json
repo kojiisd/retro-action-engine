@@ -9,6 +9,7 @@
     { "path": "apps/player" },
     { "path": "infra" },
     { "path": "apps/gallery" },
-    { "path": "scripts/site" }
+    { "path": "scripts/site" },
+    { "path": "scripts/font" }
   ]
 }

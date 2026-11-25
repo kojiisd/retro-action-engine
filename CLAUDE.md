@@ -36,6 +36,7 @@ solver → core（解析ツール。どのパッケージからも import され
 infra → aws-cdk-lib のみ（エンジンの全パッケージから独立）
 apps/gallery → scripts/site（ビルド設定のみ。エンジンには依存しない）
 scripts/site → なし（アプリはパッケージ名で呼ぶだけで import しない）
+scripts/font → なし（メニューのフォント画像を書き出す道具。どこからも import されない）
 ```
 
 | パッケージ | してはいけないこと |
@@ -59,7 +60,7 @@ scripts/site → なし（アプリはパッケージ名で呼ぶだけで impor
 ## 既存作品の素材・名称を含めない
 
 - 参考にした既存作品のタイトル、キャラクター名、地名、楽曲名、画像、音声、マップデータを、コード、docs、コミット、Issue、PR、テスト名のいずれにも書かない・入れない。
-- リポジトリに置く素材はオリジナルのサンプルパック（CC0）のみ。私的な再現パックはリポジトリ外から読み込む設計であり、リポジトリに追加しない。
+- リポジトリに置く素材はオリジナルのサンプルパック（CC0）のみ。例外は所有者が確認した自由なライセンスのフォント（M+ BITMAP FONTS、M+ FONT LICENSE。ADR-0020）で、CC0 とは書かず、`credits.json` に権利者とライセンスの全文を、`pack.json` の `licenses.assets` に例外を書く。私的な再現パックはリポジトリ外から読み込む設計であり、リポジトリに追加しない。
 - 新しい素材を追加するときは `packs/sample/credits.json` に出所とライセンスを記録する。
 
 ## 決定論（`core` の禁止事項）
@@ -155,4 +156,5 @@ pnpm は `packageManager`（pnpm 12）で固定されている。Node は `.nvmr
 - M3-2（カメラ）は実装済み（ADR-0009 の改訂履歴）: `World.camera`（ビューの左上、整数 px）、`sim/camera.ts`（`scroll` はデッドゾーン、先読み、`lerpShift` で少し遅れて追い、`followY: 'grounded'` で着地してから縦を合わせる。`screenFlip` は `cut` と `scroll`、`pauseSimulation` で止める）、部屋境界のクランプ、部屋に入ったときのスナップ、活性化判定 `isActive`（M3-4 で使う）。core はプレイ領域の大きさだけ `display` から読む。描画はカメラを補間して `setScroll`。サンプルパックの `hub` は横 5 × 縦 3 画面（100×30 タイル）のスクロール（所有者の判断）。
 - M3-2b（はしご）は実装済み（ADR-0019）: タイルのクラス `ladder`（最上段は core がすり抜け床として扱う）、操作感の `climbSpeed` と `climbJumpVelocity`（無ければつかめない）、`sim/ladder.ts`（`controller` の前の `climbStep`、移動の後の `climbAfterMove`、部屋に入ったときの `climbOnEnter`）、`World.controller.climbing`。上か下でつかみ、ジャンプで離れ、つかまったまま振れる。ソルバーははしごを使わず、はしごのある部屋では高さの証明を出さない。サンプルパックの `hub` は中段から上段の棚へ左右に 1 本ずつ。はしごのタイル（16×16）と `climb` のコマ（16×24）は、所有者の Gemini の絵を見本に描き直したもの（ADR-0019 の改訂履歴）。
 - M3-2c（攻撃の連打）は実装済み（ADR-0017 の改訂）: 先行入力（操作感の `attackBufferTicks`、`World.controller.attackPressedTick`、`sim/attack.ts` の `attackStep` を `controller` とはしごで共有）。振りの終わりの `attackBufferTicks` 前からの押下で振り終わりに次を振る。押しっぱなしでは振り続けない。サンプルパックは振りを 2、5、3 tick（10 tick）に短くし、`attackBufferTicks: 5`（所有者の判断）。
-- 計画に追加（所有者の要望、2026-11-23）: M3-6 ゲーム内のメニュー。中身は着手するときに所有者と決める。素材（はしご、メニューなど）は所有者が Gemini で作り、Claude は指示文と下絵を用意して、届いた絵を決めた大きさに整える。
+- M3-6a（ゲーム内のメニュー）は実装済み（ADR-0020）: `menu` と HUD の歯車で開き（設定画面はメニューの「せってい」から）、開いている間は止まる。パーティ（選んで交代）、せってい、とじる。表示モデルと操作は `apps/player/src/menu.ts`（純粋な関数）、文言は `menu-strings.ts`（日英、公開情報）、描画は renderer-phaser の overlay（専用のカメラ）。交代は入力のコマンド（`InputFrame.command`、リプレイの version 2、core の `switchCheck`、`GameSession.queueCommand`）。閉じた時点で押していたボタンは離すまでゲームに渡さない（`HoldGate`）。パックは `strings.<lang>.json`（キャラクターの名前は 6 文字まで。サンプルはソラト / ミナモ）と `ui.json`（フォント画像と窓の色）。サンプルのフォントは M+ BITMAP FONTS の 12 px から使う文字だけを `scripts/font` で書き出したもの（M+ FONT LICENSE。BDF はリポジトリに置かない）。地図は M3-6b。
+- 素材（はしご、メニューなど）の進め方（所有者の要望、2026-11-23）: 所有者が Gemini で作り、Claude は指示文と下絵を用意して、届いた絵を決めた大きさに整える。

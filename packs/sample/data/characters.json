@@ -2,7 +2,7 @@
   "characters": [
     {
       "id": "explorer",
-      "name": "Explorer",
+      "name": "@strings:char.explorer",
       "abilityTags": [],
       "hp": {
         "max": 120
@@ -115,7 +115,7 @@
     },
     {
       "id": "diver",
-      "name": "Diver",
+      "name": "@strings:char.diver",
       "abilityTags": ["move:swim"],
       "hp": {
         "max": 120

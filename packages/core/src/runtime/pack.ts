@@ -201,6 +201,40 @@ export interface PackRuntime {
   readonly roomTransition?: RoomTransitionDef;
   /** The camera (ADR-0009). Without it, or without `display`, the view stays at 0, 0. */
   readonly camera?: CameraDef;
+  /**
+   * Texts by language, then key (docs/pack-spec.md 4.10). The first language is the pack's
+   * default. Filled by `pack`; core does not use them.
+   */
+  readonly strings?: Readonly<Record<string, Readonly<Record<string, string>>>>;
+  /** The menu's font and colors (ADR-0020). Without it there is no in-game menu. */
+  readonly ui?: UiDef;
+}
+
+/** The menu's font (ADR-0020): fixed cells in one image, in reading order. */
+export interface UiFontDef {
+  /** URL of the image. */
+  readonly image: string;
+  readonly cellW: number;
+  readonly cellH: number;
+  /** From the top of a cell to the baseline. */
+  readonly ascent: number;
+  /** Each glyph's character and drawing width, in the order of the cells. */
+  readonly glyphs: ReadonlyArray<readonly [string, number]>;
+}
+
+/** The menu's look (docs/pack-spec.md 4.11, ADR-0020). Colors are `#rrggbb`. */
+export interface UiDef {
+  readonly font: UiFontDef;
+  readonly colors: {
+    readonly border: string;
+    readonly fill: string;
+    readonly text: string;
+    readonly accent: string;
+    readonly dim: string;
+    readonly cursor: string;
+    readonly gauge: string;
+    readonly gaugeBack: string;
+  };
 }
 
 export interface StartState {

@@ -31,12 +31,17 @@ async function open(page: Page): Promise<string[]> {
 }
 
 /**
- * Records a run round the rooms in Node: walk to the exit of each room, press up on a door, and
- * wait out each change. Returns the replay and the rooms on the way.
+ * Records a run round the rooms in Node: from the spawn past the rock (no pickaxe needed), walk to
+ * the exit of each room (hitting the switch of a closed gate first, ADR-0021), press up on a
+ * door, and wait out each change. Returns the replay and the rooms on the way.
  */
 function roundTrip(runtime: PackRuntime): { file: ReplayFile; rooms: string[] } {
-  const entry = runtime.entry as { roomId: string; spawnId: string };
-  const start: StartState = { ...entry, seed: 1, feelProfile: runtime.feelDefault as string };
+  const start: StartState = {
+    roomId: 'hub',
+    spawnId: 'door',
+    seed: 1,
+    feelProfile: runtime.feelDefault as string,
+  };
   const world = createWorld(runtime, start);
   const recorder = new Recorder();
   const slot = world.entities.slotOf(world.party.entityId);
@@ -48,10 +53,8 @@ function roundTrip(runtime: PackRuntime): { file: ReplayFile; rooms: string[] } 
   };
   const x = () => world.entities.x[slot] as number;
   const rooms = [world.roomId];
-  for (let leg = 0; leg < 2; leg++) {
-    const exit = runtime.rooms[world.roomId]?.exits?.[0];
-    if (exit === undefined) throw new Error(`no way on from ${world.roomId}`);
-    const center = exit.rect.x + (exit.rect.w >> 1);
+  /** Walks until the body is within 2 px of `target`, or a room change starts. */
+  const walkTo = (target: number, onArrival?: () => void) => {
     // Where a step stops the body on the ground, back off and take a run-up (the retro profile
     // cannot steer in the air).
     let backOff = 0;
@@ -60,9 +63,10 @@ function roundTrip(runtime: PackRuntime): { file: ReplayFile; rooms: string[] } 
     let lastX = x();
     for (let i = 0; i < 3000 && world.transition.phase === 'none'; i++) {
       const dir =
-        x() < center - fromPx(2) ? 'right' : x() > center + fromPx(2) ? 'left' : undefined;
+        x() < target - fromPx(2) ? 'right' : x() > target + fromPx(2) ? 'left' : undefined;
       if (dir === undefined) {
-        play(script().wait(30).tap('up', { at: 0 }).build(1));
+        if (onArrival === undefined) return;
+        onArrival();
         continue;
       }
       const back = dir === 'right' ? 'left' : 'right';
@@ -84,9 +88,24 @@ function roundTrip(runtime: PackRuntime): { file: ReplayFile; rooms: string[] } 
       }
       lastX = x();
     }
+  };
+  for (let leg = 0; leg < 2; leg++) {
+    const room = runtime.rooms[world.roomId];
+    for (const g of room?.gimmicks ?? []) {
+      if (g.type !== 'switch' || world.flags[g.flag] !== undefined) continue;
+      // Just left of it, facing right: within the sword's reach.
+      walkTo(g.rect.x - fromPx(8));
+      play(script().tap('attack').wait(30).build());
+    }
+    const exit = room?.exits?.[0];
+    if (exit === undefined) throw new Error(`no way on from ${world.roomId}`);
+    walkTo(exit.rect.x + (exit.rect.w >> 1), () =>
+      play(script().wait(30).tap('up', { at: 0 }).build(1)),
+    );
     play(script().build((runtime.roomTransition?.lockTicks ?? 0) + 10));
     rooms.push(world.roomId);
   }
+  expect(world.flags['cellar-gate-open']).toBe(true);
   return { file: recorder.toFile(runtime, start), rooms };
 }
 

@@ -24,14 +24,20 @@
     "rooms": ["rooms/hub.tmj", "rooms/cellar.tmj"],
     "tilesets": ["tilesets/main.json"],
     "atlases": {
-      "characters": "atlases/characters.json"
+      "characters": "atlases/characters.json",
+      "objects": "atlases/objects.json"
     },
     "characters": "data/characters.json",
+    "items": "data/items.json",
+    "gimmicks": "data/gimmicks.json",
     "rules": "data/rules.json",
     "feel": "data/feel.json",
     "input": "data/input.json",
     "camera": "data/camera.json",
-    "strings": { "ja": "data/strings.ja.json", "en": "data/strings.en.json" },
+    "strings": {
+      "ja": "data/strings.ja.json",
+      "en": "data/strings.en.json"
+    },
     "ui": "data/ui.json"
   },
   "saveCompat": ">=0.1.0 <0.2.0",

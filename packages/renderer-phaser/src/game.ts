@@ -1,5 +1,5 @@
 import type { FrameView, PackRuntime } from '@retro-action-engine/core';
-import type { LoadedRuntime } from '@retro-action-engine/pack';
+import { glyphIndex, type LoadedRuntime, layoutText } from '@retro-action-engine/pack';
 import * as Phaser from 'phaser';
 import { fadeAmount } from './fade';
 import { HUD_PAD, hudIcons, hudLayout } from './hud';
@@ -10,6 +10,7 @@ import {
   interpolateHitboxes,
   interpolateSprites,
 } from './interpolate';
+import { colorOf, type OverlayView } from './overlay';
 import { integerZoom, type Scaling } from './scaling';
 import { tileLayerPlans } from './tile-layers';
 
@@ -36,7 +37,12 @@ export interface RendererOptions {
   readonly desynchronized?: boolean;
   /** How the screen is scaled in `parent` (ADR-0010). Stretched to fit when absent. */
   readonly scaling?: Scaling;
+  /** The in-game menu over everything (ADR-0020), read every frame; null when it is closed. */
+  readonly overlay?: () => OverlayView | null;
 }
+
+/** Texture key of the menu font (ADR-0020). */
+const MENU_FONT = '__menu_font';
 
 /** Debug collision boxes: a thin line above everything in the play area. */
 const COLLIDER_COLOR = 0x40ff90;
@@ -67,6 +73,12 @@ class GameScene extends Phaser.Scene {
   private roomId = '';
   private debug: Phaser.GameObjects.Graphics | undefined;
   private fade: Phaser.GameObjects.Rectangle | undefined;
+  /** The menu (ADR-0020): its own camera over the whole display, and pooled objects. */
+  private overlayCamera: Phaser.Cameras.Scene2D.Camera | undefined;
+  private overlayShapes: Phaser.GameObjects.Graphics | undefined;
+  private readonly overlayGlyphs: Phaser.GameObjects.Image[] = [];
+  private readonly overlaySprites: Phaser.GameObjects.Sprite[] = [];
+  private glyphOf: ((ch: string) => number) | undefined;
 
   constructor(private readonly options: RendererOptions) {
     super({ key: 'game' });
@@ -79,6 +91,13 @@ class GameScene extends Phaser.Scene {
     }
     for (const [key, tileset] of Object.entries(assets.tilesets)) {
       this.load.image(key, tileset.image);
+    }
+    const font = this.options.runtime.ui?.font;
+    if (font !== undefined) {
+      this.load.spritesheet(MENU_FONT, font.image, {
+        frameWidth: font.cellW,
+        frameHeight: font.cellH,
+      });
     }
   }
 
@@ -109,7 +128,24 @@ class GameScene extends Phaser.Scene {
       this.hpCells = this.add.graphics();
       this.cameras.main.ignore(this.hpCells);
     }
+    // The menu: drawn by a camera of its own over the whole display, above the others.
+    if (this.options.overlay !== undefined) {
+      this.overlayCamera = this.cameras.add(0, 0, display.width, display.height, false, 'overlay');
+      this.overlayCamera.setRoundPixels(true);
+      // Everything made so far (tiles, debug lines, the fade, the HUD gauges) is not the menu's.
+      this.overlayCamera.ignore(this.children.list);
+      this.overlayShapes = this.add.graphics();
+      this.onlyOnOverlay(this.overlayShapes);
+      const font = runtime.ui?.font;
+      if (font !== undefined) this.glyphOf = glyphIndex(font);
+    }
     this.options.onReady?.();
+  }
+
+  /** Draws `object` with the menu's camera only, and keeps it off the menu's camera otherwise. */
+  private onlyOnOverlay(object: Phaser.GameObjects.GameObject): void {
+    this.cameras.main.ignore(object);
+    this.hudCamera?.ignore(object);
   }
 
   /** Builds the tile layers of a room, in place of the previous room's. */
@@ -127,6 +163,7 @@ class GameScene extends Phaser.Scene {
       const layer = map.createLayer(0, tileset, 0, 0);
       layer.setDepth(plan.depth);
       this.hudCamera?.ignore(layer);
+      this.overlayCamera?.ignore(layer);
       this.maps.push(map);
     }
     this.roomId = roomId;
@@ -146,6 +183,7 @@ class GameScene extends Phaser.Scene {
     this.drawSprites(view);
     this.drawColliders(view);
     this.drawHud(view, this.options.runtime);
+    this.drawOverlay(this.options.overlay?.() ?? null);
     this.options.afterDraw?.();
   }
 
@@ -182,6 +220,7 @@ class GameScene extends Phaser.Scene {
       if (sprite === undefined) {
         sprite = this.add.sprite(s.x, s.y, s.atlas, s.frame).setOrigin(0.5, 1);
         this.hudCamera?.ignore(sprite);
+        this.overlayCamera?.ignore(sprite);
         this.sprites.set(s.id, sprite);
       }
       if (sprite.texture.key !== s.atlas) sprite.setTexture(s.atlas, s.frame);
@@ -203,6 +242,7 @@ class GameScene extends Phaser.Scene {
     while (this.hud.length < icons.length) {
       const icon = this.add.sprite(0, 0, icons[0]?.atlas ?? '').setOrigin(0, 0);
       this.cameras.main.ignore(icon);
+      this.overlayCamera?.ignore(icon);
       this.hud.push(icon);
     }
     this.hud.forEach((sprite, i) => {
@@ -240,6 +280,62 @@ class GameScene extends Phaser.Scene {
       gauges.fillRect(bar.x + bar.fill, bar.y, bar.w - bar.fill, bar.h);
       gauges.fillStyle(HP_FULL_COLOR, alpha);
       gauges.fillRect(bar.x, bar.y, bar.fill, bar.h);
+    }
+  }
+
+  /** The menu (ADR-0020): a dark veil, the windows, the text and the pictures. */
+  private drawOverlay(view: OverlayView | null): void {
+    const g = this.overlayShapes;
+    if (g === undefined) return;
+    g.clear();
+    const used = { glyphs: 0, sprites: 0 };
+    if (view !== null) {
+      const { display } = this.options.runtime;
+      if (view.dim > 0) {
+        g.fillStyle(0x000000, view.dim);
+        g.fillRect(0, 0, display.width, display.height);
+      }
+      for (const r of view.rects) {
+        g.fillStyle(colorOf(r.color), 1);
+        g.fillRect(r.x, r.y, r.w, r.h);
+      }
+      const font = this.options.runtime.ui?.font;
+      if (font !== undefined && this.glyphOf !== undefined) {
+        for (const t of view.texts) {
+          for (const glyph of layoutText(font, t.text, t.x, t.y, this.glyphOf)) {
+            let image = this.overlayGlyphs[used.glyphs];
+            if (image === undefined) {
+              image = this.add.image(0, 0, MENU_FONT, 0).setOrigin(0, 0).setDepth(2);
+              this.onlyOnOverlay(image);
+              this.overlayGlyphs.push(image);
+            }
+            used.glyphs++;
+            image.setFrame(glyph.cell).setPosition(glyph.x, glyph.y).setTint(colorOf(t.color));
+            image.setVisible(true);
+          }
+        }
+      }
+      for (const s of view.sprites) {
+        let sprite = this.overlaySprites[used.sprites];
+        if (sprite === undefined) {
+          sprite = this.add.sprite(0, 0, s.atlas, s.frame).setOrigin(0, 0).setDepth(1);
+          this.onlyOnOverlay(sprite);
+          this.overlaySprites.push(sprite);
+        }
+        used.sprites++;
+        if (sprite.texture.key !== s.atlas) sprite.setTexture(s.atlas, s.frame);
+        else if (sprite.frame.name !== s.frame) sprite.setFrame(s.frame);
+        sprite
+          .setPosition(s.x, s.y)
+          .setAlpha(s.alpha ?? 1)
+          .setVisible(true);
+      }
+    }
+    for (let i = used.glyphs; i < this.overlayGlyphs.length; i++) {
+      this.overlayGlyphs[i]?.setVisible(false);
+    }
+    for (let i = used.sprites; i < this.overlaySprites.length; i++) {
+      this.overlaySprites[i]?.setVisible(false);
     }
   }
 }

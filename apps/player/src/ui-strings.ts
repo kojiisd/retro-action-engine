@@ -8,6 +8,8 @@ export interface UiStrings {
   readonly lang: 'ja' | 'en';
   readonly settings: string;
   readonly openSettings: string;
+  /** The gear's label when it opens the game menu (ADR-0020). */
+  readonly openMenu: string;
   readonly close: string;
   readonly bindingsTitle: string;
   readonly add: string;
@@ -53,6 +55,7 @@ const JA: UiStrings = {
   lang: 'ja',
   settings: '設定',
   openSettings: '設定を開く',
+  openMenu: 'メニューを開く',
   close: '閉じる',
   bindingsTitle: '操作の割り当て',
   add: '追加',
@@ -126,6 +129,7 @@ const EN: UiStrings = {
   lang: 'en',
   settings: 'Settings',
   openSettings: 'Open settings',
+  openMenu: 'Open the menu',
   close: 'Close',
   bindingsTitle: 'Controls',
   add: 'Add',

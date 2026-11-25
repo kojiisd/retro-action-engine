@@ -1,4 +1,10 @@
-import { actionBit, GameSession, type StartState } from '@retro-action-engine/core';
+import {
+  actionBit,
+  actionMask,
+  GameSession,
+  type StartState,
+  switchToCommand,
+} from '@retro-action-engine/core';
 import {
   ActionMap,
   applyTouchOverride,
@@ -11,11 +17,21 @@ import {
   TouchPadDevice,
   touchOverrideOf,
 } from '@retro-action-engine/input';
-import { type FetchLike, loadPack } from '@retro-action-engine/pack';
+import { type FetchLike, loadPack, pickLanguage } from '@retro-action-engine/pack';
 import { type Scaling, startRenderer } from '@retro-action-engine/renderer-phaser';
 import type { Binding } from './bindings-edit';
 import { formatStats, LatencyMeter } from './debug';
 import { createEngineHooks, type EngineHooks } from './engine-hooks';
+import { HoldGate } from './hold-gate';
+import {
+  type MenuButton,
+  type MenuContext,
+  type MenuState,
+  menuStep,
+  menuView,
+  openMenu as openGameMenuState,
+} from './menu';
+import { menuStrings } from './menu-strings';
 import {
   effectiveInterpolation,
   type InterpolationMode,
@@ -33,6 +49,13 @@ import type { UiStrings } from './ui-strings';
 /** Seed of `World.rng` for a new game. Nothing in M1-5 draws from it yet. */
 const NEW_GAME_SEED = 1;
 const MENU = actionBit('menu');
+/** The game menu's buttons (ADR-0020); one press with several bits applies them in this order. */
+const MENU_BUTTONS: ReadonlyArray<readonly [MenuButton, number]> = [
+  ['up', actionBit('up')],
+  ['down', actionBit('down')],
+  ['confirm', actionMask('confirm', 'jump')],
+  ['cancel', actionMask('cancel', 'attack')],
+];
 
 export interface BootOptions {
   readonly parent: HTMLElement;
@@ -120,14 +143,20 @@ export async function bootGame(options: BootOptions): Promise<Game> {
   const debug = options.debug;
   const meter = debug === undefined ? undefined : new LatencyMeter(debug.now);
 
-  // `menu` opens and closes the settings: taken at the moment it is pressed (see frame below).
+  // `menu` opens and closes the game menu (or, in a pack without one, the settings): taken at
+  // the moment it is pressed (see frame below).
   let menuPressed = false;
+  // The game menu (ADR-0020): open while not null; the presses since the last frame, in the
+  // order they came (two presses can fall in one frame).
+  let gameMenu: MenuState | null = null;
+  let gameMenuPressed: number[] = [];
   // After closing, the resync reports a still-held menu button as pressed again: ignore `menu`
   // until it has been let go.
   let menuLocked = false;
   const buffer = new InputBuffer({
     onPressed: (mask) => {
       if ((mask & MENU) !== 0) menuPressed = true;
+      if (gameMenu !== null) gameMenuPressed.push(mask);
       meter?.pressed();
     },
   });
@@ -185,7 +214,10 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     pad.setActionEnabled('switch', canSwitch);
   };
 
-  const session = new GameSession(runtime, start, buffer);
+  // Buttons held as a menu closes wait until they are let go (ADR-0020).
+  const heldNow = () => keyboard.held() | gamepad.held() | touch.held();
+  const gate = new HoldGate(buffer, heldNow);
+  const session = new GameSession(runtime, start, gate);
   const savePack = (next: PackSettings) => {
     packSettings = next;
     void save(settingsStore.savePack(packSettings));
@@ -260,9 +292,69 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     // Start the game again from "everything released": nothing pressed in the menu goes on.
     menuLocked = true;
     buffer.focusLost();
+    if (gameMenu === null) gate.block(heldNow());
   };
-  const gear = createGearButton(options.touch.document, options.settings.strings, () =>
-    panel.open ? closeMenu() : openMenu(),
+  // ---- the game menu (ADR-0020): the windows over the game; the settings open from it ----
+  const ui = runtime.ui;
+  const mStrings = menuStrings(options.settings.strings.lang);
+  const language = pickLanguage(runtime, [options.settings.strings.lang]);
+  const members = () => session.startState.party ?? runtime.rules.party.members;
+  const menuContext = (): MenuContext => {
+    const list = members();
+    const state = session.uiState;
+    return {
+      members: list,
+      activeIndex: Math.max(0, list.indexOf(state.activeCharacterId)),
+      party: state.party,
+      switchCheck: (i) => session.switchCheck(i),
+    };
+  };
+  const openGame = () => {
+    if (gameMenu !== null) return;
+    gameMenu = openGameMenuState(menuContext());
+    gameMenuPressed = [];
+  };
+  const closeGame = () => {
+    if (gameMenu === null) return;
+    gameMenu = null;
+    // Start the game again from "everything released", as after the settings.
+    menuLocked = true;
+    buffer.focusLost();
+    gate.block(heldNow());
+  };
+  const runGameMenu = () => {
+    if (gameMenu === null) return;
+    const presses = gameMenuPressed;
+    gameMenuPressed = [];
+    for (const [button] of presses.flatMap((pressed) =>
+      MENU_BUTTONS.filter(([, m]) => (pressed & m) !== 0),
+    )) {
+      if (gameMenu === null) break;
+      const result = menuStep(gameMenu, button, menuContext());
+      gameMenu = result.state;
+      const effect = result.effect;
+      if (effect?.kind === 'close') closeGame();
+      else if (effect?.kind === 'openSettings') openMenu();
+      else if (effect?.kind === 'switch') {
+        // The switch happens on the first tick after the menu closes (ADR-0020).
+        session.queueCommand(switchToCommand(effect.member));
+        closeGame();
+      }
+    }
+  };
+  /** `menu` or the gear: the settings close back to the game menu, which closes the game's. */
+  const toggleMenus = () => {
+    if (editor?.open === true) closeEditor();
+    else if (panel.open) closeMenu();
+    else if (ui === undefined) openMenu();
+    else if (gameMenu === null) openGame();
+    else closeGame();
+  };
+  const gear = createGearButton(
+    options.touch.document,
+    options.settings.strings,
+    toggleMenus,
+    ui !== undefined,
   );
   options.settings.container.append(gear, panel.element);
 
@@ -318,6 +410,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
     feelProfiles: Object.keys(runtime.feel),
     resyncCount: () => buffer.resyncCount,
     settingsSaved: () => Promise.all([...pendingSaves]).then(() => undefined),
+    menu: () => gameMenu,
   });
 
   // Lay the page out for the pad before the renderer measures the game screen.
@@ -351,12 +444,13 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       }
       if (menuPressed) {
         menuPressed = false;
-        if (editor?.open === true) closeEditor();
-        else if (panel.open) closeMenu();
-        else openMenu();
+        toggleMenus();
+      } else if (!panel.open && editor?.open !== true) {
+        runGameMenu();
       }
-      // No time passes in the game while the settings or the pad editor are open.
-      const paused = panel.open || editor?.open === true;
+      gameMenuPressed = [];
+      // No time passes in the game while a menu, the settings or the pad editor are open.
+      const paused = panel.open || editor?.open === true || gameMenu !== null;
       const view = session.frame(paused ? 0 : deltaMs);
       meter?.ticked(view.ticks);
       updatePad(view.ui.canSwitch);
@@ -383,6 +477,21 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       }
     },
     ...(options.scaling === undefined ? {} : { scaling: options.scaling }),
+    ...(ui === undefined
+      ? {}
+      : {
+          overlay: () =>
+            gameMenu === null
+              ? null
+              : menuView(gameMenu, menuContext(), {
+                  runtime,
+                  ui,
+                  strings: mStrings,
+                  language,
+                  width: runtime.display.width,
+                  height: runtime.display.height,
+                }),
+        }),
     onReady: () => {
       const canvas = options.parent.querySelector('canvas');
       if (canvas !== null) canvasObserver?.observe(canvas);

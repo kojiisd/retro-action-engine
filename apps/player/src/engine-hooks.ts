@@ -1,4 +1,5 @@
 import type { GameSession, ReplayFile, UiState, WorldHash } from '@retro-action-engine/core';
+import type { MenuState } from './menu';
 
 declare global {
   interface Window {
@@ -32,6 +33,8 @@ export interface EngineStats {
   readonly transition: 'none' | 'out' | 'in';
   /** The view's top-left in room px (ADR-0009). */
   readonly camera: { readonly x: number; readonly y: number };
+  /** The game menu (ADR-0020): null while it is closed. */
+  readonly menu: MenuState | null;
 }
 
 /** `window.__engine` (docs/input-and-feel.md 12). Only in dev and e2e builds. */
@@ -62,6 +65,8 @@ export interface HookTargets {
   readonly resyncCount: () => number;
   /** Resolves once every settings write started so far has finished. */
   readonly settingsSaved?: () => Promise<void>;
+  /** The game menu's state (ADR-0020). */
+  readonly menu?: () => MenuState | null;
 }
 
 export function createEngineHooks({
@@ -69,6 +74,7 @@ export function createEngineHooks({
   feelProfiles,
   resyncCount,
   settingsSaved,
+  menu,
 }: HookTargets): EngineHooks {
   let pending: { reject: (error: Error) => void } | undefined;
 
@@ -115,6 +121,7 @@ export function createEngineHooks({
       room: session.roomEntrance.roomId,
       transition: session.transitionState?.phase ?? 'none',
       camera: session.camera,
+      menu: menu?.() ?? null,
     }),
 
     setFeelProfile(id) {

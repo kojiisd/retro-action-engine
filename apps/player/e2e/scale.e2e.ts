@@ -37,7 +37,7 @@ test.describe('PC', () => {
     // Centered in the window.
     expect(Math.abs((canvas?.x ?? 0) * 2 + (canvas?.width ?? 0) - 1920)).toBeLessThanOrEqual(1);
     // The gear is inside the screen's top-right corner (the HUD band), not the window's.
-    const gear = await page.getByRole('button', { name: 'Open settings' }).boundingBox();
+    const gear = await page.getByRole('button', { name: 'Open the menu' }).boundingBox();
     if (canvas === null || gear === null) throw new Error('not shown');
     expect(gear.x + gear.width).toBeLessThanOrEqual(canvas.x + canvas.width);
     expect(gear.x).toBeGreaterThan(canvas.x + canvas.width / 2);

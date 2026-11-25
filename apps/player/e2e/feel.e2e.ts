@@ -3,6 +3,7 @@ import { runReplayHeadless } from '@retro-action-engine/core';
 import type { ReplayResult } from '../src/engine-hooks';
 import { representativeReplay } from '../src/golden/replays';
 import { loadSamplePack } from '../src/test-support';
+import { closeGameMenu, openSettings } from './menus';
 import { decodePng } from './png';
 
 // M2-3: switching the feel profile in the settings, motion smoothing on and off, and the debug
@@ -23,12 +24,13 @@ async function open(page: Page): Promise<string[]> {
 }
 
 async function settings(page: Page) {
-  await page.getByRole('button', { name: 'Open settings' }).click();
+  await openSettings(page, 'Open the menu');
   await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible();
 }
 
 async function close(page: Page) {
   await page.getByRole('button', { name: 'Close' }).click();
+  await closeGameMenu(page);
 }
 
 /** Every tick's hash of the representative replay, in the browser and in Node. */

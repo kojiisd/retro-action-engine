@@ -3,11 +3,11 @@ import { CONTACT_GROUNDED, moveBody } from '../collision/move';
 import type { ExitDef, PackRuntime } from '../runtime/pack';
 import { NEVER, noTransition, type World } from '../world/world';
 import { cancelAttack } from './attack';
+import { bodyContext, flagSet } from './blocking';
 import { snapCamera } from './camera';
 import type { Intent } from './intent';
+import { subjectHasAny } from './items';
 import { climbOnEnter } from './ladder';
-import { activeCharacter } from './party';
-import { effectiveTags } from './tags';
 
 // `roomGrid` lives in sim.ts, which imports this module; take it as an argument instead.
 type GridOf = (runtime: PackRuntime, roomId: string) => CollisionGrid;
@@ -90,9 +90,10 @@ export function enterRoom(
       ox: s.colOx[slot] as number,
       oy: s.colOy[slot] as number,
     },
-    { abilityTags: effectiveTags(activeCharacter(world, runtime)) },
+    bodyContext(world, runtime),
   );
   world.disarmedExits = [];
+  world.zonesInside = [];
   exitsOf(runtime, roomId).forEach((exit, index) => {
     if (overlaps(world, exit.rect)) world.disarmedExits.push(index);
   });
@@ -118,13 +119,13 @@ export function exitStep(
   });
   const s = world.entities;
   const grounded = ((s.contact[s.slotOf(world.party.entityId)] as number) & CONTACT_GROUNDED) !== 0;
-  const tags = effectiveTags(activeCharacter(world, runtime));
   const index = exits.findIndex(
     (exit, i) =>
       !world.disarmedExits.includes(i) &&
       overlaps(world, exit.rect) &&
       (exit.kind !== 'door' || (grounded && intent.upPressed)) &&
-      (exit.requiresAnyTag === undefined || exit.requiresAnyTag.some((tag) => tags.has(tag))),
+      (exit.requiresFlag === undefined || flagSet(world, exit.requiresFlag)) &&
+      (exit.requiresAnyTag === undefined || subjectHasAny(world, runtime, exit.requiresAnyTag)),
   );
   const exit = exits[index];
   if (exit === undefined) return false;

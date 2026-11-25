@@ -49,7 +49,7 @@ roadmap の M3-3 は「フラグ、イベント（トリガ / Condition / Action
 | `pickup` | `itemId`、`count`（既定 1）、`onceFlag?` | 体が矩形に重なると拾う。所持品に足し、フラグを立てる。フラグが立っていれば出ない（拾い直せない） |
 | `breakable` | `requiresAnyTag`、`flag?` | 壊れるまで矩形の中のタイルを壁（`full`）にする。剣の当たり判定（ADR-0017 の `hitbox`）が矩形に重なり、評価対象が `requiresAnyTag` のどれかを持っていれば壊れる（フラグを立てる）。持っていなければ何も起きない |
 | `switch` | `setsFlag` | 剣の当たり判定が矩形に重なると、`setsFlag` を立てる（一度だけ。押した後の絵になる） |
-| `gate` | `requiresFlag`、`flag?` | `requiresFlag` が立つまで、矩形の中のタイルを壁にする。立ったら開く（開いたまま）。`requiresAnyTag` と `consumesItem` は後で（いまは読み込み時に拒否する） |
+| `gate` | `requiresFlag` | `requiresFlag` が立つまで、矩形の中のタイルを壁にする。立ったら開く（開いたまま）。`requiresAnyTag` と `consumesItem` は後で（いまは読み込み時に拒否する） |
 
 - 壁になる仕掛け（`breakable`、`gate`）の矩形はタイルの格子に合わせる（読み込み時に検査する）。壁は衝突判定に足すだけで、部屋のタイルのデータは変えない（`CollisionContext` に閉じたセルを渡す）。開いた次の tick から通れる。
 - 絵: `gimmicks.json` の各定義に `sprite: { atlas, frame }`、`switch` は押した後の `frameOn`。`pickup` はアイテムの `sprite`。壊れた岩、開いた格子、拾った後のアイテムは描かない。

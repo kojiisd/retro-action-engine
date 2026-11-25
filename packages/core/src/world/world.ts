@@ -145,6 +145,10 @@ export interface World {
   /** Indices of the room's exits the body was on when it arrived: closed until it leaves them. */
   disarmedExits: number[];
   flags: Record<string, number | boolean>;
+  /** Items the party holds, by id (ADR-0021). An item at 0 is removed. */
+  inventory: Record<string, number>;
+  /** Indices of the room's event zones the body is in (ADR-0021), ascending. */
+  zonesInside: number[];
   entities: EntityStore;
 }
 
@@ -196,6 +200,8 @@ export function newWorld(init: WorldInit): World {
     transition: noTransition(),
     disarmedExits: [],
     flags: {},
+    inventory: {},
+    zonesInside: [],
     entities: new EntityStore(),
   };
 }
@@ -213,6 +219,8 @@ export function cloneWorld(world: World): World {
     transition: { ...world.transition },
     disarmedExits: [...world.disarmedExits],
     flags: { ...world.flags },
+    inventory: { ...world.inventory },
+    zonesInside: [...world.zonesInside],
     entities: world.entities.clone(),
   };
 }

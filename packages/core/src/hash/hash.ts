@@ -146,6 +146,16 @@ export function hashWorld(world: World): WorldHash {
       h.byte(FLAG_NUMBER).int32(value);
     }
   }
+  // ADR-0021 (M3-3): the inventory by id, then the event zones the body is in.
+  const items = Object.keys(world.inventory).sort();
+  h.int32(items.length);
+  for (const id of items) {
+    h.string(id).int32(world.inventory[id] as number);
+  }
+  h.int32(world.zonesInside.length);
+  for (const index of world.zonesInside) {
+    h.int32(index);
+  }
 
   const store = world.entities;
   h.int32(store.count);

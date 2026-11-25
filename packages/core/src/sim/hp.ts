@@ -4,8 +4,9 @@ import type { HazardDef, PackRuntime } from '../runtime/pack';
 import type { TileClass } from '../runtime/tile';
 import { newControllerState, type World } from '../world/world';
 import { cancelAttack } from './attack';
+import { bodyContext } from './blocking';
+import { activeTags } from './items';
 import { activeCharacter, applyCharacter, isAlive, nextAlive } from './party';
-import { effectiveTags } from './tags';
 
 // `roomGrid` lives in sim.ts, which imports this module; take it as an argument instead.
 type GridOf = (runtime: PackRuntime, roomId: string) => Parameters<typeof tileClassAt>[0];
@@ -78,7 +79,7 @@ export function settleBody(world: World, runtime: PackRuntime, gridOf: GridOf): 
       ox: s.colOx[slot] as number,
       oy: s.colOy[slot] as number,
     },
-    { abilityTags: effectiveTags(activeCharacter(world, runtime)) },
+    bodyContext(world, runtime),
   );
 }
 
@@ -102,7 +103,7 @@ export function hpStep(world: World, runtime: PackRuntime, gridOf: GridOf): bool
     party.hazardTicks = 0;
   }
   if (def !== undefined) {
-    const { damage, interval } = hazardFor(def, effectiveTags(activeCharacter(world, runtime)));
+    const { damage, interval } = hazardFor(def, activeTags(world, runtime));
     party.hazardTicks++;
     if (party.hazardTicks >= interval) {
       party.hazardTicks = 0;

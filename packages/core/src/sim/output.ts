@@ -2,6 +2,9 @@ import { toPxFloor } from '../fx/fx';
 import type { PackRuntime } from '../runtime/pack';
 import type { World } from '../world/world';
 import { resolveAnimation } from './anim';
+import { flagSet } from './blocking';
+import { gimmickShown } from './gimmicks';
+import { attackHitbox } from './hitbox';
 import { activeCharacter } from './party';
 
 /**
@@ -38,7 +41,10 @@ export interface RenderSnapshot {
   readonly room: string;
   /** Top-left of the view in room px (ADR-0009). */
   readonly camera: { readonly x: number; readonly y: number };
-  /** In ascending id order. */
+  /**
+   * In ascending id order. The room's gimmicks (ADR-0021) come first, with negative ids
+   * (-1 - their index in the room), behind the entities.
+   */
   readonly sprites: readonly RenderSprite[];
   /** Collision boxes of the entities, in ascending id order. Drawn only by the debug display. */
   readonly colliders: readonly RenderCollider[];
@@ -55,7 +61,7 @@ export function renderSnapshot(
   runtime: PackRuntime,
   teleported = false,
 ): RenderSnapshot {
-  const sprites: RenderSprite[] = [];
+  const sprites: RenderSprite[] = gimmickSprites(world, runtime);
   const colliders: RenderCollider[] = [];
   const hitboxes: RenderCollider[] = [];
   if (world.party.members.length > 0) {
@@ -78,21 +84,14 @@ export function renderSnapshot(
     if (sprite !== undefined && resolved !== undefined) {
       const frame = resolved.def.frames[Math.min(anim.frame, resolved.def.frames.length - 1)];
       // The frame's hitbox while a swing is on, mirrored for a character facing left.
-      const box = frame?.hitbox;
-      if (
-        box !== undefined &&
-        resolved.name === 'attack' &&
-        world.tick < world.controller.attackUntilTick
-      ) {
-        const x = world.controller.facing < 0 ? -(box.x + box.w) : box.x;
-        const bl = (s.x[slot] as number) + x;
-        const bt = (s.y[slot] as number) + box.y;
+      const box = attackHitbox(world, runtime);
+      if (box !== undefined) {
         hitboxes.push({
           id: world.party.entityId,
-          x: toPxFloor(bl),
-          y: toPxFloor(bt),
-          w: toPxFloor(bl + box.w - 1) - toPxFloor(bl) + 1,
-          h: toPxFloor(bt + box.h - 1) - toPxFloor(bt) + 1,
+          x: toPxFloor(box.x),
+          y: toPxFloor(box.y),
+          w: toPxFloor(box.x + box.w - 1) - toPxFloor(box.x) + 1,
+          h: toPxFloor(box.y + box.h - 1) - toPxFloor(box.y) + 1,
         });
       }
       sprites.push({
@@ -116,4 +115,31 @@ export function renderSnapshot(
     colliders,
     hitboxes,
   };
+}
+
+/** Depth of gimmick sprites: behind the entities (depth 0). */
+const GIMMICK_DEPTH = -1;
+
+/** The gimmicks still there in the room, drawn at the bottom-center of their box (ADR-0021). */
+function gimmickSprites(world: World, runtime: PackRuntime): RenderSprite[] {
+  const gimmicks = runtime.rooms[world.roomId]?.gimmicks ?? [];
+  const out: RenderSprite[] = [];
+  for (let index = gimmicks.length - 1; index >= 0; index--) {
+    const g = gimmicks[index] as (typeof gimmicks)[number];
+    const ref = g.type === 'switch' && flagSet(world, g.flag) ? (g.spriteOn ?? g.sprite) : g.sprite;
+    if (ref === undefined || !gimmickShown(world, g)) continue;
+    out.push({
+      id: -1 - index,
+      atlas: ref.atlas,
+      frame: ref.frame,
+      x: toPxFloor(g.rect.x + (g.rect.w >> 1)),
+      y: toPxFloor(g.rect.y + g.rect.h),
+      flipX: false,
+      depth: GIMMICK_DEPTH,
+      visible: true,
+      // They never move: nothing to interpolate, in this room or the one before.
+      teleported: true,
+    });
+  }
+  return out;
 }

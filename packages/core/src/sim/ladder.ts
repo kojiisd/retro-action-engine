@@ -3,9 +3,8 @@ import { CONTACT_GROUNDED, moveBody } from '../collision/move';
 import type { PackRuntime } from '../runtime/pack';
 import { NEVER, type World } from '../world/world';
 import { attackStep } from './attack';
+import { bodyContext } from './blocking';
 import type { Intent } from './intent';
-import { activeCharacter } from './party';
-import { effectiveTags } from './tags';
 
 type ClimbFeel = {
   readonly climbSpeed?: number;
@@ -156,7 +155,7 @@ function settledContact(world: World, runtime: PackRuntime, grid: CollisionGrid)
       ox: s.colOx[slot] as number,
       oy: s.colOy[slot] as number,
     },
-    { abilityTags: effectiveTags(activeCharacter(world, runtime)) },
+    bodyContext(world, runtime),
   );
 }
 

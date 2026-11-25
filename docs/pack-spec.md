@@ -276,7 +276,7 @@ interface ItemDef {
 | 種別 | パラメータ |
 | --- | --- |
 | `door` | `toRoomId`, `spawnId`, `effect` |
-| `gate` | `requiresFlag`（M3-3）、`flag?`、`requiresAnyTag?` と `consumesItem?`（後で） |
+| `gate` | `requiresFlag`（M3-3。立ったら開く）、`requiresAnyTag?` と `consumesItem?`（後で） |
 | `switch` | `setsFlag`（剣で叩いて一度だけ立てる） |
 | `savePoint` | なし |
 | `warp` | `toRoomId`, `spawnId`, `effect` |

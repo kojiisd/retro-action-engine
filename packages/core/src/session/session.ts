@@ -5,9 +5,10 @@ import { LoopDriver } from '../loop/driver';
 import { checkReplayPack, Player, Recorder, type ReplayFile, startOf } from '../replay/replay';
 import type { PackRuntime, StartState } from '../runtime/pack';
 import type { TransitionView } from '../sim/exits';
+import type { Notice } from '../sim/gimmicks';
 import { type RenderSnapshot, renderSnapshot } from '../sim/output';
 import { activeCharacter, canSwitch, type SwitchCheck, switchCheck } from '../sim/party';
-import { createWorld, step, type UiState, uiParty } from '../sim/sim';
+import { createWorld, step, type UiState, uiInventory, uiParty } from '../sim/sim';
 import type { World } from '../world/world';
 
 /** Where live input comes from. `InputBuffer` (package `input`) fits this shape. */
@@ -29,6 +30,8 @@ export interface FrameView {
   readonly ui: UiState;
   /** The room change at `curr` (ADR-0018); null when none. */
   readonly transition: TransitionView | null;
+  /** What the ticks of this frame told the player about (ADR-0021), in tick order. */
+  readonly notices: readonly Notice[];
 }
 
 /**
@@ -47,6 +50,7 @@ export class GameSession {
   private curr: RenderSnapshot;
   private ui: UiState;
   private transition: TransitionView | null = null;
+  private notices: Notice[] = [];
   private observer: ((tick: number, hash: WorldHash) => void) | undefined;
   private dropped = 0;
   /** A command for the next live tick (the menu, ADR-0020). */
@@ -68,6 +72,7 @@ export class GameSession {
 
   /** Runs the ticks this frame time allows. */
   frame(frameMs: number): FrameView {
+    this.notices = [];
     const result = this.driver.frame(frameMs);
     return {
       prev: this.prev,
@@ -76,6 +81,7 @@ export class GameSession {
       ticks: result.ticks,
       ui: this.ui,
       transition: this.transition,
+      notices: this.notices,
     };
   }
 
@@ -198,6 +204,7 @@ export class GameSession {
     this.curr = out.render;
     this.ui = out.ui;
     this.transition = out.transition;
+    if (out.notices.length > 0) this.notices.push(...out.notices);
     this.observer?.(this.world.tick, hashWorld(this.world));
   }
 
@@ -221,6 +228,7 @@ export class GameSession {
       activeCharacterId: activeCharacter(this.world, this.runtime).id,
       canSwitch: canSwitch(this.world, this.runtime),
       party: uiParty(this.world, this.runtime),
+      inventory: uiInventory(this.world, this.runtime),
     };
   }
 }

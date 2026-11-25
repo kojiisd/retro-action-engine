@@ -85,6 +85,65 @@ export interface RulesDef {
   readonly hp?: HpRules;
   /** By name (a tile's `hazard`). Needs `hp`. */
   readonly hazards?: Readonly<Record<string, HazardDef>>;
+  /** Whose tags the tag conditions of gimmicks and exits look at (ADR-0021). Absent: `active`. */
+  readonly gating?: { readonly subject: 'active' | 'anyInParty' };
+}
+
+/** An item (docs/pack-spec.md 4.3, ADR-0021). The inventory is shared by the party. */
+export interface ItemDef {
+  readonly id: string;
+  /** Display name (`@strings:` keys allowed); core does not use it. */
+  readonly name?: string;
+  readonly kind: 'key' | 'consumable' | 'equipment' | 'upgrade';
+  /** Ability tags every member has while the party holds one or more. */
+  readonly grants?: readonly string[];
+  /** The most the party can hold. */
+  readonly stack: number;
+  readonly sprite?: { readonly atlas: string; readonly frame: string };
+}
+
+/** A gimmick placed in a room (docs/pack-spec.md 4.4, 5.4, ADR-0021). */
+export interface GimmickPlacement {
+  /** The Tiled object id: stable within the room. */
+  readonly objectId: number;
+  readonly type: 'pickup' | 'breakable' | 'switch' | 'gate';
+  /** Top-left and size, Fx. Tile-aligned for `breakable` and `gate`. */
+  readonly rect: { readonly x: Fx; readonly y: Fx; readonly w: Fx; readonly h: Fx };
+  /**
+   * The flag that holds its state: picked up (`pickup`), broken (`breakable`), pressed
+   * (`switch`, its `setsFlag`), open (`gate`, its `requiresFlag`).
+   */
+  readonly flag: string;
+  /** `pickup`: what and how many. */
+  readonly itemId?: string;
+  readonly count?: number;
+  /** `breakable`: who can break it (by the gating subject's tags). */
+  readonly requiresAnyTag?: readonly string[];
+  /**
+   * Drawing only: the picture (for `pickup`, `pack` puts the item's sprite here), and a pressed
+   * switch's.
+   */
+  readonly sprite?: { readonly atlas: string; readonly frame: string };
+  readonly spriteOn?: { readonly atlas: string; readonly frame: string };
+}
+
+export type EventCondition =
+  | { readonly flag: string; readonly is: boolean | number }
+  | { readonly hasItem: string; readonly count?: number }
+  | { readonly notItem: string };
+
+export type EventAction =
+  | { readonly setFlag: string; readonly value?: boolean | number }
+  | { readonly giveItem: string; readonly count?: number }
+  | { readonly takeItem: string; readonly count?: number };
+
+/** An event zone (`zones` layer, class `event`; ADR-0021). */
+export interface EventZone {
+  readonly objectId: number;
+  readonly rect: { readonly x: Fx; readonly y: Fx; readonly w: Fx; readonly h: Fx };
+  readonly trigger: 'onZoneEnter' | 'onZoneExit';
+  readonly conditions: readonly EventCondition[];
+  readonly actions: readonly EventAction[];
 }
 
 /** A tile layer for drawing only (`bg`, `main`, `fg`). Core never reads it. */
@@ -107,6 +166,8 @@ export interface ExitDef {
   readonly effect: 'cut' | 'fade';
   /** Only a character with one of these effective tags can go through. */
   readonly requiresAnyTag?: readonly string[];
+  /** Closed until this flag is set (ADR-0021). */
+  readonly requiresFlag?: string;
 }
 
 /** Scroll camera (ADR-0009). Values in px. */
@@ -159,6 +220,10 @@ export interface RoomData {
   readonly renderLayers?: readonly RenderLayerData[];
   /** Ways out, in the order they are checked (ADR-0018). */
   readonly exits?: readonly ExitDef[];
+  /** Gimmicks, in the order they are handled (ADR-0021). */
+  readonly gimmicks?: readonly GimmickPlacement[];
+  /** Event zones, in the order they run (ADR-0021). */
+  readonly zones?: readonly EventZone[];
 }
 
 /** Images the renderer loads (`pack` resolves the paths). Core never reads them. */
@@ -195,6 +260,8 @@ export interface PackRuntime {
   readonly tileSize: number;
   readonly rooms: Readonly<Record<string, RoomData>>;
   readonly characters: Readonly<Record<string, CharacterDef>>;
+  /** Items by id, in the order of `items.json` (ADR-0021). */
+  readonly items?: Readonly<Record<string, ItemDef>>;
   readonly feel: Readonly<Record<string, FeelProfile>>;
   readonly rules: RulesDef;
   /** Room changes (ADR-0018). Without it: `cut` with no stop. */

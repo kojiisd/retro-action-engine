@@ -62,7 +62,7 @@ pack-root/
 | `display.orientation` | `"landscape" \| "portrait" \| "any"` | ○ | 推奨する画面向き |
 | `tileSize` | int | ○ | タイルの一辺（px）。全部屋で共通 |
 | `entry.roomId` / `entry.spawnId` | string | ○ | 新規ゲームの開始位置 |
-| `files.*` | path | ○ | 各データファイルのパス（下記）。`rooms`、`tilesets`、`atlases`、`characters`、`rules`、`feel`、`input` は必須。`camera`、`enemies`、`items`、`gimmicks`、`audio`、`strings` は任意（敵やアイテムの無いパックもある。M1-5 の時点で読むのは必須のものだけで、`camera` は形だけ検査する） |
+| `files.*` | path | ○ | 各データファイルのパス（下記）。`rooms`、`tilesets`、`atlases`、`characters`、`rules`、`feel`、`input` は必須。`camera`、`enemies`、`items`、`gimmicks`、`audio`、`strings`、`ui` は任意（敵やアイテムの無いパックもある。M1-5 の時点で読むのは必須のものだけで、`camera` は形だけ検査する） |
 | `saveCompat` | semver range | ○ | この版が読み込めるセーブの `packVersion` の範囲 |
 | `licenses.code` / `licenses.assets` | SPDX | ○ | パック自体のライセンス |
 | `credits` | path | ○ | `credits.json` |
@@ -95,7 +95,8 @@ pack-root/
     "input": "data/input.json",
     "camera": "data/camera.json",
     "audio": "data/audio.json",
-    "strings": { "ja": "data/strings.ja.json", "en": "data/strings.en.json" }
+    "strings": { "ja": "data/strings.ja.json", "en": "data/strings.en.json" },
+    "ui": "data/ui.json"
   },
   "saveCompat": ">=0.1.0 <0.2.0",
   "licenses": { "code": "MIT", "assets": "CC0-1.0" },
@@ -114,7 +115,7 @@ pack-root/
 ```ts
 interface CharacterDef {
   id: string;
-  name: string;                       // "@strings:key" 可（M3。M1-5 は文字を表示しない）
+  name: string;                       // "@strings:key" 可。1〜6 文字（メニューに出す。M3-6、ADR-0020）
   abilityTags: string[];              // 基本の能力タグ
   hp?: { max: number };               // rules.hp があるパックでは必須（M2-5、ADR-0016）
   collider: { w: number; h: number; ox: number; oy: number }; // px。位置（足元中央）からの相対
@@ -463,11 +464,32 @@ interface AudioDef {
 
 ### 4.10 `strings.<lang>.json`
 
-フラットなキーと文字列。他のデータからは `@strings:key` で参照する。言語の選択は app 層。
+フラットなキーと文字列。他のデータからは `@strings:key` で参照する。言語の選択は app 層（ブラウザの言語。パックに無い言語なら `files.strings` の最初の言語）。M3-6a でキャラクターの `name` から使い始めた（ADR-0020）。参照したキーがどれかの言語に無ければ読み込み時のエラー。
 
 ```json
 { "char.knight": "騎士", "char.scout": "斥候", "item.swim-charm": "泳ぎのお守り", "text.hub.welcome": "ここが拠点だ。" }
 ```
+
+### 4.11 `ui.json`（M3-6、ADR-0020）
+
+メニューのフォントと色。無いパックではメニューを開かない（`menu` と歯車は設定画面を開く）。
+
+```jsonc
+{
+  "font": {
+    "image": "../ui/font.png",      // このファイルからの相対パス
+    "cellW": 12, "cellH": 13,       // 1 文字のセル（px）。画像の左上から行ごとに並べる
+    "ascent": 11,                   // セルの上端からベースラインまで
+    "glyphs": [["A", 6], ["あ", 12]] // 文字と描くときの幅（px）。並びは画像のセルの順。"?" は必須
+  },
+  "colors": {
+    "border": "#ffffff", "fill": "#182860", "text": "#ffffff", "accent": "#ffe678",
+    "dim": "#7880a0", "cursor": "#ffffff", "gauge": "#f05a50", "gaugeBack": "#1c1216"
+  }
+}
+```
+
+- フォントに無い文字は `?` の字形で描く。
 
 ## 5. 部屋（Tiled 1.11 系 JSON）
 

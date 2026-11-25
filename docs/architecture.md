@@ -191,6 +191,7 @@ export interface InputFrame {
   held: number;     // ActionId のビットマスク（16 bit）
   pressed: number;  // この tick で down エッジを消費した action
   released: number; // この tick で up エッジを消費した action
+  command?: number; // メニューなどからのコマンド（ADR-0020）
 }
 
 // ---- core/runtime（pack が構築、core が消費） ----

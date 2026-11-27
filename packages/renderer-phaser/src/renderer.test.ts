@@ -173,7 +173,11 @@ describe('hudIcons', () => {
 
   it('shows every member, the active one marked', () => {
     expect(
-      hudIcons({ activeCharacterId: 'b', canSwitch: true, party: [] }, ['a', 'b'], runtime),
+      hudIcons(
+        { activeCharacterId: 'b', canSwitch: true, party: [], inventory: [] },
+        ['a', 'b'],
+        runtime,
+      ),
     ).toEqual([
       { characterId: 'a', atlas: 'chars', frame: 'a-0', active: false, alive: true },
       { characterId: 'b', atlas: 'chars', frame: 'b-0', active: true, alive: true },
@@ -182,7 +186,11 @@ describe('hudIcons', () => {
 
   it('shows only the active character when switching is off', () => {
     expect(
-      hudIcons({ activeCharacterId: 'a', canSwitch: false, party: [] }, ['a', 'b'], runtime),
+      hudIcons(
+        { activeCharacterId: 'a', canSwitch: false, party: [], inventory: [] },
+        ['a', 'b'],
+        runtime,
+      ),
     ).toEqual([{ characterId: 'a', atlas: 'chars', frame: 'a-0', active: true, alive: true }]);
   });
 });
@@ -211,6 +219,7 @@ describe('HP in the HUD (ADR-0016)', () => {
       { id: 'a', hp: 0, hpMax: 2, alive: false },
       { id: 'b', hp: 2, hpMax: 3, alive: true },
     ],
+    inventory: [],
   };
 
   it('gives each icon its HP and whether the member is down', () => {
@@ -255,7 +264,7 @@ describe('HP in the HUD (ADR-0016)', () => {
   });
 
   it('draws no gauge without HP', () => {
-    const icons = hudIcons({ ...ui, party: [] }, ['a', 'b'], runtime);
+    const icons = hudIcons({ ...ui, party: [], inventory: [] }, ['a', 'b'], runtime);
     expect(icons.every((i) => i.alive && i.hp === undefined)).toBe(true);
     expect(hudLayout(icons, [16, 16], 20).bars).toEqual([]);
   });

@@ -1,0 +1,37 @@
+{
+  "gimmicks": [
+    {
+      "id": "pickaxe",
+      "type": "pickup",
+      "itemId": "pickaxe"
+    },
+    {
+      "id": "cracked-rock",
+      "type": "breakable",
+      "requiresAnyTag": ["break:rock"],
+      "sprite": {
+        "atlas": "objects",
+        "frame": "gimmicks/rock"
+      }
+    },
+    {
+      "id": "wall-switch",
+      "type": "switch",
+      "setsFlag": "cellar-gate-open",
+      "sprite": {
+        "atlas": "objects",
+        "frame": "gimmicks/switch-off"
+      },
+      "frameOn": "gimmicks/switch-on"
+    },
+    {
+      "id": "lattice-gate",
+      "type": "gate",
+      "requiresFlag": "cellar-gate-open",
+      "sprite": {
+        "atlas": "objects",
+        "frame": "gimmicks/gate"
+      }
+    }
+  ]
+}

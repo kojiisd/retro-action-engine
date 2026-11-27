@@ -1,4 +1,4 @@
-import type { PackRuntime, SwitchCheck, UiDef, UiMember } from '@retro-action-engine/core';
+import type { PackRuntime, SwitchCheck, UiDef, UiItem, UiMember } from '@retro-action-engine/core';
 import { localize, textWidth } from '@retro-action-engine/pack';
 import type {
   OverlayRect,
@@ -14,7 +14,7 @@ import type { MenuStrings } from './menu-strings';
  * effects (open the settings, close, send a switch command).
  */
 
-export const TOP_ITEMS = ['party', 'settings', 'close'] as const;
+export const TOP_ITEMS = ['party', 'items', 'settings', 'close'] as const;
 export type TopItem = (typeof TOP_ITEMS)[number];
 
 export interface MenuState {
@@ -40,6 +40,8 @@ export interface MenuContext {
   /** Every member's HP; empty when the pack has no HP rules. */
   readonly party: readonly UiMember[];
   readonly switchCheck: (index: number) => SwitchCheck;
+  /** The items held, in the pack's order (ADR-0021). */
+  readonly items: readonly UiItem[];
 }
 
 /** The menu as it opens: the top list, its first line; in the party, the active member. */
@@ -66,6 +68,8 @@ export function menuStep(
     if (item === 'party')
       return { state: { ...state, level: 'party', member: context.activeIndex } };
     if (item === 'settings') return { state, effect: { kind: 'openSettings' } };
+    // The items are only to look at for now (ADR-0021): they show while the line is chosen.
+    if (item === 'items') return { state };
     return { state, effect: { kind: 'close' } };
   }
   // The party list.
@@ -200,6 +204,44 @@ export function menuView(
       }
     });
   }
+  if (state.level === 'top' && TOP_ITEMS[state.top] === 'items') {
+    const top = margin + pad;
+    texts.push({ x: cx + pad, y: top, text: strings.items.items, color: colors.accent });
+    const rowH = Math.max(line, ITEM_ICON + 2);
+    if (context.items.length === 0) {
+      texts.push({
+        x: cx + pad + cursorW,
+        y: top + line + 6,
+        text: strings.noItems,
+        color: colors.dim,
+      });
+    }
+    context.items.forEach((held, i) => {
+      const y = top + line + 6 + i * rowH;
+      const item = itemLook(look.runtime, held.id, look.language);
+      if (item.sprite !== undefined) {
+        sprites.push({ x: cx + pad + cursorW, y: y + ((line - ITEM_ICON) >> 1), ...item.sprite });
+      }
+      texts.push({ x: cx + pad + cursorW + ITEM_ICON + 4, y, text: item.name, color: colors.text });
+      if (held.count > 1) {
+        const count = `x${held.count}`;
+        const countX = cx + cw - pad - textWidth(font, count);
+        texts.push({ x: countX, y, text: count, color: colors.text });
+      }
+    });
+  }
   texts.push({ x: cx + pad, y: helpY, text: help, color: colors.dim });
   return { dim: 0.5, rects, texts, sprites };
+}
+
+/** The size of an item's picture in the menu (the sample pack's item frames). */
+const ITEM_ICON = 16;
+
+/** What an item shows: its name in `language` and its picture. */
+export function itemLook(runtime: PackRuntime, id: string, language: string | undefined) {
+  const item = runtime.items?.[id];
+  return {
+    name: localize(runtime, item?.name ?? id, language),
+    sprite: item?.sprite,
+  };
 }

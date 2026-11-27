@@ -26,6 +26,8 @@ export interface CollisionContext {
   readonly abilityTags: ReadonlySet<string>;
   /** Drop-through: oneway tiles count as empty (docs/input-and-feel.md 6.4). */
   readonly ignoreOneway?: boolean;
+  /** Cells (row * width + col) a closed gimmick fills: full whatever the tile (ADR-0021). */
+  readonly blocked?: ReadonlySet<number>;
 }
 
 export const NO_ABILITIES: CollisionContext = { abilityTags: new Set<string>() };
@@ -95,6 +97,9 @@ export function solidAt(
   context: CollisionContext,
 ): SolidKind {
   if (col < 0 || row < 0 || col >= grid.widthTiles || row >= grid.heightTiles) {
+    return 'full';
+  }
+  if (context.blocked?.has(row * grid.widthTiles + col) === true) {
     return 'full';
   }
   const tileClass = grid.classById[

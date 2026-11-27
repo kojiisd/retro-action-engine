@@ -1,0 +1,15 @@
+{
+  "items": [
+    {
+      "id": "pickaxe",
+      "name": "@strings:item.pickaxe",
+      "kind": "upgrade",
+      "grants": ["break:rock"],
+      "stack": 1,
+      "sprite": {
+        "atlas": "objects",
+        "frame": "items/pickaxe"
+      }
+    }
+  ]
+}

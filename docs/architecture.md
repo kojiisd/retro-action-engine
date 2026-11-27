@@ -138,8 +138,8 @@ sequenceDiagram
 | 3 | `controller` | 操作中キャラクターの状態機械（grounded / airborne / climb / hitstun）と速度の更新 |
 | 4 | `behavior` | 敵とギミックの宣言的状態機械（BehaviorSpec）を 1 ステップ進める |
 | 5 | `movement` | 全エンティティの移動と衝突解決（X 軸 → Y 軸、サブステップ、能力タグによる通行判定） |
-| 6 | `interaction` | hit/hurt の重なり、拾得、ゾーン進入。触れると HP が減るタイルと、HP が 0 になったときの交代と入口からのやり直し（M2-5、ADR-0016）。その後に出口接触（M3-1、ADR-0018） |
-| 7 | `events` | トリガから Action 列を実行し、フラグ・所持品・パーティ・spawn を更新 |
+| 6 | `interaction` | hit/hurt の重なり、拾得、ゾーン進入。触れると HP が減るタイルと、HP が 0 になったときの交代と入口からのやり直し（M2-5、ADR-0016）。その後に出口接触（M3-1、ADR-0018）。HP の前に、仕掛けを拾う・壊す・押す（M3-3、ADR-0021） |
+| 7 | `events` | トリガから Action 列を実行し、フラグ・所持品・パーティ・spawn を更新（M3-3 はゾーンの出入りとフラグ・所持品、ADR-0021） |
 | 8 | `camera` | カメラモードに従って位置を更新（screenFlip / scroll） |
 | 9 | `timers` | 無敵時間、アニメーションフレーム、cooldown の減算 |
 | 10 | `output` | `RenderSnapshot`、`AudioCue[]`、`UiState`、`TransitionView` を生成 |

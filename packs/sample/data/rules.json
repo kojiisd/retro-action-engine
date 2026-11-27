@@ -24,5 +24,11 @@
         }
       ]
     }
+  },
+  "inventory": {
+    "scope": "shared"
+  },
+  "gating": {
+    "subject": "active"
   }
 }

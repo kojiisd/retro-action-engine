@@ -3,6 +3,7 @@ import {
   type CharacterDef,
   type CollisionGrid,
   canSwitch,
+  closedCells,
   createWorld,
   effectiveTags,
   FX_ONE,
@@ -79,6 +80,9 @@ function proofRules(
   const ladderIds = new Set(room?.tileClasses.filter((c) => c.ladder === true).map((c) => c.id));
   const ladders = room?.collision.some((id) => ladderIds.has(id)) ?? false;
   const riseBound = media || comesBack || ladders ? Number.POSITIVE_INFINITY : Math.max(...bounds);
+  // ADR-0021: a gimmick that opens widens what can be reached; the proofs assume fixed walls.
+  const opens = room?.gimmicks?.some((g) => g.type === 'breakable' || g.type === 'gate') ?? false;
+  if (opens) return { region: false, riseBound: Number.POSITIVE_INFINITY };
   if (!switching) {
     return { region: true, riseBound };
   }
@@ -112,7 +116,9 @@ function prepare(
     const holds = jumpHolds(feel, rise.ticks, limits.jumpHoldSamples, best);
     return { character, feel, holds, ground: groundMacros(feel, holds, switching) };
   });
-  const footholds = new FootholdIndex(grid, members);
+  // Closed gimmicks stay closed: the macros do not swing, and pickups are taken out.
+  const blocked = closedCells(createWorld(runtime, scopeStart), runtime);
+  const footholds = new FootholdIndex(grid, members, blocked);
   const context: SearchContext = {
     runtime,
     grid,
@@ -438,13 +444,23 @@ function solveScope(
  * macros and limits", not that it cannot be done.
  */
 /**
- * The runtime with the solved room's exits taken out: the solver explores one room, and a path
- * that leaves it through an exit belongs to A-3 (ADR-0018).
+ * The runtime with the solved room's exits, pickups and event zones taken out: the solver
+ * explores one room with what the party has at the start; a path that leaves it through an exit,
+ * or that needs an item or a flag, belongs to A-3 (ADR-0018, ADR-0021). Gimmicks that make walls
+ * stay, closed.
  */
 function withoutExits(runtime: PackRuntime, roomId: string): PackRuntime {
   const room = runtime.rooms[roomId];
-  if (room?.exits === undefined || room.exits.length === 0) return runtime;
-  return { ...runtime, rooms: { ...runtime.rooms, [roomId]: { ...room, exits: [] } } };
+  if (room === undefined) return runtime;
+  const { zones: _zones, gimmicks, ...rest } = room;
+  const walls = gimmicks?.filter((g) => g.type === 'breakable' || g.type === 'gate') ?? [];
+  return {
+    ...runtime,
+    rooms: {
+      ...runtime.rooms,
+      [roomId]: { ...rest, exits: [], ...(walls.length === 0 ? {} : { gimmicks: walls }) },
+    },
+  };
 }
 
 export function solveRoom(

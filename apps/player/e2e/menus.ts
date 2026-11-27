@@ -17,7 +17,8 @@ export const menuOpen = (page: MenuPage): Promise<boolean> =>
 export async function openSettings(page: MenuPage, gearLabel: string): Promise<void> {
   await page.getByRole('button', { name: gearLabel }).click();
   await page.waitForFunction(() => (window.__engine?.getStats().menu ?? null) !== null);
-  // The settings are the second item of the top list.
+  // The settings are the third item of the top list (party, items, settings, close).
+  await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('KeyZ');
 }

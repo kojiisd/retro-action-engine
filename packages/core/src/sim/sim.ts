@@ -5,15 +5,17 @@ import { type ActiveFeel, activeFeel } from '../runtime/feel';
 import type { PackRuntime, RoomData, StartState } from '../runtime/pack';
 import { newControllerState, newWorld, type World } from '../world/world';
 import { animationStep, attackTicks } from './anim';
+import { bodyContext } from './blocking';
 import { cameraHoldsSimulation, cameraStep, flipProgress } from './camera';
 import { controllerStep } from './controller';
+import { eventStep } from './events';
 import { enterRoom, exitStep, type TransitionView, transitionStep, transitionView } from './exits';
+import { gimmickStep, type Notice } from './gimmicks';
 import { hpStep, initialHp, tileAtBodyCenter } from './hp';
 import { inputIntent } from './intent';
 import { climbAfterMove, climbStep } from './ladder';
 import { type RenderSnapshot, renderSnapshot } from './output';
 import { activeCharacter, canSwitch, isAlive, partyStep } from './party';
-import { effectiveTags } from './tags';
 
 /** One party member in the HUD (ADR-0016). */
 export interface UiMember {
@@ -30,6 +32,14 @@ export interface UiState {
   readonly canSwitch: boolean;
   /** Every member in `members` order; empty when the pack has no HP rules. */
   readonly party: readonly UiMember[];
+  /** The items held, in `items.json` order (ADR-0021). */
+  readonly inventory: readonly UiItem[];
+}
+
+/** One held item for the menu (ADR-0021). */
+export interface UiItem {
+  readonly id: string;
+  readonly count: number;
 }
 
 /** The part of `StepOutput` available as of M3-1. Audio comes later. */
@@ -38,6 +48,8 @@ export interface StepOutput {
   readonly render: RenderSnapshot;
   /** The room change in progress, for the renderer's fade (ADR-0018); null when none. */
   readonly transition: TransitionView | null;
+  /** What happened this tick that the screen tells the player about (ADR-0021). */
+  readonly notices: readonly Notice[];
 }
 
 const grids = new WeakMap<RoomData, CollisionGrid>();
@@ -144,7 +156,6 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   // movement: only the party entity exists as of M1-3.
   const s = world.entities;
   const slot = s.slotOf(world.party.entityId);
-  const character = activeCharacter(world, runtime);
   const body = {
     x: s.x[slot] as number,
     y: s.y[slot] as number,
@@ -155,10 +166,13 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
     ox: s.colOx[slot] as number,
     oy: s.colOy[slot] as number,
   };
-  s.contact[slot] = moveBody(roomGrid(runtime, world.roomId), body, {
-    abilityTags: effectiveTags(character),
-    ignoreOneway: world.tick < world.controller.dropThroughUntilTick || world.controller.climbing,
-  });
+  s.contact[slot] = moveBody(
+    roomGrid(runtime, world.roomId),
+    body,
+    bodyContext(world, runtime, {
+      ignoreOneway: world.tick < world.controller.dropThroughUntilTick || world.controller.climbing,
+    }),
+  );
   s.x[slot] = body.x;
   s.y[slot] = body.y;
   s.vx[slot] = body.vx;
@@ -166,10 +180,16 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
 
   climbAfterMove(world, runtime, grid);
 
-  // interaction: HP-draining tiles, and a character whose HP reached 0 (ADR-0016); then the
-  // exits, unless the character was just put back (ADR-0018).
+  // interaction: gimmicks (ADR-0021), HP-draining tiles and a character whose HP reached 0
+  // (ADR-0016); then the exits, unless the character was just put back (ADR-0018).
+  const notices: Notice[] = [];
+  gimmickStep(world, runtime, notices);
   const placed = hpStep(world, runtime, roomGrid);
   const entered = !placed && exitStep(world, runtime, roomGrid, intent);
+
+  // events: event zones of the room (ADR-0021). Not in a room just left: the new room's zones
+  // are looked at once the change is over.
+  if (world.transition.phase === 'none') eventStep(world, runtime, notices);
 
   // camera (a room just entered has its camera in place already)
   if (!entered && world.transition.phase === 'none') cameraStep(world, runtime);
@@ -182,20 +202,36 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
   animationStep(world, active);
 
   world.tick++;
-  return output(world, runtime, teleported || placed || entered);
+  return output(world, runtime, teleported || placed || entered, notices);
 }
 
 /** The `output` system. */
-function output(world: World, runtime: PackRuntime, teleported: boolean): StepOutput {
+function output(
+  world: World,
+  runtime: PackRuntime,
+  teleported: boolean,
+  notices: readonly Notice[] = [],
+): StepOutput {
   return {
     ui: {
       activeCharacterId: activeCharacter(world, runtime).id,
       canSwitch: canSwitch(world, runtime),
       party: uiParty(world, runtime),
+      inventory: uiInventory(world, runtime),
     },
+    notices,
     render: renderSnapshot(world, runtime, teleported),
     transition: transitionView(world),
   };
+}
+
+/** The items held for `UiState`, in the pack's item order. */
+export function uiInventory(world: World, runtime: PackRuntime): UiItem[] {
+  const items = runtime.items;
+  if (items === undefined) return [];
+  return Object.keys(items)
+    .filter((id) => (world.inventory[id] ?? 0) > 0)
+    .map((id) => ({ id, count: world.inventory[id] as number }));
 }
 
 /** The party for `UiState`: every member's HP, or none without HP rules. */

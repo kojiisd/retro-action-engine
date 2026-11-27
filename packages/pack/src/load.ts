@@ -3,6 +3,7 @@ import type {
   CameraDef,
   CharacterDef,
   FeelProfile,
+  ItemDef,
   PackRuntime,
   RoomData,
   UiDef,
@@ -10,13 +11,16 @@ import type {
 import type { z } from 'zod';
 import { convertMotion, convertProfile, toFx } from './convert';
 import { IssueList, PackLoadError, zodIssues } from './errors';
+import { checkGimmickDefs, placeGimmicks } from './gimmicks';
 import { PathError, packUrl, resolvePackPath } from './paths';
 import {
   atlasSchema,
   cameraSchema,
   charactersSchema,
   feelSchema,
+  gimmicksSchema,
   inputSchema,
+  itemsSchema,
   rulesSchema,
   stringsSchema,
   uiSchema,
@@ -24,7 +28,7 @@ import {
 import { type Manifest, manifestSchema } from './schema/manifest';
 import { type MapJson, mapSchema, type TilesetJson, tilesetSchema } from './schema/tiled';
 import { MAX_NAME_LENGTH, STRINGS_PREFIX, textLength } from './text';
-import { exitSource, importRoom, type MapTileset } from './tiled';
+import { exitSource, gimmickObjects, importRoom, type MapTileset, zoneSource } from './tiled';
 
 /**
  * The part of `fetch` the loader needs. The app passes `window.fetch`; tests and Node pass a
@@ -126,6 +130,8 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     input: path(f.input, ['input']),
     camera: f.camera === undefined ? undefined : path(f.camera, ['camera']),
     ui: f.ui === undefined ? undefined : path(f.ui, ['ui']),
+    items: f.items === undefined ? undefined : path(f.items, ['items']),
+    gimmicks: f.gimmicks === undefined ? undefined : path(f.gimmicks, ['gimmicks']),
     credits: resolve('pack.json', manifest.credits, ['credits']),
   };
   const stringFiles = Object.entries(f.strings ?? {}).map(
@@ -140,13 +146,15 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
 
   const readParsed = async <S extends z.ZodType>(file: string | undefined, schema: S) =>
     file === undefined ? undefined : parse(file, schema, await read(file));
-  const [characters, rules, feel, input, camera, ui, credits] = await Promise.all([
+  const [characters, rules, feel, input, camera, ui, items, gimmicks, credits] = await Promise.all([
     readParsed(files.characters, charactersSchema),
     readParsed(files.rules, rulesSchema),
     readParsed(files.feel, feelSchema),
     readParsed(files.input, inputSchema),
     readParsed(files.camera, cameraSchema),
     readParsed(files.ui, uiSchema),
+    readParsed(files.items, itemsSchema),
+    readParsed(files.gimmicks, gimmicksSchema),
     files.credits === undefined ? undefined : read(files.credits),
   ]);
   void credits;
@@ -268,6 +276,120 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     if (room !== undefined) rooms[id] = room;
   }
 
+  /**
+   * The texts of a name in every language: itself, or the strings of a `@strings:key`
+   * (docs/pack-spec.md 4.10). A key missing from a strings file is an error.
+   */
+  const textsOf = (value: string, file: string, where: ReadonlyArray<PropertyKey>): string[] => {
+    if (!value.startsWith(STRINGS_PREFIX)) return [value];
+    const key = value.slice(STRINGS_PREFIX.length);
+    if (stringFiles.length === 0) {
+      issues.error(file, where, `"${value}" needs pack.json files.strings`);
+    }
+    const texts: string[] = [];
+    for (const [lang, stringsFile] of stringFiles) {
+      const text = strings[lang]?.[key];
+      if (text === undefined) {
+        if (strings[lang] !== undefined)
+          issues.error(file, where, `"${key}" is not in ${stringsFile}`);
+      } else {
+        texts.push(text);
+      }
+    }
+    return texts;
+  };
+  const framesOf = (atlas: string) => atlases.get(atlas)?.frames;
+
+  // ---- items (ADR-0021) ----
+  const itemDefs: Record<string, ItemDef> = {};
+  if (items !== undefined && files.items !== undefined) {
+    const file = files.items;
+    items.items.forEach((item, i) => {
+      const where = ['items', i];
+      if (itemDefs[item.id] !== undefined) {
+        issues.error(file, [...where, 'id'], `item "${item.id}" is defined twice`);
+      }
+      if (item.effect !== undefined) {
+        issues.error(
+          file,
+          [...where, 'effect'],
+          'effect comes with items to use (not supported yet)',
+        );
+      }
+      for (const text of textsOf(item.name, file, [...where, 'name'])) {
+        if (textLength(text) < 1) issues.error(file, [...where, 'name'], 'the name is empty');
+      }
+      const frames = framesOf(item.sprite.atlas);
+      if (frames === undefined) {
+        issues.error(
+          file,
+          [...where, 'sprite', 'atlas'],
+          `atlas "${item.sprite.atlas}" is not listed in pack.json files.atlases`,
+        );
+      } else if (!frames.has(item.sprite.frame)) {
+        issues.error(
+          file,
+          [...where, 'sprite', 'frame'],
+          `frame "${item.sprite.frame}" is not in atlas "${item.sprite.atlas}"`,
+        );
+      }
+      itemDefs[item.id] = {
+        id: item.id,
+        name: item.name,
+        kind: item.kind,
+        ...(item.grants === undefined ? {} : { grants: item.grants }),
+        stack: item.stack,
+        sprite: item.sprite,
+      };
+    });
+  }
+  // ---- gimmicks (ADR-0021) ----
+  const gimmickDefs = new Map<
+    string,
+    { def: NonNullable<typeof gimmicks>['gimmicks'][number]; index: number }
+  >();
+  if (gimmicks !== undefined && files.gimmicks !== undefined) {
+    checkGimmickDefs(gimmicks.gimmicks, files.gimmicks, framesOf, issues);
+    gimmicks.gimmicks.forEach((def, index) => {
+      if (!gimmickDefs.has(def.id)) gimmickDefs.set(def.id, { def, index });
+    });
+  }
+  for (const [roomId, room] of Object.entries(rooms)) {
+    const roomFile = roomFiles.find(
+      (file) => file !== undefined && roomIdOf(file) === roomId,
+    ) as string;
+    const objects = gimmickObjects.get(room) ?? [];
+    if (objects.length > 0) {
+      const placed = placeGimmicks(room, objects, {
+        roomFile,
+        gimmicksFile: files.gimmicks,
+        defs: gimmickDefs,
+        items: itemDefs,
+        frameOf: framesOf,
+        tileSize: manifest.tileSize,
+        issues,
+      });
+      if (placed.length > 0) rooms[roomId] = { ...room, gimmicks: placed };
+    }
+    // Items named by event zones.
+    for (const zone of room.zones ?? []) {
+      const where = zoneSource.get(zone) ?? [];
+      const check = (id: string, key: string, i: number) => {
+        if (itemDefs[id] === undefined) {
+          issues.error(roomFile, [...where, 'properties', key, i], `item "${id}" is not defined`);
+        }
+      };
+      zone.conditions.forEach((c, i) => {
+        if ('hasItem' in c) check(c.hasItem, 'conditions', i);
+        if ('notItem' in c) check(c.notItem, 'conditions', i);
+      });
+      zone.actions.forEach((a, i) => {
+        if ('giveItem' in a) check(a.giveItem, 'actions', i);
+        if ('takeItem' in a) check(a.takeItem, 'actions', i);
+      });
+    }
+  }
+
   // ---- characters ----
   const characterDefs: Record<string, CharacterDef> = {};
   characters.characters.forEach((c, i) => {
@@ -312,25 +434,7 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     }
     // The name: a text or a string key (4.10), at most MAX_NAME_LENGTH characters in every
     // language (the menu, ADR-0020).
-    const names: string[] = [];
-    if (c.name.startsWith(STRINGS_PREFIX)) {
-      const key = c.name.slice(STRINGS_PREFIX.length);
-      if (stringFiles.length === 0) {
-        issues.error(file, ['characters', i, 'name'], `"${c.name}" needs pack.json files.strings`);
-      }
-      for (const [lang, stringsFile] of stringFiles) {
-        const text = strings[lang]?.[key];
-        if (text === undefined) {
-          if (strings[lang] !== undefined) {
-            issues.error(file, ['characters', i, 'name'], `"${key}" is not in ${stringsFile}`);
-          }
-        } else {
-          names.push(text);
-        }
-      }
-    } else {
-      names.push(c.name);
-    }
+    const names = textsOf(c.name, file, ['characters', i, 'name']);
     for (const text of names) {
       if (textLength(text) < 1 || textLength(text) > MAX_NAME_LENGTH) {
         issues.error(
@@ -405,6 +509,14 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
     });
   } else if (rules.hazards !== undefined) {
     issues.error(files.rules as string, ['hazards'], 'hazards need rules.hp');
+  }
+  // Items held per character come with saves (M3-5); the party shares them (ADR-0021).
+  if (rules.inventory?.scope === 'perCharacter') {
+    issues.error(
+      files.rules as string,
+      ['inventory', 'scope'],
+      '"perCharacter" is not supported yet',
+    );
   }
   for (const room of Object.values(rooms)) {
     for (const tileClass of room.tileClasses) {
@@ -525,7 +637,9 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
       party: rules.party,
       ...(rules.hp === undefined ? {} : { hp: rules.hp }),
       ...(rules.hazards === undefined ? {} : { hazards: rules.hazards }),
+      ...(rules.gating === undefined ? {} : { gating: rules.gating }),
     },
+    ...(items === undefined ? {} : { items: itemDefs }),
     ...(camera?.roomTransition === undefined ? {} : { roomTransition: camera.roomTransition }),
     ...(camera === undefined ? {} : { camera: cameraDef(camera) }),
     ...(stringFiles.length === 0 ? {} : { strings }),

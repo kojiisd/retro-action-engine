@@ -89,6 +89,8 @@ describe('window.__engine hooks', () => {
       transition: 'none',
       camera: session.camera,
       menu: null,
+      inventory: [],
+      toast: null,
     });
     expect(() => hooks.setFeelProfile('turbo')).toThrow(/not in the pack/);
   });

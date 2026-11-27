@@ -6,9 +6,12 @@ import {
   type CharacterDef,
   createWorld,
   fromPx,
+  type Notice,
   type PackRuntime,
+  type StepOutput,
   script,
   step,
+  type World,
 } from '@retro-action-engine/core';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { type FetchLike, type LoadedRuntime, loadPack } from './load';
@@ -59,6 +62,95 @@ function walkRight(runtime: PackRuntime, member: string, ticks: number): number 
   return maxX;
 }
 
+type Frames = ReturnType<ReturnType<typeof script>['build']>;
+
+/**
+ * Drives the party in a test: walks to an x (backing off for a run-up where a step stops it, as
+ * the retro profile cannot steer in the air), swings, and takes the way on out of the room.
+ */
+function driver(world: World, runtime: PackRuntime) {
+  const slot = () => world.entities.slotOf(world.party.entityId);
+  const x = () => world.entities.x[slot()] as number;
+  const notices: Notice[] = [];
+  const play = (frames: Frames): StepOutput[] =>
+    frames.map((frame) => {
+      const out = step(world, frame, runtime);
+      notices.push(...out.notices);
+      return out;
+    });
+  /** Walks until the body is within 2 px of `target`; false when it never gets there. */
+  const walkTo = (target: number, limit = 3000): boolean => {
+    let backOff = 0;
+    let runUp = 0;
+    let still = 0;
+    let lastX = x();
+    for (let i = 0; i < limit && world.transition.phase === 'none'; i++) {
+      const dir =
+        x() < target - fromPx(2) ? 'right' : x() > target + fromPx(2) ? 'left' : undefined;
+      if (dir === undefined) return true;
+      const back = dir === 'right' ? 'left' : 'right';
+      if (backOff > 0) {
+        backOff--;
+        play(script().hold(back, 1).build(1));
+        if (backOff === 0) runUp = 30;
+      } else if (runUp > 0) {
+        runUp--;
+        play(
+          script()
+            .hold(runUp < 22 ? [dir, 'jump'] : dir, 1)
+            .build(1),
+        );
+      } else {
+        play(script().hold(dir, 1).build(1));
+        still = x() === lastX ? still + 1 : 0;
+        if (still >= 3) backOff = 12;
+      }
+      lastX = x();
+    }
+    return false;
+  };
+  /** Walks up to just left of `left` (so facing right, within the sword's reach) and swings. */
+  const swingAt = (left: number) => {
+    walkTo(left - fromPx(8));
+    play(script().tap('attack').wait(30).build());
+  };
+  return {
+    x,
+    notices,
+    play,
+    walkTo,
+    swingAt,
+    /** Puts the body at a place (feet), at rest. */
+    place(px: number, py: number) {
+      world.entities.x[slot()] = px;
+      world.entities.y[slot()] = py;
+      world.entities.vx[slot()] = 0;
+      world.entities.vy[slot()] = 0;
+      play(script().build(10));
+    },
+    /**
+     * Takes the room's way on: first the switches of closed gates in the room, then the first
+     * exit that is not an edge on the left, pressing up on a door. Returns the exit's kind.
+     */
+    takeWayOn(): string {
+      const room = runtime.rooms[world.roomId];
+      for (const g of room?.gimmicks ?? []) {
+        if (g.type === 'switch' && world.flags[g.flag] === undefined) swingAt(g.rect.x);
+      }
+      const exit = room?.exits?.find((e) => e.kind !== 'edge' || e.rect.x > 0);
+      if (exit === undefined) throw new Error(`no way on from ${world.roomId}`);
+      const center = exit.rect.x + (exit.rect.w >> 1);
+      for (let i = 0; i < 100 && world.transition.phase === 'none'; i++) {
+        if (walkTo(center)) play(script().wait(30).tap('up', { at: 0 }).build(1));
+      }
+      const kind = world.transition.kind;
+      play(script().build(runtime.roomTransition?.lockTicks ?? 0));
+      expect(world.transition.phase).toBe('none');
+      return kind;
+    },
+  };
+}
+
 describe('packs/sample', () => {
   let runtime: LoadedRuntime;
   let warnings: readonly string[];
@@ -92,66 +184,83 @@ describe('packs/sample', () => {
     expect(runtime.camera?.mode).toBe('scroll');
   });
 
-  it('goes round the rooms: a door down, then a warp back (ADR-0018)', () => {
-    const entry = runtime.entry as { roomId: string; spawnId: string };
+  it('goes round the rooms: a door down, the switch, then a warp back (ADR-0018, ADR-0021)', () => {
+    // From the spawn past the rock, so that the trip needs no pickaxe.
     const world = createWorld(runtime, {
-      ...entry,
+      roomId: 'hub',
+      spawnId: 'door',
       seed: 1,
       feelProfile: runtime.feelDefault as string,
     });
-    const slot = world.entities.slotOf(world.party.entityId);
-    const x = () => world.entities.x[slot] as number;
-    const tick = (frames: ReturnType<ReturnType<typeof script>['build']>) => {
-      for (const frame of frames) step(world, frame, runtime);
-    };
-    // Each leg: walk to the room's way on (up on a door), then wait out the change.
+    const drive = driver(world, runtime);
     const visited: string[] = [world.roomId];
+    // Without the switch, the gate stops the way to the warp in the cellar.
+    const probe = createWorld(runtime, {
+      roomId: 'cellar',
+      spawnId: 'entry',
+      seed: 1,
+      feelProfile: runtime.feelDefault as string,
+    });
+    const gate = runtime.rooms.cellar?.gimmicks?.find((g) => g.type === 'gate');
+    const warp = runtime.rooms.cellar?.exits?.[0];
+    if (gate === undefined || warp === undefined) throw new Error('no gate or warp');
+    expect(driver(probe, runtime).walkTo(warp.rect.x, 1500)).toBe(false);
+    expect(probe.roomId).toBe('cellar');
+    expect(driver(probe, runtime).x()).toBeLessThan(gate.rect.x);
     const kinds: string[] = [];
     for (let leg = 0; leg < 2; leg++) {
-      const room = runtime.rooms[world.roomId];
-      const exit = room?.exits?.find((e) => e.kind !== 'edge' || e.rect.x > 0);
-      if (exit === undefined) throw new Error(`no way on from ${world.roomId}`);
-      const center = exit.rect.x + (exit.rect.w >> 1);
-      // Walk there; where a step stops the body on the ground, back off and take a run-up (the
-      // retro profile cannot steer in the air).
-      let backOff = 0;
-      let runUp = 0;
-      let still = 0;
-      let lastX = x();
-      for (let i = 0; i < 3000 && world.transition.phase === 'none'; i++) {
-        const dir =
-          x() < center - fromPx(2) ? 'right' : x() > center + fromPx(2) ? 'left' : undefined;
-        if (dir === undefined) {
-          // On a door: settle, then up.
-          tick(script().wait(30).tap('up', { at: 0 }).build(1));
-          continue;
-        }
-        const back = dir === 'right' ? 'left' : 'right';
-        if (backOff > 0) {
-          backOff--;
-          tick(script().hold(back, 1).build(1));
-          if (backOff === 0) runUp = 30;
-        } else if (runUp > 0) {
-          runUp--;
-          tick(
-            script()
-              .hold(runUp < 22 ? [dir, 'jump'] : dir, 1)
-              .build(1),
-          );
-        } else {
-          tick(script().hold(dir, 1).build(1));
-          still = x() === lastX ? still + 1 : 0;
-          if (still >= 3) backOff = 12;
-        }
-        lastX = x();
-      }
-      kinds.push(world.transition.kind);
-      tick(script().build(runtime.roomTransition?.lockTicks ?? 0));
-      expect(world.transition.phase).toBe('none');
+      kinds.push(drive.takeWayOn());
       visited.push(world.roomId);
     }
     expect(kinds).toEqual(['door', 'warp']);
     expect(visited).toEqual(['hub', 'cellar', 'hub']);
+    expect(world.flags['cellar-gate-open']).toBe(true);
+  });
+
+  it('plays the agreed flow: pickaxe, rock, door, switch, gate, warp (ADR-0021)', () => {
+    const T = runtime.tileSize;
+    const world = createWorld(runtime, {
+      ...(runtime.entry as { roomId: string; spawnId: string }),
+      seed: 1,
+      feelProfile: runtime.feelDefault as string,
+    });
+    const drive = driver(world, runtime);
+    const hub = runtime.rooms.hub;
+    const rocks = hub?.gimmicks?.filter((g) => g.type === 'breakable') ?? [];
+    const pickaxe = hub?.gimmicks?.find((g) => g.type === 'pickup');
+    if (pickaxe === undefined || rocks.length !== 2) throw new Error('no pickaxe or rocks');
+    const rockX = rocks[0]?.rect.x as number;
+    // The rock fills the passage to the door: no way past it, even jumping.
+    expect(drive.walkTo(rockX + fromPx(T * 3), 1500)).toBe(false);
+    expect(drive.x()).toBeLessThan(rockX);
+    // Without the pickaxe the sword does nothing to it.
+    drive.swingAt(rockX);
+    expect(rocks.every((r) => world.flags[r.flag] === undefined)).toBe(true);
+
+    // The pickaxe is on the top shelf, by the left ladder (the ladders are tested above).
+    const shelfRow = (pickaxe.rect.y + pickaxe.rect.h) / fromPx(T);
+    const shelf =
+      hub?.tileClasses[
+        hub.collision[shelfRow * hub.widthTiles + pickaxe.rect.x / fromPx(T)] as number
+      ];
+    expect(shelf?.solid).toBe('full');
+    drive.place(fromPx(26 * T + T / 2 + T * 2), fromPx(shelfRow * T));
+    expect(drive.walkTo(pickaxe.rect.x + (pickaxe.rect.w >> 1), 600)).toBe(true);
+    expect(drive.notices).toEqual([{ kind: 'pickup', itemId: 'pickaxe', count: 1 }]);
+    expect(world.inventory).toEqual({ pickaxe: 1 });
+
+    // Back on the floor before the rock: one swing breaks both pieces, and the way is open.
+    drive.place(rockX - fromPx(T * 4), fromPx(((hub?.heightTiles as number) - 1) * T));
+    drive.swingAt(rockX);
+    expect(rocks.every((r) => world.flags[r.flag] === true)).toBe(true);
+    expect(drive.takeWayOn()).toBe('door');
+    expect(world.roomId).toBe('cellar');
+    expect(drive.takeWayOn()).toBe('warp');
+    expect(world.roomId).toBe('hub');
+    // Back in the hub: the rock stays broken and the pickaxe gone; nothing of them is drawn.
+    const [out] = drive.play(script().build(1));
+    expect(out?.render.sprites.filter((sprite) => sprite.id < 0)).toEqual([]);
+    expect(out?.ui.inventory).toEqual([{ id: 'pickaxe', count: 1 }]);
   });
 
   it('holds data only: no code files (issue #3)', () => {

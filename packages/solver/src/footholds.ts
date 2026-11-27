@@ -54,9 +54,17 @@ function boxIsClear(
  * oneway, tags considered) and have room for its box on top. This is a list of shapes only;
  * whether a foothold is reachable is decided by simulation, never from this list.
  */
-export function listFootholds(grid: CollisionGrid, character: CharacterDef): Foothold[] {
+export function listFootholds(
+  grid: CollisionGrid,
+  character: CharacterDef,
+  /** Cells closed gimmicks fill (ADR-0021): walls, like full tiles. */
+  blocked?: ReadonlySet<number>,
+): Foothold[] {
   const T = grid.tileSize;
-  const context: CollisionContext = { abilityTags: effectiveTags(character) };
+  const context: CollisionContext = {
+    abilityTags: effectiveTags(character),
+    ...(blocked === undefined ? {} : { blocked }),
+  };
   const { w, ox } = character.collider;
   const footholds: Foothold[] = [];
   for (let row = 0; row < grid.heightTiles; row++) {
@@ -94,12 +102,17 @@ export class FootholdIndex {
   readonly all: Foothold[] = [];
   private readonly byCell = new Map<string, number>();
 
-  constructor(grid: CollisionGrid, members: readonly CharacterDef[]) {
+  constructor(
+    grid: CollisionGrid,
+    members: readonly CharacterDef[],
+    /** Cells closed gimmicks fill (ADR-0021); the solver neither breaks nor opens them. */
+    readonly blocked?: ReadonlySet<number>,
+  ) {
     const seen = new Set<string>();
     for (const member of members) {
       if (seen.has(member.id)) continue;
       seen.add(member.id);
-      for (const foothold of listFootholds(grid, member)) {
+      for (const foothold of listFootholds(grid, member, blocked)) {
         const index = this.all.length;
         this.all.push(foothold);
         for (let col = foothold.colFrom; col <= foothold.colTo; col++) {
@@ -139,6 +152,7 @@ export function standingOn(
   const context: CollisionContext = {
     abilityTags: effectiveTags(character),
     ignoreOneway: world.tick - 1 < world.controller.dropThroughUntilTick,
+    ...(index.blocked === undefined ? {} : { blocked: index.blocked }),
   };
   const left = (s.x[slot] as number) + (s.colOx[slot] as number);
   const colFirst = cellOf(left, T);

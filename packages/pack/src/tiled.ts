@@ -1,6 +1,13 @@
-import type { ExitDef, RenderLayerData, RoomData, TileClass } from '@retro-action-engine/core';
+import type {
+  EventZone,
+  ExitDef,
+  RenderLayerData,
+  RoomData,
+  TileClass,
+} from '@retro-action-engine/core';
 import { toFx } from './convert';
 import type { IssueList } from './errors';
+import { eventActionSchema, eventConditionSchema } from './schema/data';
 import type { MapJson, TilesetJson } from './schema/tiled';
 
 /** A tileset used by a map: its key in the pack (pack-relative path) and its first gid. */
@@ -12,12 +19,31 @@ export interface MapTileset {
 
 /** Tile layers drawn (in this order); `main` also makes the collision grid. */
 const RENDER_LAYERS = ['bg', 'main', 'fg'] as const;
-/** Object layers of the convention that the importer does not read yet (M3). */
-const LATER_LAYERS = ['zones'] as const;
 const EXIT_KINDS = ['edge', 'door', 'warp'] as const;
 
 /** Where each imported exit is in its map file, for the loader's messages. */
 export const exitSource = new WeakMap<ExitDef, ReadonlyArray<string | number>>();
+/** Where each imported event zone is in its map file, for the loader's messages. */
+export const zoneSource = new WeakMap<EventZone, ReadonlyArray<string | number>>();
+
+/**
+ * A `gimmick` object of the `entities` layer, as in the map (ADR-0021). The loader merges it
+ * with its `gimmicks.json` definition.
+ */
+export interface GimmickObject {
+  readonly objectId: number;
+  readonly gimmickId: string;
+  /** Top-left and size, px. */
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+  /** The object's properties other than `gimmickId`: overrides of the definition. */
+  readonly props: Readonly<Record<string, unknown>>;
+  readonly where: ReadonlyArray<string | number>;
+}
+/** The gimmick objects of each imported room. */
+export const gimmickObjects = new WeakMap<RoomData, readonly GimmickObject[]>();
 /** Tiled stores flips in the top three bits of a gid. */
 const GID_MASK = 0x1fffffff;
 
@@ -125,6 +151,8 @@ export function importRoom(
   const renderLayers: RenderLayerData[] = [];
   const spawns: Record<string, { x: number; y: number }> = {};
   const exits: ExitDef[] = [];
+  const gimmicks: GimmickObject[] = [];
+  const zones: EventZone[] = [];
   const metaCache = new Map<string, TileMeta>();
   let mainSeen = false;
 
@@ -133,13 +161,25 @@ export function importRoom(
     const known =
       (RENDER_LAYERS as readonly string[]).includes(layer.name) ||
       layer.name === 'entities' ||
+      layer.name === 'zones' ||
       layer.name === 'exits';
     if (!known) {
-      if ((LATER_LAYERS as readonly string[]).includes(layer.name)) {
-        issues.warn(file, where, `layer "${layer.name}" is not read yet (M3)`);
-      } else {
-        issues.warn(file, where, `layer "${layer.name}" is not part of the convention; ignored`);
+      issues.warn(file, where, `layer "${layer.name}" is not part of the convention; ignored`);
+      return;
+    }
+    if (layer.name === 'zones') {
+      if (layer.type !== 'objectgroup' || !('objects' in layer)) {
+        issues.error(file, where, 'layer "zones" must be an object layer');
+        return;
       }
+      (layer.objects as MapObjects).forEach((obj, oi) => {
+        const at = [...where, 'objects', oi];
+        const zone = importZone(obj, at, file, issues);
+        if (zone !== undefined) {
+          zones.push(zone);
+          zoneSource.set(zone, at);
+        }
+      });
       return;
     }
     if (layer.name === 'exits') {
@@ -175,6 +215,28 @@ export function importRoom(
             x: toFx(obj.x + (obj.width ?? 0) / 2),
             y: toFx(obj.y + (obj.height ?? 0)),
           };
+        } else if (cls === 'gimmick') {
+          const at = [...where, 'objects', oi];
+          const props = Object.fromEntries((obj.properties ?? []).map((p) => [p.name, p.value]));
+          const { gimmickId, ...rest } = props;
+          if (typeof gimmickId !== 'string' || gimmickId.trim() === '') {
+            issues.error(file, [...at, 'properties', 'gimmickId'], 'gimmickId is required');
+          } else if (obj.id === undefined) {
+            issues.error(file, at, 'a gimmick needs its Tiled object id');
+          } else if ((obj.width ?? 0) <= 0 || (obj.height ?? 0) <= 0) {
+            issues.error(file, at, 'a gimmick must be a rectangle with a size');
+          } else {
+            gimmicks.push({
+              objectId: obj.id,
+              gimmickId: gimmickId.trim(),
+              x: obj.x,
+              y: obj.y,
+              w: obj.width ?? 0,
+              h: obj.height ?? 0,
+              props: rest,
+              where: at,
+            });
+          }
         } else {
           issues.warn(
             file,
@@ -268,7 +330,7 @@ export function importRoom(
       RENDER_LAYERS.indexOf(a.name as (typeof RENDER_LAYERS)[number]) -
       RENDER_LAYERS.indexOf(b.name as (typeof RENDER_LAYERS)[number]),
   );
-  return {
+  const room: RoomData = {
     id: roomId,
     widthTiles: width,
     heightTiles: height,
@@ -277,6 +339,80 @@ export function importRoom(
     spawns,
     renderLayers,
     exits,
+    ...(zones.length === 0 ? {} : { zones }),
+  };
+  gimmickObjects.set(room, gimmicks);
+  return room;
+}
+
+/**
+ * One object of the `zones` layer (docs/pack-spec.md 5.4). `event` zones are read (ADR-0021);
+ * `camera` zones come later and are ignored with a warning.
+ */
+function importZone(
+  obj: MapObjects[number],
+  where: ReadonlyArray<string | number>,
+  file: string,
+  issues: IssueList,
+): EventZone | undefined {
+  const cls = obj.class ?? obj.type ?? '';
+  if (cls !== 'event') {
+    issues.warn(file, where, `zone "${obj.name}" (${cls || 'no class'}) is not read yet`);
+    return undefined;
+  }
+  const errorsBefore = issues.errors.length;
+  const props = obj.properties;
+  const trigger = propertyOf(props, 'trigger');
+  if (trigger !== 'onZoneEnter' && trigger !== 'onZoneExit') {
+    issues.error(
+      file,
+      [...where, 'properties', 'trigger'],
+      'trigger must be "onZoneEnter" or "onZoneExit"',
+    );
+  }
+  if (obj.id === undefined) issues.error(file, where, 'an event zone needs its Tiled object id');
+  const w = obj.width ?? 0;
+  const h = obj.height ?? 0;
+  if (w <= 0 || h <= 0) issues.error(file, where, 'an event zone must be a rectangle with a size');
+  // `conditions` and `actions` are JSON arrays written as text (Tiled has no list properties).
+  const list = <T>(
+    name: string,
+    schema: { safeParse(v: unknown): { success: boolean; data?: T } },
+  ) => {
+    const raw = propertyOf(props, name);
+    if (raw === undefined) return [];
+    let value: unknown;
+    try {
+      value = typeof raw === 'string' ? JSON.parse(raw) : undefined;
+    } catch {
+      value = undefined;
+    }
+    if (!Array.isArray(value)) {
+      issues.error(file, [...where, 'properties', name], `${name} must be a JSON array (as text)`);
+      return [];
+    }
+    return value.flatMap((entry, i) => {
+      const result = schema.safeParse(entry);
+      if (!result.success) {
+        issues.error(
+          file,
+          [...where, 'properties', name, i],
+          `not a ${name.replace(/s$/, '')} this engine reads`,
+        );
+        return [];
+      }
+      return [result.data as T];
+    });
+  };
+  const conditions = list<EventZone['conditions'][number]>('conditions', eventConditionSchema);
+  const actions = list<EventZone['actions'][number]>('actions', eventActionSchema);
+  if (issues.errors.length > errorsBefore) return undefined;
+  return {
+    objectId: obj.id as number,
+    rect: { x: toFx(obj.x), y: toFx(obj.y), w: toFx(w), h: toFx(h) },
+    trigger: trigger as EventZone['trigger'],
+    conditions,
+    actions,
   };
 }
 
@@ -322,8 +458,10 @@ function importExit(
   } else if (effectText !== undefined && effectText !== 'fade' && effectText !== 'cut') {
     fail('effect', 'effect must be "fade" or "cut"');
   }
-  if (propertyOf(props, 'requiresFlag') !== undefined) {
-    fail('requiresFlag', 'requiresFlag comes with flags (M3-3)');
+  const flagValue = propertyOf(props, 'requiresFlag');
+  const requiresFlag = text('requiresFlag');
+  if (flagValue !== undefined && requiresFlag === undefined) {
+    fail('requiresFlag', 'requiresFlag must be a flag name');
   }
   const tagsText = text('requiresAnyTag');
   const tags = tagsText
@@ -355,10 +493,12 @@ function importExit(
     spawnId: spawnId as string,
     effect: (effectText as ExitDef['effect'] | undefined) ?? context.defaultEffect,
     ...(tags === undefined || tags.length === 0 ? {} : { requiresAnyTag: tags }),
+    ...(requiresFlag === undefined ? {} : { requiresFlag }),
   };
 }
 
 type MapObjects = ReadonlyArray<{
+  id?: number | undefined;
   name: string;
   class?: string | undefined;
   type?: string | undefined;

@@ -95,9 +95,14 @@ export type {
   CameraDef,
   CharacterDef,
   DisplayDef,
+  EventAction,
+  EventCondition,
+  EventZone,
   ExitDef,
+  GimmickPlacement,
   HazardDef,
   HpRules,
+  ItemDef,
   PackRuntime,
   PartyRules,
   RenderLayerData,
@@ -114,9 +119,12 @@ export type {
 export type { SolidKind, TileClass } from './runtime/tile';
 export { type FrameView, GameSession, type InputSource } from './session/session';
 export { animationStep, attackTicks, movementAnimation, resolveAnimation } from './sim/anim';
+export { closedCells, flagSet } from './sim/blocking';
 export { cameraView, isActive, type PxRect, snapCamera, viewSize } from './sim/camera';
 export { enterRoom, type TransitionView, transitionView } from './sim/exits';
+export type { Notice } from './sim/gimmicks';
 export { type Intent, inputIntent } from './sim/intent';
+export { activeTags, tagsOf } from './sim/items';
 export {
   type RenderCollider,
   type RenderSnapshot,
@@ -131,6 +139,7 @@ export {
   type StepOutput,
   setFeelProfile,
   step,
+  type UiItem,
   type UiMember,
   type UiState,
 } from './sim/sim';

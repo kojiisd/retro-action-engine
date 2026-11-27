@@ -98,7 +98,56 @@ export const rulesSchema = z.looseObject({
     })
     .optional(),
   hazards: z.record(name, hazardSchema).optional(),
+  // ADR-0021. `perCharacter` comes with M3-5 (the loader says so).
+  inventory: z.object({ scope: z.enum(['shared', 'perCharacter']) }).optional(),
+  gating: z.object({ subject: z.enum(['active', 'anyInParty']) }).optional(),
 });
+
+const spriteRef = z.object({ atlas: name, frame: name });
+
+/** `items.json` (docs/pack-spec.md 4.3, ADR-0021). `effect` is refused by the loader (later). */
+export const itemsSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().regex(/^[a-z0-9-]+$/, 'use lowercase letters, digits and "-"'),
+      name,
+      kind: z.enum(['key', 'consumable', 'equipment', 'upgrade']),
+      grants: z.array(name).optional(),
+      effect: z.unknown().optional(),
+      stack: z.int().positive(),
+      sprite: spriteRef,
+    }),
+  ),
+});
+
+/**
+ * `gimmicks.json` (docs/pack-spec.md 4.4, ADR-0021). The parameters depend on the type, and a
+ * room's object may override them, so the loader checks them after merging.
+ */
+export const gimmicksSchema = z.object({
+  gimmicks: z.array(
+    z.looseObject({
+      id: z.string().regex(/^[a-z0-9-]+$/, 'use lowercase letters, digits and "-"'),
+      type: name,
+      sprite: spriteRef.optional(),
+      frameOn: name.optional(),
+    }),
+  ),
+});
+
+/** One condition of an event zone (`zones` layer, ADR-0021). */
+export const eventConditionSchema = z.union([
+  z.strictObject({ flag: name, is: z.union([z.boolean(), z.int()]) }),
+  z.strictObject({ hasItem: name, count: z.int().positive().optional() }),
+  z.strictObject({ notItem: name }),
+]);
+
+/** One action of an event zone (ADR-0021). */
+export const eventActionSchema = z.union([
+  z.strictObject({ setFlag: name, value: z.union([z.boolean(), z.int()]).optional() }),
+  z.strictObject({ giveItem: name, count: z.int().positive().optional() }),
+  z.strictObject({ takeItem: name, count: z.int().positive().optional() }),
+]);
 
 /** `feel.json` (docs/pack-spec.md 4.6). */
 export const feelSchema = z.object({

@@ -256,6 +256,7 @@ interface ItemDef {
   effect?: { heal?: number; hpMaxDelta?: number }; // 使うアイテムと一緒に読む（M3-3 では読み込み時に拒否、ADR-0021）
   stack: number;            // 最大所持数
   sprite: { atlas: string; frame: string };
+  revealsMap?: boolean;     // 持っていると、すべての部屋の行っていない画面も地図に見える（M3-6b、ADR-0020）
 }
 ```
 
@@ -486,7 +487,8 @@ interface AudioDef {
   },
   "colors": {
     "border": "#ffffff", "fill": "#182860", "text": "#ffffff", "accent": "#ffe678",
-    "dim": "#7880a0", "cursor": "#ffffff", "gauge": "#f05a50", "gaugeBack": "#1c1216"
+    "dim": "#7880a0", "cursor": "#ffffff", "gauge": "#f05a50", "gaugeBack": "#1c1216",
+    "map": { "visited": "#5078c8", "revealed": "#2c3c78", "here": "#ffe678", "exit": "#ffffff" } // 任意（M3-6b）
   }
 }
 ```

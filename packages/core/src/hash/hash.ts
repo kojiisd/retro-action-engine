@@ -156,6 +156,14 @@ export function hashWorld(world: World): WorldHash {
   for (const index of world.zonesInside) {
     h.int32(index);
   }
+  // ADR-0020 (M3-6b): the screens visited, by room id.
+  const rooms = Object.keys(world.visited).sort();
+  h.int32(rooms.length);
+  for (const id of rooms) {
+    const cells = world.visited[id] as number[];
+    h.string(id).int32(cells.length);
+    for (const cell of cells) h.int32(cell);
+  }
 
   const store = world.entities;
   h.int32(store.count);

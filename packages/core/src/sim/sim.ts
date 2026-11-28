@@ -14,6 +14,7 @@ import { gimmickStep, type Notice } from './gimmicks';
 import { hpStep, initialHp, tileAtBodyCenter } from './hp';
 import { inputIntent } from './intent';
 import { climbAfterMove, climbStep } from './ladder';
+import { markVisited } from './map';
 import { type RenderSnapshot, renderSnapshot } from './output';
 import { activeCharacter, canSwitch, isAlive, partyStep } from './party';
 
@@ -193,6 +194,8 @@ export function step(world: World, input: InputFrame, runtime: PackRuntime): Ste
 
   // camera (a room just entered has its camera in place already)
   if (!entered && world.transition.phase === 'none') cameraStep(world, runtime);
+  // ...then the screen the body is in, for the map (ADR-0020, M3-6b).
+  if (world.transition.phase === 'none') markVisited(world, runtime);
 
   // timers
   if (world.party.cooldownTicks > 0) {

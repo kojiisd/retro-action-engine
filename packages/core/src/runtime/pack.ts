@@ -100,6 +100,8 @@ export interface ItemDef {
   /** The most the party can hold. */
   readonly stack: number;
   readonly sprite?: { readonly atlas: string; readonly frame: string };
+  /** While held, the map shows the screens not visited too, in every room (ADR-0020, M3-6b). */
+  readonly revealsMap?: boolean;
 }
 
 /** A gimmick placed in a room (docs/pack-spec.md 4.4, 5.4, ADR-0021). */
@@ -301,6 +303,13 @@ export interface UiDef {
     readonly cursor: string;
     readonly gauge: string;
     readonly gaugeBack: string;
+    /** The map's colors (M3-6b). Without them the map uses text, dim, accent and cursor. */
+    readonly map?: {
+      readonly visited: string;
+      readonly revealed: string;
+      readonly here: string;
+      readonly exit: string;
+    };
   };
 }
 

@@ -10,6 +10,7 @@ export interface MenuStrings {
   readonly items: {
     readonly party: string;
     readonly items: string;
+    readonly map: string;
     readonly settings: string;
     readonly close: string;
   };
@@ -17,6 +18,7 @@ export interface MenuStrings {
   readonly help: {
     readonly party: string;
     readonly items: string;
+    readonly map: string;
     readonly settings: string;
     readonly close: string;
   };
@@ -30,10 +32,17 @@ export interface MenuStrings {
 }
 
 const JA: MenuStrings = {
-  items: { party: 'パーティ', items: 'もちもの', settings: 'せってい', close: 'とじる' },
+  items: {
+    party: 'パーティ',
+    items: 'もちもの',
+    map: 'ちず',
+    settings: 'せってい',
+    close: 'とじる',
+  },
   help: {
     party: 'なかまを みる・こうたい する',
     items: 'もっている ものを みる',
+    map: 'いま いる へやの ちず',
     settings: 'そうさや がめんを かえる',
     close: 'ゲームに もどる',
   },
@@ -51,10 +60,11 @@ const JA: MenuStrings = {
 };
 
 const EN: MenuStrings = {
-  items: { party: 'Party', items: 'Items', settings: 'Settings', close: 'Close' },
+  items: { party: 'Party', items: 'Items', map: 'Map', settings: 'Settings', close: 'Close' },
   help: {
     party: 'See the party and switch',
     items: 'See what you carry',
+    map: 'Map of this room',
     settings: 'Controls and display',
     close: 'Back to the game',
   },

@@ -91,6 +91,12 @@ test.describe('items', () => {
     await page.keyboard.press('KeyZ');
     await page.waitForTimeout(200);
     expect(await menu(page)).toEqual({ level: 'top', top: 1, member: 0 });
+    // The map page, the next line (M3-6b): the room the party is in.
+    await page.keyboard.press('ArrowDown');
+    await expect.poll(async () => (await menu(page))?.top).toBe(2);
+    await shot(page, 'menu-map');
+    await page.keyboard.press('ArrowUp');
+    await expect.poll(async () => (await menu(page))?.top).toBe(1);
     await page.waitForTimeout(2500);
     expect((await stats(page))?.toast).toBe('つるはし を てにいれた');
     await page.keyboard.press('Enter');

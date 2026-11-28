@@ -1043,6 +1043,25 @@ describe('loadPack: strings, names and the menu (ADR-0020)', () => {
     expect(runtime.ui?.font.image).toBe(`${BASE}ui/font.png`);
     expect(runtime.ui?.font.glyphs).toEqual(UI.font.glyphs);
     expect(runtime.ui?.colors.fill).toBe('#182860');
+    expect(runtime.ui?.colors.map).toBeUndefined();
+    // The map's colors are optional (M3-6b).
+    const map = { visited: '#5078c8', revealed: '#2c3c78', here: '#ffe678', exit: '#ffffff' };
+    const withMap = await loadPack(
+      memoryFetch(
+        withUi((u) => {
+          u.colors.map = map;
+        }),
+      ),
+      BASE,
+    );
+    expect(withMap.runtime.ui?.colors.map).toEqual(map);
+    expect(
+      await issuesOf(
+        withUi((u) => {
+          u.colors.map = { ...map, here: 'yellow' };
+        }),
+      ),
+    ).toEqual(['data/ui.json#/colors/map/here: expected "#rrggbb"']);
     // No ui.json: no menu.
     expect((await loadPack(memoryFetch(packFiles()), BASE)).runtime.ui).toBeUndefined();
   });
@@ -1207,6 +1226,11 @@ describe('loadPack: items, gimmicks and events (ADR-0021)', () => {
         sprite: { atlas: 'objects', frame: 'charm' },
       },
     });
+    // An item that shows the whole map (M3-6b).
+    const chart = edit(withGimmicks([]), 'data/items.json', (f) => {
+      f.items[1].revealsMap = true;
+    });
+    expect((await loadPack(memoryFetch(chart), BASE)).runtime.items?.coin?.revealsMap).toBe(true);
     expect(runtime.rules.gating).toEqual({ subject: 'anyInParty' });
     const rect = (x: number, y: number, w: number, h: number) => ({
       x: fx(x),

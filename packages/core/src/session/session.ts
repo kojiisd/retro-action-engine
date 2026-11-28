@@ -6,6 +6,7 @@ import { checkReplayPack, Player, Recorder, type ReplayFile, startOf } from '../
 import type { PackRuntime, StartState } from '../runtime/pack';
 import type { TransitionView } from '../sim/exits';
 import type { Notice } from '../sim/gimmicks';
+import { type RoomMap, roomMap } from '../sim/map';
 import { type RenderSnapshot, renderSnapshot } from '../sim/output';
 import { activeCharacter, canSwitch, type SwitchCheck, switchCheck } from '../sim/party';
 import { createWorld, step, type UiState, uiInventory, uiParty } from '../sim/sim';
@@ -91,6 +92,11 @@ export class GameSession {
    */
   queueCommand(command: number): void {
     this.pendingCommand = command;
+  }
+
+  /** The map of the room the party is in (ADR-0020, M3-6b). */
+  roomMap(): RoomMap {
+    return roomMap(this.world, this.runtime);
   }
 
   /** Whether the party can switch to member `index` now, and why not (ADR-0020). */

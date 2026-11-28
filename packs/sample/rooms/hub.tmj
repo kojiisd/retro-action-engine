@@ -11,7 +11,7 @@
   "tilewidth": 16,
   "tileheight": 16,
   "nextlayerid": 5,
-  "nextobjectid": 15,
+  "nextobjectid": 16,
   "tilesets": [
     {
       "firstgid": 1,
@@ -199,6 +199,24 @@
               "name": "gimmickId",
               "type": "string",
               "value": "cracked-rock"
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "name": "map",
+          "type": "gimmick",
+          "x": 1376,
+          "y": 128,
+          "width": 16,
+          "height": 16,
+          "rotation": 0,
+          "visible": true,
+          "properties": [
+            {
+              "name": "gimmickId",
+              "type": "string",
+              "value": "map"
             }
           ]
         }

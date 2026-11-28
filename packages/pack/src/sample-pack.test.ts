@@ -8,6 +8,7 @@ import {
   fromPx,
   type Notice,
   type PackRuntime,
+  roomMap,
   type StepOutput,
   script,
   step,
@@ -257,10 +258,37 @@ describe('packs/sample', () => {
     expect(world.roomId).toBe('cellar');
     expect(drive.takeWayOn()).toBe('warp');
     expect(world.roomId).toBe('hub');
-    // Back in the hub: the rock stays broken and the pickaxe gone; nothing of them is drawn.
+    // Back in the hub: the rock stays broken and the pickaxe gone; nothing of them is drawn
+    // (only the map, on the right shelf, is still there).
     const [out] = drive.play(script().build(1));
-    expect(out?.render.sprites.filter((sprite) => sprite.id < 0)).toEqual([]);
+    expect(out?.render.sprites.filter((sprite) => sprite.id < 0).map((s) => s.frame)).toEqual([
+      'items/map',
+    ]);
     expect(out?.ui.inventory).toEqual([{ id: 'pickaxe', count: 1 }]);
+  });
+
+  it('has the map on the top right shelf: it shows every screen of the rooms (ADR-0020)', () => {
+    const T = runtime.tileSize;
+    const world = createWorld(runtime, {
+      ...(runtime.entry as { roomId: string; spawnId: string }),
+      seed: 1,
+      feelProfile: runtime.feelDefault as string,
+    });
+    const drive = driver(world, runtime);
+    const hub = runtime.rooms.hub;
+    const map = hub?.gimmicks?.find((g) => g.type === 'pickup' && g.itemId === 'map');
+    if (hub === undefined || map === undefined) throw new Error('no map in the hub');
+    expect(runtime.items?.map?.revealsMap).toBe(true);
+    const before = roomMap(world, runtime);
+    expect(before).toMatchObject({ cols: 5, rows: 3, revealed: false });
+    expect(before.visited).toEqual([before.here]);
+    // On the shelf, at the top of the right ladder (the ladders are tested above).
+    const shelfRow = (map.rect.y + map.rect.h) / fromPx(T);
+    drive.place(fromPx(78 * T + T / 2), fromPx(shelfRow * T));
+    expect(drive.walkTo(map.rect.x + (map.rect.w >> 1), 600)).toBe(true);
+    expect(world.inventory.map).toBe(1);
+    expect(drive.notices.map((n) => n.itemId)).toEqual(['map']);
+    expect(roomMap(world, runtime).revealed).toBe(true);
   });
 
   it('holds data only: no code files (issue #3)', () => {

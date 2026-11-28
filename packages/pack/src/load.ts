@@ -340,6 +340,7 @@ export async function loadPack(fetchLike: FetchLike, baseUrl: string): Promise<L
         ...(item.grants === undefined ? {} : { grants: item.grants }),
         stack: item.stack,
         sprite: item.sprite,
+        ...(item.revealsMap === true ? { revealsMap: true } : {}),
       };
     });
   }

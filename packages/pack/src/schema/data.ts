@@ -116,6 +116,8 @@ export const itemsSchema = z.object({
       effect: z.unknown().optional(),
       stack: z.int().positive(),
       sprite: spriteRef,
+      // The map shows every screen while it is held (ADR-0020, M3-6b).
+      revealsMap: z.boolean().optional(),
     }),
   ),
 });
@@ -303,5 +305,7 @@ export const uiSchema = z.object({
     cursor: color,
     gauge: color,
     gaugeBack: color,
+    // The map's colors (M3-6b); without them the map uses text, dim, accent and cursor.
+    map: z.object({ visited: color, revealed: color, here: color, exit: color }).optional(),
   }),
 });

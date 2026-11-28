@@ -311,6 +311,7 @@ export async function bootGame(options: BootOptions): Promise<Game> {
       party: state.party,
       switchCheck: (i) => session.switchCheck(i),
       items: state.inventory,
+      map: session.roomMap(),
     };
   };
   // ---- messages at the bottom of the screen (ADR-0021) ----

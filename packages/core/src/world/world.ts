@@ -149,6 +149,11 @@ export interface World {
   inventory: Record<string, number>;
   /** Indices of the room's event zones the body is in (ADR-0021), ascending. */
   zonesInside: number[];
+  /**
+   * The map (ADR-0020, M3-6b): per room id, the screens the body has been in, as
+   * `row * columns + column`, ascending.
+   */
+  visited: Record<string, number[]>;
   entities: EntityStore;
 }
 
@@ -202,6 +207,7 @@ export function newWorld(init: WorldInit): World {
     flags: {},
     inventory: {},
     zonesInside: [],
+    visited: {},
     entities: new EntityStore(),
   };
 }
@@ -221,6 +227,9 @@ export function cloneWorld(world: World): World {
     flags: { ...world.flags },
     inventory: { ...world.inventory },
     zonesInside: [...world.zonesInside],
+    visited: Object.fromEntries(
+      Object.entries(world.visited).map(([id, cells]) => [id, [...cells]]),
+    ),
     entities: world.entities.clone(),
   };
 }

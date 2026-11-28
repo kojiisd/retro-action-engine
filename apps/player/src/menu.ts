@@ -1,4 +1,11 @@
-import type { PackRuntime, SwitchCheck, UiDef, UiItem, UiMember } from '@retro-action-engine/core';
+import type {
+  PackRuntime,
+  RoomMap,
+  SwitchCheck,
+  UiDef,
+  UiItem,
+  UiMember,
+} from '@retro-action-engine/core';
 import { localize, textWidth } from '@retro-action-engine/pack';
 import type {
   OverlayRect,
@@ -14,7 +21,7 @@ import type { MenuStrings } from './menu-strings';
  * effects (open the settings, close, send a switch command).
  */
 
-export const TOP_ITEMS = ['party', 'items', 'settings', 'close'] as const;
+export const TOP_ITEMS = ['party', 'items', 'map', 'settings', 'close'] as const;
 export type TopItem = (typeof TOP_ITEMS)[number];
 
 export interface MenuState {
@@ -42,6 +49,8 @@ export interface MenuContext {
   readonly switchCheck: (index: number) => SwitchCheck;
   /** The items held, in the pack's order (ADR-0021). */
   readonly items: readonly UiItem[];
+  /** The map of the room the party is in (ADR-0020, M3-6b). */
+  readonly map: RoomMap;
 }
 
 /** The menu as it opens: the top list, its first line; in the party, the active member. */
@@ -69,7 +78,7 @@ export function menuStep(
       return { state: { ...state, level: 'party', member: context.activeIndex } };
     if (item === 'settings') return { state, effect: { kind: 'openSettings' } };
     // The items are only to look at for now (ADR-0021): they show while the line is chosen.
-    if (item === 'items') return { state };
+    if (item === 'items' || item === 'map') return { state };
     return { state, effect: { kind: 'close' } };
   }
   // The party list.
@@ -230,8 +239,75 @@ export function menuView(
       }
     });
   }
+  if (state.level === 'top' && TOP_ITEMS[state.top] === 'map') {
+    const top = margin + pad;
+    texts.push({ x: cx + pad, y: top, text: strings.items.map, color: colors.accent });
+    const area = {
+      x: cx + pad,
+      y: top + line + 6,
+      w: cw - pad * 2,
+      h: helpY - 4 - (top + line + 6),
+    };
+    rects.push(...mapRects(context.map, area, ui));
+  }
   texts.push({ x: cx + pad, y: helpY, text: help, color: colors.dim });
   return { dim: 0.5, rects, texts, sprites };
+}
+
+/** The largest a screen is drawn on the map, in px wide (half as high, like a screen). */
+const MAP_CELL_MAX = 32;
+
+/**
+ * The map's rectangles (ADR-0020, M3-6b), centered in `area`: a 2:1 cell per screen, filled
+ * when visited, in a dimmer color when only revealed, nothing otherwise; a mark in the screen
+ * the party is in, and a small mark on screens with an exit that show.
+ */
+export function mapRects(
+  map: RoomMap,
+  area: { readonly x: number; readonly y: number; readonly w: number; readonly h: number },
+  ui: UiDef,
+): OverlayRect[] {
+  const c = ui.colors;
+  const color = c.map ?? { visited: c.text, revealed: c.dim, here: c.accent, exit: c.cursor };
+  let cellW = Math.min(
+    MAP_CELL_MAX,
+    Math.floor(area.w / map.cols),
+    Math.floor(area.h / map.rows) * 2,
+  );
+  cellW -= cellW % 2;
+  const cellH = cellW >> 1;
+  if (cellW < 4) return [];
+  const x0 = area.x + ((area.w - cellW * map.cols) >> 1);
+  const y0 = area.y + ((area.h - cellH * map.rows) >> 1);
+  const rects: OverlayRect[] = [];
+  const visited = new Set(map.visited);
+  for (let i = 0; i < map.cols * map.rows; i++) {
+    const shown = visited.has(i) || map.revealed;
+    if (!shown) continue;
+    const x = x0 + (i % map.cols) * cellW;
+    const y = y0 + Math.floor(i / map.cols) * cellH;
+    rects.push({
+      x,
+      y,
+      w: cellW - 1,
+      h: cellH - 1,
+      color: visited.has(i) ? color.visited : color.revealed,
+    });
+    if (map.exits.includes(i)) {
+      rects.push({ x: x + cellW - 4, y: y + cellH - 4, w: 2, h: 2, color: color.exit });
+    }
+    if (i === map.here) {
+      const s = Math.max(2, cellH >> 2);
+      rects.push({
+        x: x + ((cellW - 1 - s) >> 1),
+        y: y + ((cellH - 1 - s) >> 1),
+        w: s,
+        h: s,
+        color: color.here,
+      });
+    }
+  }
+  return rects;
 }
 
 /** The size of an item's picture in the menu (the sample pack's item frames). */

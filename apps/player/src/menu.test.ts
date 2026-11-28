@@ -26,6 +26,7 @@ function context(
   checks: readonly SwitchCheck[],
   activeIndex = 0,
   items: MenuContext['items'] = [],
+  map: MenuContext['map'] = MAP,
 ): MenuContext {
   return {
     members: runtime.rules.party.members,
@@ -33,8 +34,20 @@ function context(
     party: party([120, 84]),
     switchCheck: (i) => checks[i] ?? 'never',
     items,
+    map,
   };
 }
+
+/** A room five screens wide and three high, as the sample hub; fictional visits. */
+const MAP: MenuContext['map'] = {
+  roomId: 'hub',
+  cols: 5,
+  rows: 3,
+  visited: [10, 11, 12],
+  revealed: false,
+  here: 11,
+  exits: [12, 14],
+};
 
 const walk = (state: MenuState, ctx: MenuContext, buttons: Parameters<typeof menuStep>[1][]) => {
   let s = state;
@@ -188,5 +201,45 @@ describe('game menu (ADR-0020)', () => {
     }
     const ctx = context(['active', 'ok']);
     expect(walk(state, ctx, ['confirm'])).toEqual({ state, effects: [] });
+  });
+
+  it('draws the map of the room while its line is chosen (ADR-0020, M3-6b)', () => {
+    const ui = runtime.ui;
+    if (ui === undefined || ui.colors.map === undefined) throw new Error('no map colors');
+    const colors = ui.colors.map;
+    const { width, height } = runtime.display;
+    const state: MenuState = { level: 'top', top: TOP_ITEMS.indexOf('map'), member: 0 };
+    const look = { runtime, ui, strings: MENU_STRINGS.ja, language: 'ja', width, height };
+    const cells = (map: MenuContext['map']) => {
+      const view = menuView(state, context(['active', 'ok'], 0, [], map), look);
+      expect(view.texts.map((t) => t.text)).toContain(MENU_STRINGS.ja.help.map);
+      for (const r of view.rects) {
+        expect(r.x >= 0 && r.y >= 0 && r.x + r.w <= width && r.y + r.h <= height).toBe(true);
+      }
+      return view.rects.filter((r) => r.color === colors.visited || r.color === colors.revealed);
+    };
+    // Only the screens visited, all the same size, twice as wide as high.
+    const visited = cells(MAP);
+    expect(visited).toHaveLength(MAP.visited.length);
+    expect(visited.every((r) => r.color === colors.visited)).toBe(true);
+    const [first] = visited;
+    expect(visited.every((r) => r.w === first?.w && r.h === first?.h)).toBe(true);
+    expect(((first?.w as number) + 1) / ((first?.h as number) + 1)).toBe(2);
+    // The mark of where the party is, and exit marks only on screens that show (12, not 14).
+    const view = menuView(state, context(['active', 'ok'], 0, [], MAP), look);
+    expect(view.rects.filter((r) => r.color === colors.here)).toHaveLength(1);
+    expect(view.rects.filter((r) => r.color === colors.exit && r.w === 2)).toHaveLength(1);
+    // Revealed: every screen shows, the ones not visited in the dimmer color.
+    const all = cells({ ...MAP, revealed: true });
+    expect(all).toHaveLength(MAP.cols * MAP.rows);
+    expect(all.filter((r) => r.color === colors.revealed)).toHaveLength(
+      MAP.cols * MAP.rows - MAP.visited.length,
+    );
+    // A one-screen room fits too, no larger than the cap.
+    const one = cells({ ...MAP, cols: 1, rows: 1, visited: [0], here: 0, exits: [] });
+    expect(one).toHaveLength(1);
+    expect((one[0]?.w as number) + 1).toBeLessThanOrEqual(32);
+    // Confirm does nothing there.
+    expect(walk(state, context(['active', 'ok']), ['confirm'])).toEqual({ state, effects: [] });
   });
 });

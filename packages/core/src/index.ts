@@ -125,6 +125,7 @@ export { enterRoom, type TransitionView, transitionView } from './sim/exits';
 export type { Notice } from './sim/gimmicks';
 export { type Intent, inputIntent } from './sim/intent';
 export { activeTags, tagsOf } from './sim/items';
+export { type RoomMap, roomMap, screenGrid } from './sim/map';
 export {
   type RenderCollider,
   type RenderSnapshot,

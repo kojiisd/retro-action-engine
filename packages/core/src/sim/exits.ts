@@ -8,6 +8,7 @@ import { snapCamera } from './camera';
 import type { Intent } from './intent';
 import { subjectHasAny } from './items';
 import { climbOnEnter } from './ladder';
+import { markVisited } from './map';
 
 // `roomGrid` lives in sim.ts, which imports this module; take it as an argument instead.
 type GridOf = (runtime: PackRuntime, roomId: string) => CollisionGrid;
@@ -98,6 +99,7 @@ export function enterRoom(
     if (overlaps(world, exit.rect)) world.disarmedExits.push(index);
   });
   snapCamera(world, runtime);
+  markVisited(world, runtime);
 }
 
 /**

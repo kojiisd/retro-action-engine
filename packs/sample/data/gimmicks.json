@@ -6,6 +6,11 @@
       "itemId": "pickaxe"
     },
     {
+      "id": "map",
+      "type": "pickup",
+      "itemId": "map"
+    },
+    {
       "id": "cracked-rock",
       "type": "breakable",
       "requiresAnyTag": ["break:rock"],
